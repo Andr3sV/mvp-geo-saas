@@ -1,7 +1,9 @@
 import { BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ProjectInfoBanner } from "@/components/dashboard/project-info-banner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 
 // Mock data
 const stats = {
@@ -50,7 +52,9 @@ const recentCitations = [
   },
 ];
 
-export default function CitationsPage() {
+export default async function CitationsPage() {
+  const workspaces = await getUserWorkspacesWithProjects();
+
   return (
     <div className="space-y-6">
       <div>
@@ -59,6 +63,8 @@ export default function CitationsPage() {
           Monitor how often your brand appears in AI-generated responses
         </p>
       </div>
+
+      <ProjectInfoBanner workspaces={workspaces} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

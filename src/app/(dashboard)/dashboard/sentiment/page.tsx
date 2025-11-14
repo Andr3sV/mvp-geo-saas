@@ -1,7 +1,9 @@
 import { Heart, Smile, Frown, Meh } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ProjectInfoBanner } from "@/components/dashboard/project-info-banner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 
 // Mock data
 const sentimentData = {
@@ -58,7 +60,8 @@ const sentimentBySentiment = {
   },
 };
 
-export default function SentimentPage() {
+export default async function SentimentPage() {
+  const workspaces = await getUserWorkspacesWithProjects();
   const positivePercentage = (sentimentData.positive / sentimentData.total) * 100;
   const neutralPercentage = (sentimentData.neutral / sentimentData.total) * 100;
   const negativePercentage = (sentimentData.negative / sentimentData.total) * 100;
@@ -71,6 +74,8 @@ export default function SentimentPage() {
           Understand how your brand is perceived in AI-generated content
         </p>
       </div>
+
+      <ProjectInfoBanner workspaces={workspaces} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

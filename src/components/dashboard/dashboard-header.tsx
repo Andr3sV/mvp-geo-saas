@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { ProjectSelector } from "./project-selector";
 import { UserNav } from "@/components/layout/user-nav";
+import { useProject } from "@/contexts/project-context";
+import { useEffect } from "react";
 
 interface DashboardHeaderProps {
   user: any;
@@ -17,7 +18,14 @@ export function DashboardHeader({
   workspaces,
   defaultProjectId,
 }: DashboardHeaderProps) {
-  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId);
+  const { selectedProjectId, setSelectedProjectId } = useProject();
+
+  // Set default if not set
+  useEffect(() => {
+    if (!selectedProjectId && defaultProjectId) {
+      setSelectedProjectId(defaultProjectId);
+    }
+  }, [selectedProjectId, defaultProjectId, setSelectedProjectId]);
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6">
@@ -26,7 +34,7 @@ export function DashboardHeader({
       
       <ProjectSelector
         workspaces={workspaces}
-        currentProjectId={selectedProjectId}
+        currentProjectId={selectedProjectId || undefined}
         onProjectChange={setSelectedProjectId}
       />
 

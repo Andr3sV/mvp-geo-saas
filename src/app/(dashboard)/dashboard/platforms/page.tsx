@@ -1,7 +1,9 @@
 import { Layers, MessageSquare, Sparkles, Brain, Zap } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ProjectInfoBanner } from "@/components/dashboard/project-info-banner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 
 // Mock data
 const platformStats = [
@@ -66,7 +68,9 @@ const topQueries = {
   ],
 };
 
-export default function PlatformsPage() {
+export default async function PlatformsPage() {
+  const workspaces = await getUserWorkspacesWithProjects();
+
   return (
     <div className="space-y-6">
       <div>
@@ -75,6 +79,8 @@ export default function PlatformsPage() {
           Analyze your brand performance across different AI platforms
         </p>
       </div>
+
+      <ProjectInfoBanner workspaces={workspaces} />
 
       {/* Platform Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
