@@ -1,8 +1,6 @@
 "use client";
 
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { ProjectSelector } from "./project-selector";
+import { BreadcrumbNav } from "./breadcrumb-nav";
 import { UserNav } from "@/components/layout/user-nav";
 import { useProject } from "@/contexts/project-context";
 import { useEffect } from "react";
@@ -28,15 +26,8 @@ export function DashboardHeader({
   }, [selectedProjectId, defaultProjectId, setSelectedProjectId]);
 
   return (
-    <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-6">
-      <SidebarTrigger />
-      <Separator orientation="vertical" className="h-6" />
-      
-      <ProjectSelector
-        workspaces={workspaces}
-        currentProjectId={selectedProjectId || undefined}
-        onProjectChange={setSelectedProjectId}
-      />
+    <header className="sticky top-0 z-50 flex h-14 w-full items-center gap-4 border-b bg-background px-6">
+      <BreadcrumbNav workspaces={workspaces} />
 
       <div className="ml-auto flex items-center gap-4">
         <UserNav user={user} />

@@ -1,9 +1,8 @@
 import { Activity, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { ProjectInfoBanner } from "@/components/dashboard/project-info-banner";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 
 // Mock data
 const trendingStats = {
@@ -75,19 +74,13 @@ const emergingTopics = [
   { topic: "Enterprise GEO Solutions", queries: 12, growth: 167.3 },
 ];
 
-export default async function TrendingPage() {
-  const workspaces = await getUserWorkspacesWithProjects();
-
+export default function TrendingPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Trending Queries</h1>
-        <p className="text-muted-foreground">
-          Stay ahead with real-time query trends and emerging topics
-        </p>
-      </div>
-
-      <ProjectInfoBanner workspaces={workspaces} />
+      <PageHeader 
+        title="Trending Queries"
+        description="Stay ahead with real-time query trends and emerging topics"
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

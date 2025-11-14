@@ -1,8 +1,7 @@
 import { TrendingUp, Users, Trophy } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { ProjectInfoBanner } from "@/components/dashboard/project-info-banner";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 
 // Mock data
 const shareOfVoice = {
@@ -17,19 +16,13 @@ const competitors = [
   { name: "Others", percentage: 6.3, mentions: 156, trend: 0.2 },
 ];
 
-export default async function ShareOfVoicePage() {
-  const workspaces = await getUserWorkspacesWithProjects();
-
+export default function ShareOfVoicePage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Share of Voice</h1>
-        <p className="text-muted-foreground">
-          Compare your brand mentions against competitors in AI responses
-        </p>
-      </div>
-
-      <ProjectInfoBanner workspaces={workspaces} />
+      <PageHeader 
+        title="Share of Voice"
+        description="Compare your brand mentions against competitors in AI responses"
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">

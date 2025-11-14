@@ -64,13 +64,7 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b px-6 py-4">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="text-xl font-semibold">Ateneai</span>
-        </Link>
-      </SidebarHeader>
-
+    <Sidebar collapsible="icon" className="top-14">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Analytics</SidebarGroupLabel>
@@ -113,7 +107,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t p-4">
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Ateneai MVP v0.1
         </div>
       </SidebarFooter>

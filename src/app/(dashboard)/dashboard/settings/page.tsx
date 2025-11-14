@@ -1,4 +1,5 @@
 import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { getUser, getUserProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
@@ -13,12 +14,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account, workspace, and projects
-        </p>
-      </div>
+      <PageHeader 
+        title="Settings"
+        description="Manage your account, workspace, and projects"
+      />
 
       <SettingsTabs 
         user={{
