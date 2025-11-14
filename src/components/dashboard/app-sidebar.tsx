@@ -10,6 +10,7 @@ import {
   Search,
   Activity,
   Settings,
+  MessageSquare,
   ChevronLeft,
 } from "lucide-react";
 import {
@@ -60,6 +61,14 @@ const navItems = [
   },
 ];
 
+const configItems = [
+  {
+    title: "Prompt Management",
+    href: "/dashboard/prompts",
+    icon: MessageSquare,
+  },
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
 
@@ -71,6 +80,29 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.href}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {configItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
 
