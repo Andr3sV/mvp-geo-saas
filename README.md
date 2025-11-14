@@ -102,7 +102,7 @@ src/
 - [x] Phase 0: Initial Setup
 - [x] Phase 1: Database & Authentication
 - [x] Phase 2: Onboarding Flow
-- [ ] Phase 3: Dashboard Layout
+- [x] Phase 3: Dashboard Layout
 - [ ] Phase 4: Project & User Management
 - [ ] Phase 5: Core Features (Part 1)
 - [ ] Phase 6: Core Features (Part 2)
