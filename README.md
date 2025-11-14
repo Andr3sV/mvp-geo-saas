@@ -66,7 +66,9 @@ src/
 │   ├── layout/            # Layout components
 │   └── features/          # Feature-specific components
 ├── lib/                   # Utilities and configurations
-│   ├── supabase.ts        # Supabase client
+│   ├── supabase/          # Supabase clients (client, server, middleware)
+│   ├── actions/           # Server actions
+│   ├── auth.ts            # Auth helpers
 │   └── utils.ts           # Helper functions
 ├── types/                 # TypeScript type definitions
 ├── config/                # App configuration
@@ -98,8 +100,8 @@ src/
 ## 📝 Development Roadmap
 
 - [x] Phase 0: Initial Setup
-- [ ] Phase 1: Database & Authentication
-- [ ] Phase 2: Onboarding Flow
+- [x] Phase 1: Database & Authentication
+- [x] Phase 2: Onboarding Flow
 - [ ] Phase 3: Dashboard Layout
 - [ ] Phase 4: Project & User Management
 - [ ] Phase 5: Core Features (Part 1)
