@@ -9,10 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { FileText } from "lucide-react";
 
-interface CitationsContentProps {
-  projectId: string;
-}
-
 const PLATFORM_LABELS: Record<string, string> = {
   openai: "OpenAI",
   gemini: "Gemini",
@@ -27,15 +23,17 @@ const SENTIMENT_COLORS: Record<string, string> = {
   mixed: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
 };
 
-export function CitationsContent({ projectId: initialProjectId }: CitationsContentProps) {
+export function CitationsContent() {
   const { selectedProjectId } = useProject();
-  const currentProjectId = selectedProjectId || initialProjectId;
+  const currentProjectId = selectedProjectId;
   
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadStats();
+    if (currentProjectId) {
+      loadStats();
+    }
   }, [currentProjectId]);
 
   const loadStats = async () => {
@@ -52,6 +50,20 @@ export function CitationsContent({ projectId: initialProjectId }: CitationsConte
       setLoading(false);
     }
   };
+
+  if (!currentProjectId) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <EmptyState
+            icon={FileText}
+            title="No Project Selected"
+            description="Please select a project to view citation tracking"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (loading) {
     return (

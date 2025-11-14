@@ -19,34 +19,60 @@ export function ProjectProvider({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Initialize from localStorage first, then URL, then default
+  const getInitialProjectId = (): string | null => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("selectedProjectId");
+      if (stored) return stored;
+    }
+    return defaultProjectId || null;
+  };
+
   const [selectedProjectId, setSelectedProjectIdState] = useState<string | null>(
-    defaultProjectId || null
+    getInitialProjectId
   );
 
-  // Initialize from URL params or default
+  // Initialize from URL params or localStorage or default
   useEffect(() => {
     const projectFromUrl = searchParams.get("project");
+    
     if (projectFromUrl) {
+      // URL param takes precedence
       setSelectedProjectIdState(projectFromUrl);
-    } else if (defaultProjectId) {
-      setSelectedProjectIdState(defaultProjectId);
-      // Set URL param
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("project", defaultProjectId);
-      router.replace(`?${params.toString()}`);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("selectedProjectId", projectFromUrl);
+      }
+    } else {
+      // Try localStorage, then default
+      const stored = typeof window !== "undefined" 
+        ? localStorage.getItem("selectedProjectId")
+        : null;
+      
+      const projectToUse = stored || defaultProjectId;
+      
+      if (projectToUse) {
+        setSelectedProjectIdState(projectToUse);
+        // Set URL param
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("project", projectToUse);
+        router.replace(`?${params.toString()}`, { scroll: false });
+      }
     }
   }, []);
 
   const setSelectedProjectId = (projectId: string) => {
     setSelectedProjectIdState(projectId);
     
-    // Update URL
+    // Update URL without scrolling
     const params = new URLSearchParams(searchParams.toString());
     params.set("project", projectId);
-    router.replace(`?${params.toString()}`);
+    router.replace(`?${params.toString()}`, { scroll: false });
     
     // Store in localStorage for persistence
-    localStorage.setItem("selectedProjectId", projectId);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("selectedProjectId", projectId);
+    }
   };
 
   return (

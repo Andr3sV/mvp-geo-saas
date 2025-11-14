@@ -22,16 +22,29 @@ export async function inviteToWorkspace(data: {
     return { error: "Not authenticated", data: null };
   }
 
-  // Check if user is already a member
-  const { data: existingMember } = await supabase
-    .from("workspace_members")
-    .select("id")
-    .eq("workspace_id", data.workspace_id)
-    .eq("user_id", user.id)
-    .single();
+  // Check if the invited email already has a user account
+  // Create admin client to check users
+  const { createClient: createServiceClient } = await import("@supabase/supabase-js");
+  const serviceSupabase = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  if (existingMember) {
-    return { error: "User is already a member of this workspace", data: null };
+  const { data: existingUsers } = await serviceSupabase.auth.admin.listUsers();
+  const invitedUser = existingUsers?.users?.find((u) => u.email?.toLowerCase() === data.email.toLowerCase());
+
+  // If user exists, check if they're already a member
+  if (invitedUser) {
+    const { data: existingMember } = await supabase
+      .from("workspace_members")
+      .select("id")
+      .eq("workspace_id", data.workspace_id)
+      .eq("user_id", invitedUser.id)
+      .single();
+
+    if (existingMember) {
+      return { error: "User is already a member of this workspace", data: null };
+    }
   }
 
   // Check for existing invitation
@@ -96,16 +109,29 @@ export async function inviteToProject(data: {
     return { error: "Not authenticated", data: null };
   }
 
-  // Check if user is already a project member
-  const { data: existingMember } = await supabase
-    .from("project_members")
-    .select("id")
-    .eq("project_id", data.project_id)
-    .eq("user_id", user.id)
-    .single();
+  // Check if the invited email already has a user account
+  // Create admin client to check users
+  const { createClient: createServiceClient } = await import("@supabase/supabase-js");
+  const serviceSupabase = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  if (existingMember) {
-    return { error: "User is already a member of this project", data: null };
+  const { data: existingUsers } = await serviceSupabase.auth.admin.listUsers();
+  const invitedUser = existingUsers?.users?.find((u) => u.email?.toLowerCase() === data.email.toLowerCase());
+
+  // If user exists, check if they're already a project member
+  if (invitedUser) {
+    const { data: existingMember } = await supabase
+      .from("project_members")
+      .select("id")
+      .eq("project_id", data.project_id)
+      .eq("user_id", invitedUser.id)
+      .single();
+
+    if (existingMember) {
+      return { error: "User is already a member of this project", data: null };
+    }
   }
 
   // Check for existing invitation
