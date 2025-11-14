@@ -70,7 +70,7 @@ export async function getCitationStats(projectId: string) {
     .lt("created_at", oneWeekAgo.toISOString());
 
   // Calculate trend
-  const trend = lastWeekCount
+  const trend = lastWeekCount && thisWeekCount !== null && lastWeekCount > 0
     ? ((thisWeekCount - lastWeekCount) / lastWeekCount) * 100
     : 0;
 
