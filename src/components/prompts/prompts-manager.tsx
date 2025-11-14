@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useProject } from "@/contexts/project-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, FolderOpen, MessageSquare } from "lucide-react";
 import { PromptsList } from "./prompts-list";
 import { CreatePromptDialog } from "./create-prompt-dialog";
 import { getProjectPrompts } from "@/lib/actions/prompt";
@@ -39,6 +39,7 @@ export function PromptsManager() {
       <Card>
         <CardContent className="py-12">
           <EmptyState
+            icon={FolderOpen}
             title="No Project Selected"
             description="Please select a project to manage prompts"
           />
@@ -71,14 +72,13 @@ export function PromptsManager() {
             </div>
           ) : prompts.length === 0 ? (
             <EmptyState
+              icon={MessageSquare}
               title="No prompts yet"
               description="Create your first prompt to start tracking your brand mentions across AI platforms"
-              action={
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create First Prompt
-                </Button>
-              }
+              action={{
+                label: "Create First Prompt",
+                onClick: () => setShowCreateDialog(true)
+              }}
             />
           ) : (
             <PromptsList prompts={prompts} projectId={selectedProjectId} onUpdate={loadPrompts} />

@@ -29,6 +29,8 @@ import {
   Zap,
   DollarSign,
   Target,
+  FolderOpen,
+  FileText,
 } from "lucide-react";
 
 const STATUS_CONFIG = {
@@ -97,6 +99,7 @@ export function AnalysisReports() {
       <Card>
         <CardContent className="py-12">
           <EmptyState
+            icon={FolderOpen}
             title="No Project Selected"
             description="Please select a project to view analysis reports"
           />
@@ -153,13 +156,13 @@ export function AnalysisReports() {
             </div>
           ) : jobs.length === 0 ? (
             <EmptyState
+              icon={FileText}
               title="No analysis jobs yet"
               description="Run your first prompt analysis to see results here"
-              action={
-                <Button onClick={() => window.location.href = "/dashboard/prompts"}>
-                  Go to Prompts
-                </Button>
-              }
+              action={{
+                label: "Go to Prompts",
+                onClick: () => window.location.href = "/dashboard/prompts"
+              }}
             />
           ) : (
             <div className="border rounded-lg overflow-hidden">
