@@ -75,3 +75,27 @@ export async function getProject(projectId: string) {
   return project;
 }
 
+export async function getDefaultProject(userId: string) {
+  const supabase = await createClient();
+
+  // Get the first workspace the user owns
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("owner_id", userId)
+    .limit(1)
+    .single();
+
+  if (!workspace) return null;
+
+  // Get the first project in that workspace
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, name, workspace_id")
+    .eq("workspace_id", workspace.id)
+    .limit(1)
+    .single();
+
+  return project;
+}
+

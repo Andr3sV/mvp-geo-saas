@@ -133,7 +133,7 @@ export async function callClaude(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'claude-3-sonnet-20240229';
+  const model = config.model || 'claude-3-5-sonnet-20241022';
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
