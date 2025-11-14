@@ -1,32 +1,31 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/dashboard/empty-state";
-import { Settings } from "lucide-react";
+import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { getUser, getUserProfile } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const user = await getUser();
+  
+  if (!user) {
+    redirect("/login");
+  }
+
+  const profile = await getUserProfile();
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your account, workspace, and project settings
+          Manage your account, workspace, and projects
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Coming Soon</CardTitle>
-          <CardDescription>
-            Settings page will be implemented in Phase 4
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EmptyState
-            icon={Settings}
-            title="Settings Not Available Yet"
-            description="Project management, user invitations, and settings will be implemented in the next phase."
-          />
-        </CardContent>
-      </Card>
+      <SettingsTabs 
+        user={{
+          email: user.email,
+          name: profile?.name,
+        }}
+      />
     </div>
   );
 }
