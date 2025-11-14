@@ -81,7 +81,7 @@ export function PromptsManager() {
               }
             />
           ) : (
-            <PromptsList prompts={prompts} onUpdate={loadPrompts} />
+            <PromptsList prompts={prompts} projectId={selectedProjectId} onUpdate={loadPrompts} />
           )}
         </CardContent>
       </Card>

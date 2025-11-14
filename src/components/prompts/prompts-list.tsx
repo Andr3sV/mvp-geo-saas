@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Edit2, Trash2 } from "lucide-react";
 import { deletePrompt, togglePromptActive, type PromptCategory } from "@/lib/actions/prompt";
 import { EditPromptDialog } from "./edit-prompt-dialog";
+import { RunAnalysisButton } from "./run-analysis-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,10 +41,11 @@ const CATEGORY_COLORS: Record<PromptCategory, string> = {
 
 interface PromptsListProps {
   prompts: any[];
+  projectId: string;
   onUpdate: () => void;
 }
 
-export function PromptsList({ prompts, onUpdate }: PromptsListProps) {
+export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) {
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
   const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
@@ -89,6 +91,14 @@ export function PromptsList({ prompts, onUpdate }: PromptsListProps) {
             </div>
 
             <div className="flex items-center gap-2">
+              <RunAnalysisButton
+                promptId={prompt.id}
+                promptText={prompt.prompt}
+                projectId={projectId}
+                variant="outline"
+                size="sm"
+              />
+
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">
                   {prompt.is_active ? "Active" : "Inactive"}
