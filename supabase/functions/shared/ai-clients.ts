@@ -69,7 +69,7 @@ export async function callGemini(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'gemini-pro';
+  const model = config.model || 'gemini-2.5-flash';
 
   try {
     const response = await fetch(
@@ -133,7 +133,7 @@ export async function callClaude(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'claude-3-5-sonnet-20241022';
+  const model = config.model || 'claude-haiku-4-5-20251001';
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
