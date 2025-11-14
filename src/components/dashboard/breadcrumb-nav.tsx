@@ -33,6 +33,20 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard": "Dashboard",
 };
 
+function getPageName(pathname: string): string {
+  // Check for exact match first
+  if (PAGE_NAMES[pathname]) {
+    return PAGE_NAMES[pathname];
+  }
+  
+  // Check for dynamic routes (e.g., /dashboard/analysis/[id])
+  if (pathname.startsWith("/dashboard/analysis/")) {
+    return "Analysis Details";
+  }
+  
+  return "Dashboard";
+}
+
 export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
   const pathname = usePathname();
   const { selectedProjectId, setSelectedProjectId } = useProject();
@@ -55,7 +69,7 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
     }
   }, [selectedProjectId, workspaces]);
 
-  const currentPageName = PAGE_NAMES[pathname] || "Dashboard";
+  const currentPageName = getPageName(pathname);
 
   return (
     <div className="flex items-center gap-2 text-sm">

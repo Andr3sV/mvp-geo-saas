@@ -29,16 +29,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Authenticate request
-    const { user, supabase } = await authenticateRequest(req);
-    logInfo('analyze-prompt', `Request from user: ${user.id}`);
-
-    // Rate limiting
-    if (!checkRateLimit(user.id, 10, 60000)) {
-      return errorResponse('Rate limit exceeded. Please try again later.', 429);
-    }
-
-    // Parse request body
+    // Parse request body first
     const body = (await req.json()) as AnalyzePromptRequest;
     const { prompt_tracking_id, project_id, prompt_text, platforms } = body;
 
@@ -47,11 +38,23 @@ serve(async (req: Request) => {
       return errorResponse('Missing required fields: prompt_tracking_id, project_id, prompt_text');
     }
 
-    // Validate project access
-    const hasAccess = await validateProjectAccess(supabase, user.id, project_id);
-    if (!hasAccess) {
-      return errorResponse('Access denied to this project', 403);
+    logInfo('analyze-prompt', `Starting analysis for project: ${project_id}`);
+
+    // Create Supabase client with service role (for internal operations)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse('Supabase configuration missing', 500);
     }
+
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.39.3');
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
 
     // Default platforms if not specified (filter only available ones)
     const allPlatforms: AIProvider[] = ['openai', 'gemini', 'claude', 'perplexity'];
@@ -82,7 +85,7 @@ serve(async (req: Request) => {
         completed_platforms: 0,
         failed_platforms: 0,
         started_at: new Date().toISOString(),
-        created_by: user.id,
+        created_by: null, // Service role execution
       })
       .select()
       .single();

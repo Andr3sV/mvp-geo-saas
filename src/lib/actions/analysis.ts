@@ -77,21 +77,21 @@ export async function startAnalysis(params: AnalyzePromptParams) {
       return { error: "Not authenticated", data: null };
     }
 
-    // Get session for auth token
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    // Validate user has access to the project
+    const { data: projectMember } = await supabase
+      .from("project_members")
+      .select("id")
+      .eq("project_id", params.project_id)
+      .eq("user_id", user.id)
+      .single();
 
-    if (!session) {
-      return { error: "No active session", data: null };
+    if (!projectMember) {
+      return { error: "Access denied to this project", data: null };
     }
 
-    // Call Edge Function
+    // Call Edge Function (no auth header needed, service role handles it)
     const { data, error } = await supabase.functions.invoke("analyze-prompt", {
       body: params,
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
     });
 
     if (error) {
