@@ -26,6 +26,7 @@ import {
   mockCompetitiveTopics,
 } from "@/lib/mock/citation-data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 export default function CitationsPage() {
   const { selectedProjectId } = useProject();
@@ -69,6 +70,9 @@ export default function CitationsPage() {
         title="Citation Tracking"
         description="Comprehensive analysis of your brand citations across AI platforms"
       />
+
+      {/* Filters Toolbar */}
+      <FiltersToolbar />
 
       {/* Quick Look Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

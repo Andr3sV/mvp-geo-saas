@@ -1,0 +1,94 @@
+"use client";
+
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectLabel,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { CountrySelect } from "@/components/ui/country-select";
+import { useState } from "react";
+
+interface FiltersToolbarProps {
+	className?: string;
+	onApply?: (filters: { region: string; datePreset: string; platform: string }) => void;
+}
+
+export function FiltersToolbar({ className, onApply }: FiltersToolbarProps) {
+	const [region, setRegion] = useState<string>("GLOBAL");
+	const [datePreset, setDatePreset] = useState<string>("30d");
+	const [platform, setPlatform] = useState<string>("all");
+
+	const resetFilters = () => {
+		setRegion("GLOBAL");
+		setDatePreset("30d");
+		setPlatform("all");
+	};
+
+	const apply = () => {
+		onApply?.({ region, datePreset, platform });
+	};
+
+	return (
+		<div className={`rounded-lg bg-card p-3 ${className ?? ""}`}>
+			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+				<div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center">
+					<div className="w-full md:w-52">
+						<CountrySelect
+							value={region}
+							onValueChange={setRegion}
+							placeholder="Select country..."
+						/>
+					</div>
+
+					<div className="w-full md:w-52">
+						<Select value={datePreset} onValueChange={setDatePreset}>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Date range" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectLabel>Date Range</SelectLabel>
+									<SelectItem value="7d">Last 7 days</SelectItem>
+									<SelectItem value="30d">Last 30 days</SelectItem>
+									<SelectItem value="90d">Last 90 days</SelectItem>
+									<SelectItem value="ytd">Year to date</SelectItem>
+									<SelectItem value="12m">Last 12 months</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="w-full md:w-52">
+						<Select value={platform} onValueChange={setPlatform}>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Platform" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectLabel>Platform</SelectLabel>
+									<SelectItem value="all">All Platforms</SelectItem>
+									<SelectItem value="openai">OpenAI</SelectItem>
+									<SelectItem value="gemini">Gemini</SelectItem>
+									<SelectItem value="claude">Claude</SelectItem>
+									<SelectItem value="perplexity">Perplexity</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+
+				<div className="flex items-center gap-2">
+					<Separator className="hidden h-6 md:block" orientation="vertical" />
+					<Button variant="secondary" onClick={resetFilters}>Reset</Button>
+					<Button onClick={apply}>Apply</Button>
+				</div>
+			</div>
+		</div>
+	);
+}

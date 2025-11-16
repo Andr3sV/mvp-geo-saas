@@ -2,6 +2,7 @@ import { TrendingUp, Users, Trophy } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 // Mock data
 const shareOfVoice = {
@@ -23,6 +24,8 @@ export default function ShareOfVoicePage() {
         title="Share of Voice"
         description="Compare your brand mentions against competitors in AI responses"
       />
+
+      <FiltersToolbar />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">

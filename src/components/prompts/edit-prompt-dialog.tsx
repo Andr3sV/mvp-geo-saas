@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updatePrompt, type PromptCategory } from "@/lib/actions/prompt";
+import { CountrySelect } from "@/components/ui/country-select";
 
 const CATEGORIES: { value: PromptCategory; label: string }[] = [
   { value: "general", label: "General" },
@@ -46,6 +47,7 @@ export function EditPromptDialog({
 }: EditPromptDialogProps) {
   const [prompt, setPrompt] = useState(initialPrompt.prompt);
   const [category, setCategory] = useState<PromptCategory>(initialPrompt.category || "general");
+  const [region, setRegion] = useState(initialPrompt.region || "GLOBAL");
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +63,7 @@ export function EditPromptDialog({
     const result = await updatePrompt(initialPrompt.id, {
       prompt: prompt.trim(),
       category,
+      region,
     });
 
     if (result.error) {
@@ -96,20 +99,32 @@ export function EditPromptDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={(value) => setCategory(value as PromptCategory)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={(value) => setCategory(value as PromptCategory)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="region">Country/Region</Label>
+              <CountrySelect
+                value={region}
+                onValueChange={setRegion}
+                placeholder="Select country..."
+                disabled={updating}
+              />
+            </div>
           </div>
 
           {error && (

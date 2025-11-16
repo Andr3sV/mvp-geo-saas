@@ -3,6 +3,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 // Mock data
 const trendingStats = {
@@ -81,6 +82,8 @@ export default function TrendingPage() {
         title="Trending Queries"
         description="Stay ahead with real-time query trends and emerging topics"
       />
+
+      <FiltersToolbar />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

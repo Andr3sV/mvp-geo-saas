@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createPrompt, type PromptCategory } from "@/lib/actions/prompt";
+import { CountrySelect } from "@/components/ui/country-select";
 
 const CATEGORIES: { value: PromptCategory; label: string }[] = [
   { value: "general", label: "General" },
@@ -46,6 +47,7 @@ export function CreatePromptDialog({
 }: CreatePromptDialogProps) {
   const [prompt, setPrompt] = useState("");
   const [category, setCategory] = useState<PromptCategory>("general");
+  const [region, setRegion] = useState("GLOBAL");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +64,7 @@ export function CreatePromptDialog({
       project_id: projectId,
       prompt: prompt.trim(),
       category,
+      region,
       is_active: true,
     });
 
@@ -71,6 +74,7 @@ export function CreatePromptDialog({
     } else {
       setPrompt("");
       setCategory("general");
+      setRegion("GLOBAL");
       onOpenChange(false);
       onSuccess();
       setCreating(false);
@@ -103,20 +107,35 @@ export function CreatePromptDialog({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={(value) => setCategory(value as PromptCategory)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={(value) => setCategory(value as PromptCategory)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="region">Country/Region</Label>
+              <CountrySelect
+                value={region}
+                onValueChange={setRegion}
+                placeholder="Select country..."
+                disabled={creating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Target region for AI analysis
+              </p>
+            </div>
           </div>
 
           {error && (

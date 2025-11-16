@@ -3,6 +3,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 // Mock data
 const queryStats = {
@@ -67,6 +68,8 @@ export default function QueriesPage() {
         description="Discover what questions generate citations for your brand"
       />
 
+      <FiltersToolbar />
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
@@ -119,7 +122,7 @@ export default function QueriesPage() {
                       ))}
                     </div>
                   </div>
-                  <Badge className="ml-4">{`#${index + 1}`}</Badge>
+                  <Badge className="ml-4">#{index + 1}</Badge>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>

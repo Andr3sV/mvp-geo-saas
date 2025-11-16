@@ -32,6 +32,7 @@ export async function createPrompt(data: {
   project_id: string;
   prompt: string;
   category?: PromptCategory;
+  region?: string;
   is_active?: boolean;
 }) {
   const supabase = await createClient();
@@ -49,6 +50,7 @@ export async function createPrompt(data: {
       project_id: data.project_id,
       prompt: data.prompt,
       category: data.category || "general",
+      region: data.region || "GLOBAL",
       is_active: data.is_active ?? true,
     })
     .select()
@@ -67,6 +69,7 @@ export async function updatePrompt(
   data: {
     prompt?: string;
     category?: PromptCategory;
+    region?: string;
     is_active?: boolean;
   }
 ) {

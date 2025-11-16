@@ -3,6 +3,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 // Mock data
 const platformStats = [
@@ -74,6 +75,8 @@ export default function PlatformsPage() {
         title="Platform Breakdown"
         description="Analyze your brand performance across different AI platforms"
       />
+
+      <FiltersToolbar />
 
       {/* Platform Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

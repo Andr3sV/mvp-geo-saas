@@ -3,6 +3,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 // Mock data
 const sentimentData = {
@@ -70,6 +71,8 @@ export default function SentimentPage() {
         title="Sentiment Analysis"
         description="Understand how your brand is perceived in AI-generated content"
       />
+
+      <FiltersToolbar />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">

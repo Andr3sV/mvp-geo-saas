@@ -8,6 +8,7 @@ import { Edit2, Trash2 } from "lucide-react";
 import { deletePrompt, togglePromptActive, type PromptCategory } from "@/lib/actions/prompt";
 import { EditPromptDialog } from "./edit-prompt-dialog";
 import { RunAnalysisButton } from "./run-analysis-button";
+import { getCountryByCode } from "@/lib/countries";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +39,7 @@ const CATEGORY_COLORS: Record<PromptCategory, string> = {
   technical: "bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300",
   general: "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300",
 };
+
 
 interface PromptsListProps {
   prompts: any[];
@@ -78,12 +80,18 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
             <div className="flex-1 space-y-2">
               <div className="flex items-start gap-2">
                 <p className="flex-1 font-medium">{prompt.prompt}</p>
-                <Badge 
-                  variant="secondary" 
-                  className={CATEGORY_COLORS[prompt.category as PromptCategory] || CATEGORY_COLORS.general}
-                >
-                  {CATEGORY_LABELS[prompt.category as PromptCategory] || "General"}
-                </Badge>
+                <div className="flex gap-2">
+                  <Badge 
+                    variant="secondary" 
+                    className={CATEGORY_COLORS[prompt.category as PromptCategory] || CATEGORY_COLORS.general}
+                  >
+                    {CATEGORY_LABELS[prompt.category as PromptCategory] || "General"}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs flex items-center gap-1">
+                    <span>{getCountryByCode(prompt.region)?.flag || "🌍"}</span>
+                    <span>{getCountryByCode(prompt.region)?.name || "Global"}</span>
+                  </Badge>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
                 Created {new Date(prompt.created_at).toLocaleDateString()}

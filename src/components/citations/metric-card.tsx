@@ -39,14 +39,14 @@ export function MetricCard({
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
+          <div className="space-y-1.5 flex-1">
             <p className="text-sm font-medium text-muted-foreground">
               {title}
             </p>
             <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold">{value}</p>
+              <p className="text-3xl font-bold leading-none">{value}</p>
               {trend && (
                 <div
                   className={`flex items-center gap-1 text-sm font-medium ${getTrendColor()}`}
@@ -57,7 +57,7 @@ export function MetricCard({
               )}
             </div>
             {description && (
-              <p className="text-xs text-muted-foreground">{description}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
             )}
           </div>
           {icon && (

@@ -27,6 +27,7 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard/sentiment": "Sentiment Analysis",
   "/dashboard/queries": "Query Patterns",
   "/dashboard/trending": "Trending Queries",
+  "/dashboard/competitors": "Competitor Management",
   "/dashboard/prompts": "Prompt Management",
   "/dashboard/analysis": "Analysis Reports",
   "/dashboard/settings": "Settings",

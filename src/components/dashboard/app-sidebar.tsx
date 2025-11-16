@@ -13,6 +13,7 @@ import {
   MessageSquare,
   ChevronLeft,
   FileText,
+  Users2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -63,6 +64,11 @@ const navItems = [
 ];
 
 const configItems = [
+  {
+    title: "Competitor Management",
+    href: "/dashboard/competitors",
+    icon: Users2,
+  },
   {
     title: "Prompt Management",
     href: "/dashboard/prompts",
