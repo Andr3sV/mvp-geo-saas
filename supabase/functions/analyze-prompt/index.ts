@@ -247,14 +247,21 @@ async function triggerCitationProcessing(
     }
 
     // Get active competitors for the project
-    const { data: competitors } = await supabase
+    const { data: competitors, error: competitorsError } = await supabase
       .from('competitors')
       .select('id, name, domain')
       .eq('project_id', projectId)
       .eq('is_active', true);
 
+    if (competitorsError) {
+      logError('analyze-prompt', 'Failed to fetch competitors', competitorsError);
+    }
+
     const activeCompetitors = competitors || [];
     logInfo('analyze-prompt', `Found ${activeCompetitors.length} active competitors for competitive analysis`);
+    if (activeCompetitors.length > 0) {
+      logInfo('analyze-prompt', `Competitor names: ${activeCompetitors.map(c => c.name).join(', ')}`)
+    }
 
     // Extract citations for brand
     const brandName = project.name;
@@ -280,6 +287,8 @@ async function triggerCitationProcessing(
 
     // Extract and insert competitor citations
     for (const competitor of activeCompetitors) {
+      logInfo('analyze-prompt', `Checking for citations of competitor: ${competitor.name}`);
+      
       const competitorCitations = extractCitations(responseText, competitor.name);
       
       if (competitorCitations.length > 0) {
@@ -300,7 +309,19 @@ async function triggerCitationProcessing(
           competitive_context: extractCompetitiveContext(citation.text, brandName, competitor.name),
         }));
 
-        await supabase.from('competitor_citations').insert(competitorCitationRecords);
+        logInfo('analyze-prompt', `Inserting ${competitorCitationRecords.length} competitor citation records`);
+        
+        const { error: insertError } = await supabase
+          .from('competitor_citations')
+          .insert(competitorCitationRecords);
+        
+        if (insertError) {
+          logError('analyze-prompt', `Failed to insert competitor citations for ${competitor.name}`, insertError);
+        } else {
+          logInfo('analyze-prompt', `Successfully inserted ${competitorCitationRecords.length} citations for ${competitor.name}`);
+        }
+      } else {
+        logInfo('analyze-prompt', `No citations found for competitor: ${competitor.name}`);
       }
     }
   } catch (error) {
