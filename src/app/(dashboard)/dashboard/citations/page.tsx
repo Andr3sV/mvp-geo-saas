@@ -17,37 +17,73 @@ import {
   Award,
 } from "lucide-react";
 import {
-  mockQuickMetrics,
-  mockTimelineData,
-  mockDRBreakdown,
-  mockMostCitedDomains,
-  mockHighValueOpportunities,
-  mockTopPerformingPages,
-  mockCompetitiveTopics,
-} from "@/lib/mock/citation-data";
+  getQuickLookMetrics,
+  getCitationsOverTime,
+  getDRBreakdown,
+  getMostCitedDomains,
+  getHighValueOpportunities,
+  getTopPerformingPages,
+  getCompetitiveTopicAnalysis,
+} from "@/lib/queries/citations-real";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 
 export default function CitationsPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
-
-  // Using mock data for now - can be replaced with real API calls
-  const quickMetrics = mockQuickMetrics;
-  const timelineData = mockTimelineData;
-  const drBreakdown = mockDRBreakdown;
-  const mostCitedDomains = mockMostCitedDomains;
-  const opportunities = mockHighValueOpportunities;
-  const topPages = mockTopPerformingPages;
-  const competitiveTopics = mockCompetitiveTopics;
+  const [quickMetrics, setQuickMetrics] = useState<any>(null);
+  const [timelineData, setTimelineData] = useState<any[]>([]);
+  const [drBreakdown, setDRBreakdown] = useState<any>({ high: 0, medium: 0, low: 0, unverified: 0 });
+  const [mostCitedDomains, setMostCitedDomains] = useState<any[]>([]);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [topPages, setTopPages] = useState<any[]>([]);
+  const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setIsLoading(false), 500);
-    return () => clearTimeout(timer);
+    if (selectedProjectId) {
+      loadData();
+    }
   }, [selectedProjectId]);
 
-  if (isLoading) {
+  const loadData = async () => {
+    if (!selectedProjectId) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const [
+        metricsData,
+        timelineResult,
+        drResult,
+        domainsResult,
+        opportunitiesResult,
+        pagesResult,
+        topicsResult,
+      ] = await Promise.all([
+        getQuickLookMetrics(selectedProjectId),
+        getCitationsOverTime(selectedProjectId, 30),
+        getDRBreakdown(selectedProjectId),
+        getMostCitedDomains(selectedProjectId, 10),
+        getHighValueOpportunities(selectedProjectId, 10),
+        getTopPerformingPages(selectedProjectId, 10),
+        getCompetitiveTopicAnalysis(selectedProjectId),
+      ]);
+
+      setQuickMetrics(metricsData);
+      setTimelineData(timelineResult);
+      setDRBreakdown(drResult);
+      setMostCitedDomains(domainsResult);
+      setOpportunities(opportunitiesResult);
+      setTopPages(pagesResult);
+      setCompetitiveTopics(topicsResult);
+    } catch (error) {
+      console.error("Error loading citation data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading || !quickMetrics) {
     return (
       <div className="space-y-6">
         <PageHeader

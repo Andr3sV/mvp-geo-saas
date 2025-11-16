@@ -38,7 +38,8 @@ const getTrendIcon = (trend?: string) => {
   }
 };
 
-const getTruncatedUrl = (url: string, maxLength: number = 50) => {
+const getTruncatedUrl = (url: string | undefined | null, maxLength: number = 50) => {
+  if (!url) return "N/A";
   if (url.length <= maxLength) return url;
   return url.substring(0, maxLength) + "...";
 };
