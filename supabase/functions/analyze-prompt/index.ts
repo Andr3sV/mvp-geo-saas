@@ -246,15 +246,24 @@ async function triggerCitationProcessing(
       return;
     }
 
-    // Simple citation extraction (brand name mentions)
+    // Get active competitors for the project
+    const { data: competitors } = await supabase
+      .from('competitors')
+      .select('id, name, domain')
+      .eq('project_id', projectId)
+      .eq('is_active', true);
+
+    const activeCompetitors = competitors || [];
+    logInfo('analyze-prompt', `Found ${activeCompetitors.length} active competitors for competitive analysis`);
+
+    // Extract citations for brand
     const brandName = project.name;
-    const citations = extractCitations(responseText, brandName);
+    const brandCitations = extractCitations(responseText, brandName);
+    logInfo('analyze-prompt', `Found ${brandCitations.length} brand citations for ${brandName}`);
 
-    logInfo('analyze-prompt', `Found ${citations.length} citations for ${brandName}`);
-
-    // Insert citations
-    if (citations.length > 0) {
-      const citationRecords = citations.map((citation) => ({
+    // Insert brand citations
+    if (brandCitations.length > 0) {
+      const citationRecords = brandCitations.map((citation) => ({
         ai_response_id: aiResponseId,
         project_id: projectId,
         citation_text: citation.text,
@@ -267,6 +276,32 @@ async function triggerCitationProcessing(
       }));
 
       await supabase.from('citations_detail').insert(citationRecords);
+    }
+
+    // Extract and insert competitor citations
+    for (const competitor of activeCompetitors) {
+      const competitorCitations = extractCitations(responseText, competitor.name);
+      
+      if (competitorCitations.length > 0) {
+        logInfo('analyze-prompt', `Found ${competitorCitations.length} citations for competitor: ${competitor.name}`);
+        
+        const competitorCitationRecords = competitorCitations.map((citation) => ({
+          ai_response_id: aiResponseId,
+          project_id: projectId,
+          competitor_id: competitor.id,
+          citation_text: citation.text,
+          context_before: citation.context_before,
+          context_after: citation.context_after,
+          position_in_response: citation.position,
+          is_direct_mention: citation.is_direct_mention,
+          confidence_score: citation.confidence_score,
+          sentiment: analyzeSentiment(citation.text),
+          compared_with_brand: checkIfComparedWithBrand(citation.text, brandName),
+          competitive_context: extractCompetitiveContext(citation.text, brandName, competitor.name),
+        }));
+
+        await supabase.from('competitor_citations').insert(competitorCitationRecords);
+      }
     }
   } catch (error) {
     logError('analyze-prompt', 'Citation processing failed', error);
@@ -315,5 +350,58 @@ function analyzeSentiment(text: string): 'positive' | 'neutral' | 'negative' {
   if (positiveCount > negativeCount) return 'positive';
   if (negativeCount > positiveCount) return 'negative';
   return 'neutral';
+}
+
+// =============================================
+// HELPER: CHECK IF COMPARED WITH BRAND
+// =============================================
+
+function checkIfComparedWithBrand(text: string, brandName: string): boolean {
+  const lowerText = text.toLowerCase();
+  const lowerBrand = brandName.toLowerCase();
+  
+  // Keywords that indicate comparison
+  const comparisonKeywords = [
+    'vs', 'versus', 'compared to', 'comparison', 'better than', 'worse than',
+    'similar to', 'like', 'unlike', 'alternative to', 'instead of', 'rather than'
+  ];
+  
+  // Check if both brand and comparison keywords are present
+  return comparisonKeywords.some(keyword => lowerText.includes(keyword)) && 
+         lowerText.includes(lowerBrand);
+}
+
+// =============================================
+// HELPER: EXTRACT COMPETITIVE CONTEXT
+// =============================================
+
+function extractCompetitiveContext(text: string, brandName: string, competitorName: string): string {
+  const lowerText = text.toLowerCase();
+  const lowerBrand = brandName.toLowerCase();
+  const lowerCompetitor = competitorName.toLowerCase();
+  
+  // Patterns that indicate competitive positioning
+  const betterPatterns = ['better', 'superior', 'outperforms', 'leads', 'ahead of'];
+  const worsePatterns = ['inferior', 'behind', 'lacks', 'falls short'];
+  const similarPatterns = ['similar', 'comparable', 'like', 'same as', 'equivalent'];
+  
+  // Determine context
+  if (betterPatterns.some(pattern => lowerText.includes(pattern))) {
+    return lowerText.indexOf(lowerCompetitor) < lowerText.indexOf(lowerBrand) 
+      ? 'competitor_better' 
+      : 'brand_better';
+  }
+  
+  if (worsePatterns.some(pattern => lowerText.includes(pattern))) {
+    return lowerText.indexOf(lowerCompetitor) < lowerText.indexOf(lowerBrand)
+      ? 'competitor_worse'
+      : 'brand_worse';
+  }
+  
+  if (similarPatterns.some(pattern => lowerText.includes(pattern))) {
+    return 'similar';
+  }
+  
+  return 'mentioned_together';
 }
 
