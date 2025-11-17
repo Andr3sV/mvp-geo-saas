@@ -113,15 +113,17 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
 
       if (result.data && !result.error) {
         toast.success("Project created successfully");
+        
+        // Save new project ID to localStorage before reload
+        localStorage.setItem("selectedProjectId", result.data.id);
+        
         setShowCreateDialog(false);
         setProjectName("");
         setClientUrl("");
         
-        // Switch to new project
-        setSelectedProjectId(result.data.id);
-        
-        // Refresh the page to show new project
-        router.refresh();
+        // Force full page reload to refresh data
+        // router.refresh() doesn't update Client Component props reliably
+        window.location.href = window.location.pathname;
       } else {
         setError(result.error || "Failed to create project");
       }
