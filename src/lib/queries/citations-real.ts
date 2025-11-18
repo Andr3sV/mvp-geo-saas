@@ -574,3 +574,43 @@ export async function getCompetitiveTopicAnalysis(projectId: string) {
   return analysis;
 }
 
+// =============================================
+// CITATION SOURCES (INDIVIDUAL URLs)
+// =============================================
+
+/**
+ * Get individual citation sources with URLs
+ * Shows the actual articles/pages that cited the brand
+ */
+export async function getCitationSources(projectId: string, limit: number = 20) {
+  const supabase = await createClient();
+
+  const { data: citations } = await supabase
+    .from("citations_detail")
+    .select(`
+      id,
+      citation_text,
+      cited_url,
+      cited_domain,
+      sentiment,
+      created_at,
+      ai_responses!inner(platform)
+    `)
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null) // Only citations with URLs
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (!citations) return [];
+
+  return citations.map((citation: any) => ({
+    id: citation.id,
+    citationText: citation.citation_text,
+    citedUrl: citation.cited_url,
+    citedDomain: citation.cited_domain,
+    platform: citation.ai_responses?.platform || "unknown",
+    sentiment: citation.sentiment || "neutral",
+    createdAt: citation.created_at,
+  }));
+}
+

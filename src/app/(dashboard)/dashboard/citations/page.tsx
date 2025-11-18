@@ -10,6 +10,7 @@ import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains
 import { HighValueOpportunitiesTable } from "@/components/citations/high-value-opportunities-table";
 import { TopPerformingPagesTable } from "@/components/citations/top-performing-pages-table";
 import { CompetitiveTopicsTable } from "@/components/citations/competitive-topics-table";
+import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
 import {
   FileText,
   Link2,
@@ -24,6 +25,7 @@ import {
   getHighValueOpportunities,
   getTopPerformingPages,
   getCompetitiveTopicAnalysis,
+  getCitationSources,
 } from "@/lib/queries/citations-real";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
@@ -38,6 +40,7 @@ export default function CitationsPage() {
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [topPages, setTopPages] = useState<any[]>([]);
   const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
+  const [citationSources, setCitationSources] = useState<any[]>([]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -50,37 +53,40 @@ export default function CitationsPage() {
     
     setIsLoading(true);
     
-    try {
-      const [
-        metricsData,
-        timelineResult,
-        drResult,
-        domainsResult,
-        opportunitiesResult,
-        pagesResult,
-        topicsResult,
-      ] = await Promise.all([
-        getQuickLookMetrics(selectedProjectId),
-        getCitationsOverTime(selectedProjectId, 30),
-        getDRBreakdown(selectedProjectId),
-        getMostCitedDomains(selectedProjectId, 10),
-        getHighValueOpportunities(selectedProjectId, 10),
-        getTopPerformingPages(selectedProjectId, 10),
-        getCompetitiveTopicAnalysis(selectedProjectId),
-      ]);
+        try {
+          const [
+            metricsData,
+            timelineResult,
+            drResult,
+            domainsResult,
+            opportunitiesResult,
+            pagesResult,
+            topicsResult,
+            sourcesResult,
+          ] = await Promise.all([
+            getQuickLookMetrics(selectedProjectId),
+            getCitationsOverTime(selectedProjectId, 30),
+            getDRBreakdown(selectedProjectId),
+            getMostCitedDomains(selectedProjectId, 10),
+            getHighValueOpportunities(selectedProjectId, 10),
+            getTopPerformingPages(selectedProjectId, 10),
+            getCompetitiveTopicAnalysis(selectedProjectId),
+            getCitationSources(selectedProjectId, 20),
+          ]);
 
-      setQuickMetrics(metricsData);
-      setTimelineData(timelineResult);
-      setDRBreakdown(drResult);
-      setMostCitedDomains(domainsResult);
-      setOpportunities(opportunitiesResult);
-      setTopPages(pagesResult);
-      setCompetitiveTopics(topicsResult);
-    } catch (error) {
-      console.error("Error loading citation data:", error);
-    } finally {
-      setIsLoading(false);
-    }
+          setQuickMetrics(metricsData);
+          setTimelineData(timelineResult);
+          setDRBreakdown(drResult);
+          setMostCitedDomains(domainsResult);
+          setOpportunities(opportunitiesResult);
+          setTopPages(pagesResult);
+          setCompetitiveTopics(topicsResult);
+          setCitationSources(sourcesResult);
+        } catch (error) {
+          console.error("Error loading citation data:", error);
+        } finally {
+          setIsLoading(false);
+        }
   };
 
   if (isLoading || !quickMetrics) {
@@ -150,6 +156,9 @@ export default function CitationsPage() {
 
       {/* Most Cited Domains */}
       <MostCitedDomainsTable data={mostCitedDomains} />
+
+      {/* Citation Sources - Individual URLs */}
+      <CitationSourcesTable data={citationSources} />
 
       {/* Tabs for additional insights */}
       <Tabs defaultValue="opportunities" className="w-full">

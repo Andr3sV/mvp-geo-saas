@@ -34,10 +34,10 @@ export function RunAnalysisButton({
 }: RunAnalysisButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  // Default: Select platforms with web search (Perplexity & Gemini) for Citation Tracking
   const [selectedPlatforms, setSelectedPlatforms] = useState<AIProvider[]>([
-    "openai",
+    "perplexity",
     "gemini",
-    "claude",
   ]);
   const [activeCompetitorsCount, setActiveCompetitorsCount] = useState(0);
   const [isLoadingCompetitors, setIsLoadingCompetitors] = useState(false);
@@ -65,8 +65,9 @@ export function RunAnalysisButton({
   };
 
   const platforms = [
+    { id: "perplexity", label: "Perplexity (Web Search)" },
+    { id: "gemini", label: "Google Gemini (Web Search)" },
     { id: "openai", label: "OpenAI (GPT-4)" },
-    { id: "gemini", label: "Google Gemini" },
     { id: "claude", label: "Anthropic Claude" },
   ];
 
@@ -170,13 +171,17 @@ export function RunAnalysisButton({
             </div>
 
             <div className="space-y-2">
-              <div className="rounded-lg border bg-muted/50 p-3">
+              <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
                 <p className="text-xs text-muted-foreground">
                   <strong>Note:</strong> Running analysis on {selectedPlatforms.length}{" "}
                   platform{selectedPlatforms.length !== 1 ? "s" : ""} will consume API
                   credits. Estimated cost: $
                   {(selectedPlatforms.length * 0.01).toFixed(3)} - $
                   {(selectedPlatforms.length * 0.02).toFixed(3)}
+                </p>
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  <strong>💡 Recommended:</strong> Perplexity & Gemini provide real citations
+                  with URLs for Citation Tracking. OpenAI & Claude only track mentions.
                 </p>
               </div>
 

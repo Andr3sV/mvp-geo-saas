@@ -93,15 +93,10 @@ export async function callGemini(
             temperature: config.temperature || 0.7,
             maxOutputTokens: config.maxTokens || 2000,
           },
-          // Enable Google Search grounding
+          // Enable Google Search grounding (updated API)
           tools: [
             {
-              googleSearchRetrieval: {
-                dynamicRetrievalConfig: {
-                  mode: 'MODE_DYNAMIC',
-                  dynamicThreshold: 0.3,
-                },
-              },
+              google_search: {},
             },
           ],
         }),
@@ -122,30 +117,71 @@ export async function callGemini(
     const estimatedTokens = Math.ceil(text.length / 4);
 
     // Extract citations from grounding metadata
+    // Based on: https://ai.google.dev/gemini-api/docs/google-search
     const citations: string[] = [];
     const groundingMetadata = candidate?.groundingMetadata;
     
-    if (groundingMetadata?.groundingChunks) {
-      groundingMetadata.groundingChunks.forEach((chunk: any) => {
-        if (chunk.web?.uri) {
-          citations.push(chunk.web.uri);
-        }
-      });
-    }
-
-    // Also check searchEntryPoint for additional URLs
-    if (groundingMetadata?.searchEntryPoint?.renderedContent) {
-      // Extract URLs from rendered content if available
-      const urlMatches = groundingMetadata.searchEntryPoint.renderedContent.match(/https?:\/\/[^\s"]+/g);
-      if (urlMatches) {
-        citations.push(...urlMatches);
+    if (groundingMetadata) {
+      // According to Gemini docs, groundingChunks contain the real sources
+      // The 'uri' field is a Google redirect, but 'title' contains the actual domain
+      if (Array.isArray(groundingMetadata.groundingChunks)) {
+        groundingMetadata.groundingChunks.forEach((chunk: any) => {
+          if (chunk.web?.title) {
+            // Use the title field which contains the real domain (e.g., "aljazeera.com")
+            // Convert to a proper URL format
+            const domain = chunk.web.title.trim();
+            // If it's already a domain, prepend https://
+            if (!domain.startsWith('http')) {
+              citations.push(`https://${domain}`);
+            } else {
+              citations.push(domain);
+            }
+            
+            logInfo('Gemini', `Extracted citation from title: ${domain}`);
+          } else if (chunk.web?.uri && !chunk.web.uri.includes('vertexaisearch')) {
+            // Fallback: use URI only if it's not a Google redirect
+            citations.push(chunk.web.uri);
+          }
+        });
       }
+
+      // Debug logging
+      if (citations.length === 0) {
+        logInfo('Gemini', `No citations extracted. Grounding metadata keys: ${JSON.stringify(Object.keys(groundingMetadata))}`);
+        if (groundingMetadata.groundingChunks && groundingMetadata.groundingChunks.length > 0) {
+          const sampleChunk = groundingMetadata.groundingChunks[0];
+          logInfo('Gemini', `Sample chunk: ${JSON.stringify(sampleChunk)}`);
+        }
+      } else {
+        logInfo('Gemini', `Extracted ${citations.length} citations from groundingChunks`);
+      }
+    } else {
+      logInfo('Gemini', 'No grounding metadata in response. Google Search may not have been triggered.');
     }
 
-    // Remove duplicates
-    const uniqueCitations = [...new Set(citations)];
+    // Remove duplicates and clean URLs
+    const uniqueCitations = [...new Set(citations.filter(url => url && url.startsWith('http')))];
+    
+    // Additional cleanup: remove invalid URLs (Google redirect URLs are now handled via 'title' field)
+    const invalidPatterns = [
+      'w3.org',            // XML/SVG namespaces
+      'xmlns',             // XML namespaces
+      'schemas.google',    // Schema definitions
+      'json-schema',       // Schema definitions
+      'example.com',       // Example domains
+      'localhost',         // Local URLs
+    ];
+    
+    const cleanedCitations = uniqueCitations.filter(url => {
+      // Remove markdown or special chars
+      if (url.includes('[') || url.includes(']')) return false;
+      
+      // Remove invalid patterns
+      const lowerUrl = url.toLowerCase();
+      return !invalidPatterns.some(pattern => lowerUrl.includes(pattern));
+    });
 
-    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${uniqueCitations.length}, Time: ${executionTime}ms`);
+    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${cleanedCitations.length}, Time: ${executionTime}ms`);
 
     return {
       text,
@@ -153,7 +189,7 @@ export async function callGemini(
       model,
       cost: calculateCost('gemini', estimatedTokens),
       execution_time_ms: executionTime,
-      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
+      citations: cleanedCitations.length > 0 ? cleanedCitations : undefined,
       has_web_search: true, // Using Google Search grounding
     };
   } catch (error) {
