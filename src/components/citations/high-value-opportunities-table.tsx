@@ -54,7 +54,7 @@ export function HighValueOpportunitiesTable({
       <CardHeader>
         <CardTitle>High Value Sources Not Mentioning You</CardTitle>
         <p className="text-sm text-muted-foreground">
-          High-authority domains citing your competitors - outreach opportunities
+          Domains where competitors are cited but you're not - prime outreach targets
         </p>
       </CardHeader>
       <CardContent>
@@ -77,19 +77,30 @@ export function HighValueOpportunitiesTable({
                     colSpan={6}
                     className="text-center py-8 text-muted-foreground"
                   >
-                    No high-value opportunities identified yet
+                    <div className="flex flex-col items-center gap-2">
+                      <p>No opportunities found yet</p>
+                      <p className="text-xs max-w-md">
+                        Add competitors and run analysis with Perplexity/Gemini to discover 
+                        high-authority domains where your competitors are cited but you're not
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 data.map((opportunity) => (
                   <TableRow key={opportunity.domain}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <a
+                        href={`https://${opportunity.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 hover:text-primary transition-colors"
+                      >
                         <span className="font-mono text-sm">
                           {opportunity.domain}
                         </span>
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                      </div>
+                      </a>
                     </TableCell>
                     <TableCell className="text-center">
                       <span className={getDRColor(opportunity.domainRating)}>
