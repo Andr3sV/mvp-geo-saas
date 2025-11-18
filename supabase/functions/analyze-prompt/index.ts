@@ -196,13 +196,24 @@ async function processPromptForPlatform(
         cost: result.cost,
         execution_time_ms: result.execution_time_ms,
         status: 'success',
+        metadata: {
+          has_web_search: result.has_web_search || false,
+          citations_count: result.citations?.length || 0,
+        },
       })
       .eq('id', aiResponse.id);
 
     logInfo('analyze-prompt', `${platform} completed successfully in ${Date.now() - startTime}ms`);
 
     // Trigger citation processing (asynchronous)
-    await triggerCitationProcessing(supabase, aiResponse.id, jobId, projectId, result.text);
+    await triggerCitationProcessing(
+      supabase,
+      aiResponse.id,
+      jobId,
+      projectId,
+      result.text,
+      result.citations || [] // Pass URLs from web search
+    );
   } catch (error) {
     logError('analyze-prompt', `${platform} failed`, error);
 
@@ -231,7 +242,8 @@ async function triggerCitationProcessing(
   aiResponseId: string,
   jobId: string,
   projectId: string,
-  responseText: string
+  responseText: string,
+  citationUrls: string[] = [] // URLs from web search
 ): Promise<void> {
   try {
     // Get project details to extract brand/client name
@@ -263,10 +275,10 @@ async function triggerCitationProcessing(
       logInfo('analyze-prompt', `Competitor names: ${activeCompetitors.map(c => c.name).join(', ')}`)
     }
 
-    // Extract citations for brand
+    // Extract citations for brand (with URLs if available)
     const brandName = project.name;
-    const brandCitations = extractCitations(responseText, brandName);
-    logInfo('analyze-prompt', `Found ${brandCitations.length} brand citations for ${brandName}`);
+    const brandCitations = extractCitations(responseText, brandName, citationUrls);
+    logInfo('analyze-prompt', `Found ${brandCitations.length} brand citations for ${brandName}${citationUrls.length > 0 ? ` with ${citationUrls.length} URLs` : ''}`);
 
     // Insert brand citations
     if (brandCitations.length > 0) {
@@ -280,6 +292,8 @@ async function triggerCitationProcessing(
         is_direct_mention: citation.is_direct_mention,
         confidence_score: citation.confidence_score,
         sentiment: analyzeSentiment(citation.text),
+        cited_url: citation.cited_url || null,
+        cited_domain: citation.cited_domain || null,
       }));
 
       await supabase.from('citations_detail').insert(citationRecords);
@@ -289,7 +303,7 @@ async function triggerCitationProcessing(
     for (const competitor of activeCompetitors) {
       logInfo('analyze-prompt', `Checking for citations of competitor: ${competitor.name}`);
       
-      const competitorCitations = extractCitations(responseText, competitor.name);
+      const competitorCitations = extractCitations(responseText, competitor.name, citationUrls);
       
       if (competitorCitations.length > 0) {
         logInfo('analyze-prompt', `Found ${competitorCitations.length} citations for competitor: ${competitor.name}`);
@@ -330,10 +344,10 @@ async function triggerCitationProcessing(
 }
 
 // =============================================
-// HELPER: EXTRACT CITATIONS
+// HELPER: EXTRACT CITATIONS WITH URLs
 // =============================================
 
-function extractCitations(text: string, brandName: string) {
+function extractCitations(text: string, brandName: string, citationUrls: string[] = []) {
   const citations: any[] = [];
   const sentences = text.split(/[.!?]+/).filter((s) => s.trim());
 
@@ -342,6 +356,17 @@ function extractCitations(text: string, brandName: string) {
     const lowerBrand = brandName.toLowerCase();
 
     if (lowerSentence.includes(lowerBrand)) {
+      // Find URL closest to this mention (if URLs available from web search)
+      let citedUrl: string | undefined;
+      let citedDomain: string | undefined;
+
+      if (citationUrls.length > 0) {
+        // For now, assign URLs round-robin to mentions
+        // In a more sophisticated version, we'd parse markdown links or proximity
+        citedUrl = citationUrls[citations.length % citationUrls.length];
+        citedDomain = extractDomain(citedUrl);
+      }
+
       citations.push({
         text: sentence.trim(),
         context_before: index > 0 ? sentences[index - 1]?.trim() || '' : '',
@@ -349,11 +374,26 @@ function extractCitations(text: string, brandName: string) {
         position: index,
         is_direct_mention: true,
         confidence_score: 0.95,
+        cited_url: citedUrl,
+        cited_domain: citedDomain,
       });
     }
   });
 
   return citations;
+}
+
+// =============================================
+// HELPER: EXTRACT DOMAIN FROM URL
+// =============================================
+
+function extractDomain(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname.replace('www.', '');
+  } catch {
+    return url.split('/')[2]?.replace('www.', '') || url;
+  }
 }
 
 // =============================================

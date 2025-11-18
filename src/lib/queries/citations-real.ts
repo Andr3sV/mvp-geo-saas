@@ -17,36 +17,40 @@ export async function getQuickLookMetrics(projectId: string) {
   const supabase = await createClient();
 
   // Execute all queries in parallel for better performance
+  // ⚠️ IMPORTANT: Filter by cited_url IS NOT NULL - only show REAL citations with URLs from web search
   const [
     responsesWithCitationsResult,
     myPagesCitedResult,
     platformsResult,
     sentimentsResult
   ] = await Promise.all([
-    // Total Citation Pages - count DISTINCT ai_response_id from citations
+    // Total Citation Pages - count DISTINCT ai_response_id from citations WITH URLs
     supabase
       .from("citations_detail")
       .select("ai_response_id")
-      .eq("project_id", projectId),
+      .eq("project_id", projectId)
+      .not("cited_url", "is", null), // ✅ Only real citations with URLs
     
-    // My Pages Cited - total citations
+    // My Pages Cited - total citations WITH URLs
     supabase
       .from("citations_detail")
       .select("*", { count: "exact", head: true })
-      .eq("project_id", projectId),
+      .eq("project_id", projectId)
+      .not("cited_url", "is", null), // ✅ Only real citations with URLs
     
-    // Domains Mentioning Me - unique platforms
+    // Domains Mentioning Me - unique platforms WITH real citations
     supabase
       .from("ai_responses")
       .select("platform")
       .eq("project_id", projectId)
       .eq("status", "success"),
     
-    // Sentiments for rating calculation
+    // Sentiments for rating calculation - only citations WITH URLs
     supabase
       .from("citations_detail")
       .select("sentiment")
       .eq("project_id", projectId)
+      .not("cited_url", "is", null) // ✅ Only real citations with URLs
   ]);
 
   // Total Citation Pages - count unique responses with citations
@@ -103,11 +107,12 @@ export async function getCitationsOverTime(
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get citations grouped by date
+  // Get citations grouped by date - only citations WITH URLs
   const { data: citations } = await supabase
     .from("citations_detail")
     .select("created_at")
     .eq("project_id", projectId)
+    .not("cited_url", "is", null) // ✅ Only real citations with URLs
     .gte("created_at", startDate.toISOString());
 
   if (!citations) return [];
@@ -156,7 +161,7 @@ export async function getCitationsOverTime(
 export async function getDRBreakdown(projectId: string) {
   const supabase = await createClient();
 
-  // Get citations with platform info joined
+  // Get citations with platform info joined - only citations WITH URLs
   const { data: citationsWithPlatform } = await supabase
     .from("citations_detail")
     .select(`
@@ -164,7 +169,8 @@ export async function getDRBreakdown(projectId: string) {
       ai_response_id,
       ai_responses!inner(platform)
     `)
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null); // ✅ Only real citations with URLs
 
   if (!citationsWithPlatform) {
     return { high: 0, medium: 0, low: 0, unverified: 0 };
@@ -209,7 +215,7 @@ export async function getDRBreakdown(projectId: string) {
 export async function getMostCitedDomains(projectId: string, limit: number = 10) {
   const supabase = await createClient();
 
-  // Get citations with platform info joined
+  // Get citations with platform info joined - only citations WITH URLs
   const { data: citationsWithPlatform } = await supabase
     .from("citations_detail")
     .select(`
@@ -217,7 +223,8 @@ export async function getMostCitedDomains(projectId: string, limit: number = 10)
       ai_response_id,
       ai_responses!inner(platform)
     `)
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null); // ✅ Only real citations with URLs
 
   if (!citationsWithPlatform) return [];
 
@@ -264,22 +271,24 @@ export async function getMostCitedDomains(projectId: string, limit: number = 10)
 export async function getHighValueOpportunities(projectId: string, limit: number = 10) {
   const supabase = await createClient();
 
-  // Get all brand citations
+  // Get all brand citations WITH URLs only
   const { data: brandCitations } = await supabase
     .from("citations_detail")
     .select("ai_response_id")
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null); // ✅ Only real citations with URLs
 
   const responseIdsWithBrand = new Set(
     brandCitations?.map((c) => c.ai_response_id) || []
   );
 
-  // Get competitor citations with response info
+  // Get competitor citations with response info and competitor names
   const { data: compCitations } = await supabase
     .from("competitor_citations")
     .select(`
       ai_response_id,
       competitor_id,
+      competitors!inner(name),
       ai_responses!inner(platform)
     `)
     .eq("project_id", projectId);
@@ -296,23 +305,46 @@ export async function getHighValueOpportunities(projectId: string, limit: number
     if (responseIdsWithBrand.has(responseId)) return;
 
     const platform = citation.ai_responses?.platform || "unknown";
+    const competitorName = citation.competitors?.name || "Unknown";
     const key = `${responseId}-${platform}`;
 
     if (!opportunityMap.has(key)) {
       opportunityMap.set(key, {
         domain: platform,
-        dr: platform === "gemini" ? 100 : platform === "openai" ? 95 : 90,
-        competitorsCited: 0,
-        estimatedTraffic: "High",
-        topicRelevance: "High",
+        domainRating: platform === "gemini" ? 100 : platform === "openai" ? 95 : platform === "perplexity" ? 85 : 90,
+        competitorsMentioned: [],
+        citationFrequency: 0,
+        opportunityScore: 0,
+        priority: "medium",
+        topics: ["GEO Opportunity"], // Simulated
       });
     }
 
-    opportunityMap.get(key)!.competitorsCited++;
+    const opp = opportunityMap.get(key)!;
+    if (!opp.competitorsMentioned.includes(competitorName)) {
+      opp.competitorsMentioned.push(competitorName);
+    }
+    opp.citationFrequency++;
   });
 
-  return Array.from(opportunityMap.values())
-    .sort((a, b) => b.competitorsCited - a.competitorsCited)
+  // Calculate opportunity score and priority
+  const opportunities = Array.from(opportunityMap.values()).map((opp) => {
+    opp.opportunityScore = Math.min(100, opp.citationFrequency * 10 + opp.domainRating);
+    
+    // Determine priority
+    if (opp.opportunityScore >= 80) {
+      opp.priority = "high";
+    } else if (opp.opportunityScore >= 50) {
+      opp.priority = "medium";
+    } else {
+      opp.priority = "low";
+    }
+    
+    return opp;
+  });
+
+  return opportunities
+    .sort((a, b) => b.opportunityScore - a.opportunityScore)
     .slice(0, limit);
 }
 
@@ -327,7 +359,7 @@ export async function getHighValueOpportunities(projectId: string, limit: number
 export async function getTopPerformingPages(projectId: string, limit: number = 10) {
   const supabase = await createClient();
 
-  // Get citations with prompt info in single query
+  // Get citations with prompt info in single query - only citations WITH URLs
   const { data: citations } = await supabase
     .from("citations_detail")
     .select(`
@@ -338,7 +370,8 @@ export async function getTopPerformingPages(projectId: string, limit: number = 1
         prompt_tracking!inner(prompt)
       )
     `)
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null); // ✅ Only real citations with URLs
 
   if (!citations) return [];
 
@@ -435,7 +468,7 @@ export async function getCompetitiveTopicAnalysis(projectId: string) {
         .eq("project_id", projectId)
         .eq("is_active", true),
       
-      // Get brand citations with prompt category
+      // Get brand citations with prompt category - only citations WITH URLs
       supabase
         .from("citations_detail")
         .select(`
@@ -445,7 +478,8 @@ export async function getCompetitiveTopicAnalysis(projectId: string) {
             prompt_tracking!inner(category)
           )
         `)
-        .eq("project_id", projectId),
+        .eq("project_id", projectId)
+        .not("cited_url", "is", null), // ✅ Only real citations with URLs
       
       // Get competitor citations with prompt category and competitor name
       supabase

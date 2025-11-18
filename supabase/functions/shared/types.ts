@@ -107,6 +107,8 @@ export interface AICompletionResult {
   model: string;
   cost: number;
   execution_time_ms: number;
+  citations?: string[]; // URLs from web search results
+  has_web_search?: boolean; // Whether this model used web search
 }
 
 export interface AIClientError {
@@ -126,6 +128,8 @@ export interface ExtractedCitation {
   position: number;
   is_direct_mention: boolean;
   confidence_score: number;
+  cited_url?: string; // URL of the source (from web search)
+  cited_domain?: string; // Domain extracted from URL
 }
 
 export interface CitationAnalysisResult {

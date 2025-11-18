@@ -69,11 +69,11 @@ export async function callGemini(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'gemini-2.5-flash';
+  const model = config.model || 'gemini-2.0-flash-exp';
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${config.apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -93,6 +93,17 @@ export async function callGemini(
             temperature: config.temperature || 0.7,
             maxOutputTokens: config.maxTokens || 2000,
           },
+          // Enable Google Search grounding
+          tools: [
+            {
+              googleSearchRetrieval: {
+                dynamicRetrievalConfig: {
+                  mode: 'MODE_DYNAMIC',
+                  dynamicThreshold: 0.3,
+                },
+              },
+            },
+          ],
         }),
       }
     );
@@ -105,11 +116,36 @@ export async function callGemini(
     const data = await response.json();
     const executionTime = Date.now() - startTime;
 
-    // Gemini doesn't provide exact token count in the same way
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const estimatedTokens = Math.ceil(text.length / 4); // Rough estimate
+    // Extract text and grounding metadata
+    const candidate = data.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text || '';
+    const estimatedTokens = Math.ceil(text.length / 4);
 
-    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Time: ${executionTime}ms`);
+    // Extract citations from grounding metadata
+    const citations: string[] = [];
+    const groundingMetadata = candidate?.groundingMetadata;
+    
+    if (groundingMetadata?.groundingChunks) {
+      groundingMetadata.groundingChunks.forEach((chunk: any) => {
+        if (chunk.web?.uri) {
+          citations.push(chunk.web.uri);
+        }
+      });
+    }
+
+    // Also check searchEntryPoint for additional URLs
+    if (groundingMetadata?.searchEntryPoint?.renderedContent) {
+      // Extract URLs from rendered content if available
+      const urlMatches = groundingMetadata.searchEntryPoint.renderedContent.match(/https?:\/\/[^\s"]+/g);
+      if (urlMatches) {
+        citations.push(...urlMatches);
+      }
+    }
+
+    // Remove duplicates
+    const uniqueCitations = [...new Set(citations)];
+
+    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${uniqueCitations.length}, Time: ${executionTime}ms`);
 
     return {
       text,
@@ -117,6 +153,8 @@ export async function callGemini(
       model,
       cost: calculateCost('gemini', estimatedTokens),
       execution_time_ms: executionTime,
+      citations: uniqueCitations.length > 0 ? uniqueCitations : undefined,
+      has_web_search: true, // Using Google Search grounding
     };
   } catch (error) {
     logError('Gemini', 'API call failed', error);
@@ -189,7 +227,8 @@ export async function callPerplexity(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'llama-3.1-sonar-small-128k-online';
+  // Use sonar-pro for best web search + citations
+  const model = config.model || 'sonar-pro';
 
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -208,6 +247,9 @@ export async function callPerplexity(
         ],
         temperature: config.temperature || 0.7,
         max_tokens: config.maxTokens || 2000,
+        // Enable web search and citations
+        return_citations: true,
+        search_domain_filter: [],
       }),
     });
 
@@ -220,7 +262,10 @@ export async function callPerplexity(
     const executionTime = Date.now() - startTime;
     const tokensUsed = data.usage?.total_tokens || 0;
 
-    logInfo('Perplexity', `Completion successful. Tokens: ${tokensUsed}, Time: ${executionTime}ms`);
+    // Extract citations (URLs) from response
+    const citations = data.citations || [];
+    
+    logInfo('Perplexity', `Completion successful. Tokens: ${tokensUsed}, Citations: ${citations.length}, Time: ${executionTime}ms`);
 
     return {
       text: data.choices[0]?.message?.content || '',
@@ -228,6 +273,8 @@ export async function callPerplexity(
       model,
       cost: calculateCost('perplexity', tokensUsed),
       execution_time_ms: executionTime,
+      citations, // URLs from web search
+      has_web_search: true, // Perplexity always uses web search
     };
   } catch (error) {
     logError('Perplexity', 'API call failed', error);
