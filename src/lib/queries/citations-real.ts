@@ -210,50 +210,88 @@ export async function getDRBreakdown(projectId: string) {
 // =============================================
 
 /**
- * Get most cited platforms/sources
+ * Get most cited domains/sources that mention your brand
+ * This shows the actual websites (deportesroman.com, nike.com, etc.)
+ * that AI models are using as sources when they cite your brand
  */
 export async function getMostCitedDomains(projectId: string, limit: number = 10) {
   const supabase = await createClient();
 
-  // Get citations with platform info joined - only citations WITH URLs
-  const { data: citationsWithPlatform } = await supabase
+  // Get citations with domain and platform info - only citations WITH URLs
+  const { data: citations } = await supabase
     .from("citations_detail")
     .select(`
       id,
-      ai_response_id,
+      cited_domain,
+      cited_url,
+      sentiment,
       ai_responses!inner(platform)
     `)
     .eq("project_id", projectId)
-    .not("cited_url", "is", null); // ✅ Only real citations with URLs
+    .not("cited_url", "is", null) // Only real citations with URLs
+    .not("cited_domain", "is", null); // Only citations with domains
 
-  if (!citationsWithPlatform) return [];
+  if (!citations) return [];
 
-  // Count by platform
-  const platformCounts = new Map<string, number>();
-  citationsWithPlatform.forEach((citation: any) => {
-    const platform = citation.ai_responses?.platform;
-    if (platform) {
-      platformCounts.set(platform, (platformCounts.get(platform) || 0) + 1);
+  // Count citations by domain
+  const domainStats = new Map<string, {
+    domain: string;
+    citations: number;
+    platforms: Set<string>;
+    sentiments: string[];
+    sampleUrl: string;
+  }>();
+
+  citations.forEach((citation: any) => {
+    const domain = citation.cited_domain;
+    if (!domain) return;
+
+    if (!domainStats.has(domain)) {
+      domainStats.set(domain, {
+        domain,
+        citations: 0,
+        platforms: new Set(),
+        sentiments: [],
+        sampleUrl: citation.cited_url,
+      });
+    }
+
+    const stats = domainStats.get(domain)!;
+    stats.citations++;
+    if (citation.ai_responses?.platform) {
+      stats.platforms.add(citation.ai_responses.platform);
+    }
+    if (citation.sentiment) {
+      stats.sentiments.push(citation.sentiment);
     }
   });
 
-  // Map platform to domain info
-  const domainMap: Record<string, any> = {
-    openai: { domain: "openai.com", dr: 95, type: "AI Platform" },
-    claude: { domain: "anthropic.com", dr: 90, type: "AI Platform" },
-    gemini: { domain: "google.com", dr: 100, type: "AI Platform" },
-    perplexity: { domain: "perplexity.ai", dr: 85, type: "AI Platform" },
-  };
+  // Convert to array and calculate metrics
+  const domains = Array.from(domainStats.values())
+    .map((stats) => {
+      // Calculate dominant sentiment
+      const sentimentCounts = stats.sentiments.reduce((acc, s) => {
+        acc[s] = (acc[s] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const dominantSentiment = Object.entries(sentimentCounts)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] || "neutral";
 
-  // Convert to array and sort
-  const domains = Array.from(platformCounts.entries())
-    .map(([platform, count]) => ({
-      domain: domainMap[platform]?.domain || platform,
-      citations: count,
-      dr: domainMap[platform]?.dr || 70,
-      type: domainMap[platform]?.type || "Unknown",
-      changePercent: 0, // TODO: Calculate trend
-    }))
+      // Estimate DR based on citation count (simulated)
+      // In real GEO, you'd integrate with Ahrefs/SEMrush API
+      const estimatedDR = Math.min(100, 40 + (stats.citations * 10));
+
+      return {
+        domain: stats.domain,
+        citations: stats.citations,
+        dr: estimatedDR,
+        type: "Web Source",
+        platforms: Array.from(stats.platforms),
+        sentiment: dominantSentiment,
+        changePercent: 0, // TODO: Calculate trend comparing with previous period
+      };
+    })
     .sort((a, b) => b.citations - a.citations)
     .slice(0, limit);
 

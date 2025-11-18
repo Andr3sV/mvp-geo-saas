@@ -13,26 +13,27 @@ import { Badge } from "@/components/ui/badge";
 
 interface DomainData {
   domain: string;
-  domainRating: number;
+  dr: number; // Domain Rating
   type: string;
-  totalCitations: number;
-  aiAnswers: number;
+  citations: number; // Total citations from this domain
+  platforms?: string[]; // AI platforms that cited this domain
+  sentiment?: string; // Dominant sentiment
+  changePercent?: number; // Trend
 }
 
 interface MostCitedDomainsTableProps {
   data: DomainData[];
 }
 
-const getTypeBadge = (type: string) => {
-  switch (type) {
-    case "your_brand":
-      return <Badge variant="default">Your Brand</Badge>;
-    case "competitor":
-      return <Badge variant="destructive">Competitor</Badge>;
-    case "third_party":
-      return <Badge variant="secondary">Third Party</Badge>;
+const getSentimentBadge = (sentiment?: string) => {
+  switch (sentiment) {
+    case "positive":
+      return <Badge className="bg-green-500">Positive</Badge>;
+    case "negative":
+      return <Badge variant="destructive">Negative</Badge>;
+    case "neutral":
     default:
-      return <Badge variant="outline">{type}</Badge>;
+      return <Badge variant="secondary">Neutral</Badge>;
   }
 };
 
@@ -49,7 +50,7 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
       <CardHeader>
         <CardTitle>Most Cited Domains in AI Answers</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Top domains by citation frequency across all AI platforms
+          Top websites used as sources when AI models cite your brand
         </p>
       </CardHeader>
       <CardContent>
@@ -59,17 +60,22 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
               <TableRow>
                 <TableHead className="w-[50px]">#</TableHead>
                 <TableHead>Domain</TableHead>
-                <TableHead className="text-center">DR</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">AI Answers</TableHead>
-                <TableHead className="text-right">Total Citations</TableHead>
+                <TableHead className="text-center">Est. DR</TableHead>
+                <TableHead>Sentiment</TableHead>
+                <TableHead className="text-center">Platforms</TableHead>
+                <TableHead className="text-right">Citations</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No citation data available yet
+                    <div className="flex flex-col items-center gap-2">
+                      <p>No citation domains available yet</p>
+                      <p className="text-xs">
+                        Run analysis with Perplexity or Gemini to see source domains
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -80,16 +86,18 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
                       {domain.domain}
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className={getDRColor(domain.domainRating)}>
-                        {domain.domainRating}
+                      <span className={getDRColor(domain.dr)}>
+                        {domain.dr}
                       </span>
                     </TableCell>
-                    <TableCell>{getTypeBadge(domain.type)}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {domain.aiAnswers}
+                    <TableCell>{getSentimentBadge(domain.sentiment)}</TableCell>
+                    <TableCell className="text-center">
+                      <span className="text-xs text-muted-foreground">
+                        {domain.platforms?.length || 0} platform{domain.platforms?.length !== 1 ? "s" : ""}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right font-semibold">
-                      {domain.totalCitations}
+                      {domain.citations}
                     </TableCell>
                   </TableRow>
                 ))
