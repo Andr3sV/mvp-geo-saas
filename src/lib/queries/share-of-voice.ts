@@ -92,33 +92,38 @@ export async function getShareOfVoice(
   }
 
   if (regionFilter) {
-    // Filter by:
-    // 1. Competitor's assigned region matches OR is GLOBAL
-    // 2. Prompt's region matches (where the citation was generated)
-    const orFilter = `competitors.region.eq.${region},competitors.region.eq.GLOBAL`;
-    console.log('Applying competitor OR filter:', orFilter);
+    // Filter by prompt's region only (we'll filter competitor region in JS below)
     competitorCitationsQuery = competitorCitationsQuery
-      .or(orFilter)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
   const { data: competitorCitations, error: compError } = await competitorCitationsQuery;
   
-  console.log('Competitor citations result:', {
+  console.log('Competitor citations result (before region filter):', {
     count: competitorCitations?.length,
     error: compError,
-    sample: competitorCitations?.[0]
+    regionsFound: [...new Set(competitorCitations?.map((c: any) => c.competitors?.region))],
   });
 
   // Count brand mentions
   const brandMentions = brandCitations?.length || 0;
 
   // Count competitor mentions by competitor
+  // If region filter is active, only count competitors with matching region or GLOBAL
   const competitorStats = new Map<string, { id: string; name: string; domain: string; mentions: number }>();
   
   competitorCitations?.forEach((citation: any) => {
     const competitor = citation.competitors;
     if (!competitor || !competitor.is_active) return;
+
+    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
+    if (regionFilter) {
+      const competitorRegion = competitor.region;
+      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
+        console.log('Filtering out competitor:', competitor.name, 'with region:', competitorRegion);
+        return; // Skip this competitor
+      }
+    }
 
     if (!competitorStats.has(competitor.name)) {
       competitorStats.set(competitor.name, {
@@ -254,7 +259,6 @@ export async function getShareOfVoiceTrends(
 
   if (regionFilter) {
     currentCompQuery = currentCompQuery
-      .or(`competitors.region.eq.${region},competitors.region.eq.GLOBAL`)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
@@ -306,7 +310,6 @@ export async function getShareOfVoiceTrends(
 
   if (regionFilter) {
     previousCompQuery = previousCompQuery
-      .or(`competitors.region.eq.${region},competitors.region.eq.GLOBAL`)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
@@ -317,7 +320,22 @@ export async function getShareOfVoiceTrends(
 
   // Calculate current period stats
   const currentBrandMentions = currentBrandResult.data?.length || 0;
-  const currentCompMentions = currentCompResult.data?.length || 0;
+  
+  // Count current competitor mentions (with region filter in JS)
+  let currentCompMentions = 0;
+  currentCompResult.data?.forEach((citation: any) => {
+    const competitor = citation.competitors;
+    if (!competitor?.is_active) return;
+    
+    if (regionFilter) {
+      const competitorRegion = competitor.region;
+      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
+        return; // Skip this competitor
+      }
+    }
+    currentCompMentions++;
+  });
+  
   const currentTotal = currentBrandMentions + currentCompMentions;
   const currentBrandShare = currentTotal > 0 
     ? (currentBrandMentions / currentTotal) * 100 
@@ -325,7 +343,22 @@ export async function getShareOfVoiceTrends(
 
   // Calculate previous period stats
   const previousBrandMentions = previousBrandResult.data?.length || 0;
-  const previousCompMentions = previousCompResult.data?.length || 0;
+  
+  // Count previous competitor mentions (with region filter in JS)
+  let previousCompMentions = 0;
+  previousCompResult.data?.forEach((citation: any) => {
+    const competitor = citation.competitors;
+    if (!competitor?.is_active) return;
+    
+    if (regionFilter) {
+      const competitorRegion = competitor.region;
+      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
+        return; // Skip this competitor
+      }
+    }
+    previousCompMentions++;
+  });
+  
   const previousTotal = previousBrandMentions + previousCompMentions;
   const previousBrandShare = previousTotal > 0 
     ? (previousBrandMentions / previousTotal) * 100 
@@ -337,20 +370,40 @@ export async function getShareOfVoiceTrends(
   // Calculate competitor trends
   const competitorTrends = new Map<string, { current: number; previous: number }>();
 
-  // Current competitor stats
+  // Current competitor stats (filter by region in JS)
   currentCompResult.data?.forEach((citation: any) => {
-    const name = citation.competitors?.name;
-    if (!name) return;
+    const competitor = citation.competitors;
+    if (!competitor?.name || !competitor.is_active) return;
+    
+    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
+    if (regionFilter) {
+      const competitorRegion = competitor.region;
+      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
+        return; // Skip this competitor
+      }
+    }
+    
+    const name = competitor.name;
     if (!competitorTrends.has(name)) {
       competitorTrends.set(name, { current: 0, previous: 0 });
     }
     competitorTrends.get(name)!.current++;
   });
 
-  // Previous competitor stats
+  // Previous competitor stats (filter by region in JS)
   previousCompResult.data?.forEach((citation: any) => {
-    const name = citation.competitors?.name;
-    if (!name) return;
+    const competitor = citation.competitors;
+    if (!competitor?.name || !competitor.is_active) return;
+    
+    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
+    if (regionFilter) {
+      const competitorRegion = competitor.region;
+      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
+        return; // Skip this competitor
+      }
+    }
+    
+    const name = competitor.name;
     if (!competitorTrends.has(name)) {
       competitorTrends.set(name, { current: 0, previous: 0 });
     }
