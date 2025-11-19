@@ -39,12 +39,6 @@ export async function getShareOfVoice(
   const platformFilter = platform && platform !== "all";
   const regionFilter = region && region !== "GLOBAL";
 
-  console.log('=== getShareOfVoice Debug ===');
-  console.log('Region param:', region);
-  console.log('Region filter active:', regionFilter);
-  console.log('Platform param:', platform);
-  console.log('Platform filter active:', platformFilter);
-
   // Get brand citations in period with platform and region filters
   let brandCitationsQuery = supabase
     .from("citations_detail")
@@ -97,13 +91,7 @@ export async function getShareOfVoice(
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
-  const { data: competitorCitations, error: compError } = await competitorCitationsQuery;
-  
-  console.log('Competitor citations result (before region filter):', {
-    count: competitorCitations?.length,
-    error: compError,
-    regionsFound: [...new Set(competitorCitations?.map((c: any) => c.competitors?.region))],
-  });
+  const { data: competitorCitations } = await competitorCitationsQuery;
 
   // Count brand mentions
   const brandMentions = brandCitations?.length || 0;
@@ -120,7 +108,6 @@ export async function getShareOfVoice(
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        console.log('Filtering out competitor:', competitor.name, 'with region:', competitorRegion);
         return; // Skip this competitor
       }
     }
@@ -156,9 +143,6 @@ export async function getShareOfVoice(
 
   // Sort competitors by percentage descending (highest first)
   competitors.sort((a, b) => b.percentage - a.percentage);
-
-  console.log('Final competitors array:', competitors.map(c => ({ name: c.name, mentions: c.mentions, percentage: c.percentage })));
-  console.log('=== End getShareOfVoice Debug ===\n');
 
   // Determine market position
   const allEntities = [

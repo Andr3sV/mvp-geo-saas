@@ -62,15 +62,6 @@ export default function ShareOfVoicePage() {
   const loadData = async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
-    console.log('🔍 [CLIENT] Loading Share of Voice data with filters:', {
-      region,
-      platform,
-      dateRange: {
-        from: dateRange.from?.toISOString(),
-        to: dateRange.to?.toISOString()
-      }
-    });
-
     setIsLoading(true);
 
     try {
@@ -80,17 +71,11 @@ export default function ShareOfVoicePage() {
         getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to, platform, region),
       ]);
 
-      console.log('✅ [CLIENT] Share of Voice data loaded:', {
-        competitorsCount: sov.competitors.length,
-        competitors: sov.competitors.map((c: any) => ({ name: c.name, mentions: c.mentions, percentage: c.percentage })),
-        totalMentions: sov.totalMentions
-      });
-
       setSovData(sov);
       setTrendsData(trends);
       setInsights(insightsData);
     } catch (error) {
-      console.error("❌ [CLIENT] Error loading Share of Voice data:", error);
+      console.error("Error loading Share of Voice data:", error);
     } finally {
       setIsLoading(false);
     }

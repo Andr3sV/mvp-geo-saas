@@ -207,8 +207,8 @@ export function EvolutionChart({
             </div>
           </div>
         ) : (
-          <div className="h-[320px] -mx-2">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[320px] w-full -mx-2">
+            <ResponsiveContainer width="100%" height={320}>
               <LineChart
                 data={data}
                 margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
