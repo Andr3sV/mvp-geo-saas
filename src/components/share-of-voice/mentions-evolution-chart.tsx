@@ -8,16 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { LineChart } from "@tremor/react";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { TrendingUp } from "lucide-react";
 
@@ -46,21 +37,29 @@ export function MentionsEvolutionChart({
   onCompetitorChange,
   isLoading,
 }: MentionsEvolutionChartProps) {
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-background border rounded-lg p-3 shadow-lg">
-          <p className="text-sm font-medium mb-2">{payload[0].payload.date}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: <span className="font-semibold">{entry.value}</span> mentions
-            </p>
-          ))}
-        </div>
-      );
+  // Transform data to use real brand/competitor names as keys
+  const transformedData = data.map((item) => {
+    const transformed: any = {
+      date: item.date,
+      [brandName]: item.brandMentions,
+    };
+    
+    if (selectedCompetitorId && competitorName) {
+      transformed[competitorName] = item.competitorMentions;
     }
-    return null;
-  };
+    
+    return transformed;
+  });
+
+  // Prepare categories with real names
+  const categories = selectedCompetitorId && competitorName
+    ? [brandName, competitorName]
+    : [brandName];
+
+  // Colors: blue for brand, red for competitor
+  const categoryColors = selectedCompetitorId
+    ? ["blue", "red"]
+    : ["blue"];
 
   return (
     <Card>
@@ -112,62 +111,32 @@ export function MentionsEvolutionChart({
 
       <CardContent>
         {isLoading ? (
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="h-[350px] flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
               <p className="mt-2 text-sm text-muted-foreground">Loading chart data...</p>
             </div>
           </div>
         ) : data.length === 0 ? (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+          <div className="h-[350px] flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <p>No data available yet</p>
               <p className="text-sm mt-1">Run analyses to see mention trends</p>
             </div>
           </div>
         ) : (
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="date"
-                  className="text-xs"
-                  tick={{ fill: "currentColor" }}
-                />
-                <YAxis
-                  className="text-xs"
-                  tick={{ fill: "currentColor" }}
-                  label={{ value: "Mentions", angle: -90, position: "insideLeft" }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ paddingTop: "20px" }}
-                  iconType="line"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="brandMentions"
-                  name={brandName}
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--primary))", r: 4 }}
-                  activeDot={{ r: 6 }}
-                />
-                {selectedCompetitorId && (
-                  <Line
-                    type="monotone"
-                    dataKey="competitorMentions"
-                    name={competitorName}
-                    stroke="hsl(var(--destructive))"
-                    strokeWidth={2}
-                    dot={{ fill: "hsl(var(--destructive))", r: 4 }}
-                    activeDot={{ r: 6 }}
-                  />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <LineChart
+            className="h-80"
+            data={transformedData}
+            index="date"
+            categories={categories}
+            colors={categoryColors}
+            valueFormatter={(value) => `${value} mentions`}
+            yAxisWidth={48}
+            showLegend={true}
+            showAnimation={true}
+            curveType="linear"
+          />
         )}
       </CardContent>
     </Card>
