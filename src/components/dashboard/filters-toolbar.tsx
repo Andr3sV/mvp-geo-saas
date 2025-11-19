@@ -63,11 +63,13 @@ export function FiltersToolbar({
 		}
 	}, [controlledRegion]);
 
+	const getDefaultDateRange = () => ({
+		from: subDays(new Date(), 29),
+		to: new Date(),
+	});
+
 	const resetFilters = () => {
-		const resetDateRange = {
-			from: subDays(new Date(), 29),
-			to: new Date(),
-		};
+		const resetDateRange = getDefaultDateRange();
 		const resetRegion = "GLOBAL";
 		const resetPlatform = "all";
 		setRegion(resetRegion);
@@ -77,9 +79,36 @@ export function FiltersToolbar({
 		onApply?.({ region: resetRegion, dateRange: resetDateRange, platform: resetPlatform });
 	};
 
-	const apply = () => {
-		onApply?.({ region, dateRange, platform });
+	// Helper to compare dates (same day, ignoring time)
+	const isSameDay = (date1: Date | undefined, date2: Date | undefined) => {
+		if (!date1 || !date2) return false;
+		return (
+			date1.getFullYear() === date2.getFullYear() &&
+			date1.getMonth() === date2.getMonth() &&
+			date1.getDate() === date2.getDate()
+		);
 	};
+
+	// Check if any filter is active (not default values)
+	// Use controlled values to check what's actually applied
+	const defaultDateRange = getDefaultDateRange();
+	
+	// Get actual applied values (controlled props take precedence)
+	const appliedRegion = controlledRegion ?? region;
+	const appliedPlatform = controlledPlatform ?? platform;
+	const appliedDateRange = controlledDateRange ?? dateRange;
+	
+	// Check if date range is different from default (last 30 days)
+	const isDefaultDateRange = 
+		appliedDateRange?.from && 
+		appliedDateRange?.to &&
+		isSameDay(appliedDateRange.from, defaultDateRange.from) &&
+		isSameDay(appliedDateRange.to, defaultDateRange.to);
+	
+	const hasActiveFilters = 
+		appliedRegion !== "GLOBAL" ||
+		appliedPlatform !== "all" ||
+		!isDefaultDateRange;
 
 	return (
 		<div className={`rounded-lg bg-card p-3 ${className ?? ""}`}>
@@ -137,11 +166,12 @@ export function FiltersToolbar({
 					</div>
 				</div>
 
-				<div className="flex items-center gap-2">
-					<Separator className="hidden h-6 md:block" orientation="vertical" />
-					<Button variant="secondary" onClick={resetFilters}>Reset</Button>
-					<Button onClick={apply}>Apply</Button>
-				</div>
+				{hasActiveFilters && (
+					<div className="flex items-center gap-2">
+						<Separator className="hidden h-6 md:block" orientation="vertical" />
+						<Button variant="secondary" onClick={resetFilters}>Reset</Button>
+					</div>
+				)}
 			</div>
 		</div>
 	);
