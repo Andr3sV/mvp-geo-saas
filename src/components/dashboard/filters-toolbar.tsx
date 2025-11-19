@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CountrySelect } from "@/components/ui/country-select";
-import { DateRangePicker, DateRangeValue } from "@/components/ui/date-range-picker";
+import { DateRangePicker, DateRange } from "@/components/ui/date-range-picker";
 import { useState } from "react";
 import { subDays } from "date-fns";
 
@@ -20,14 +20,14 @@ interface FiltersToolbarProps {
 	className?: string;
 	onApply?: (filters: { 
 		region: string; 
-		dateRange: DateRangeValue;
+		dateRange: DateRange;
 		platform: string;
 	}) => void;
 }
 
 export function FiltersToolbar({ className, onApply }: FiltersToolbarProps) {
 	const [region, setRegion] = useState<string>("GLOBAL");
-	const [dateRange, setDateRange] = useState<DateRangeValue>({
+	const [dateRange, setDateRange] = useState<DateRange>({
 		from: subDays(new Date(), 29),
 		to: new Date(),
 		preset: "30d",
