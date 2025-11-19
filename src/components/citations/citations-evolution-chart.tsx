@@ -1,6 +1,6 @@
 "use client";
 
-import { TrendingUp } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { EvolutionChart } from "@/components/shared/evolution-chart";
 
 interface Competitor {
@@ -9,7 +9,7 @@ interface Competitor {
   domain: string;
 }
 
-interface MentionsEvolutionChartProps {
+interface CitationsEvolutionChartProps {
   data: any[];
   brandName: string;
   brandDomain: string;
@@ -21,7 +21,7 @@ interface MentionsEvolutionChartProps {
   isLoading: boolean;
 }
 
-export function MentionsEvolutionChart({
+export function CitationsEvolutionChart({
   data,
   brandName,
   brandDomain,
@@ -31,16 +31,16 @@ export function MentionsEvolutionChart({
   selectedCompetitorId,
   onCompetitorChange,
   isLoading,
-}: MentionsEvolutionChartProps) {
+}: CitationsEvolutionChartProps) {
   return (
     <EvolutionChart
-      title="Mentions Evolution"
-      description="Track daily mention trends"
-      icon={TrendingUp}
+      title="Your Domain Citations Over Time"
+      description="Track daily citation trends with real URLs from AI responses"
+      icon={Link2}
       data={data}
-      primaryDataKey="brandMentions"
-      secondaryDataKey="competitorMentions"
-      dataLabel="mention"
+      primaryDataKey="brandCitations"
+      secondaryDataKey="competitorCitations"
+      dataLabel="citation"
       dateKey="date"
       primaryEntityName={brandName}
       primaryEntityDomain={brandDomain}
@@ -50,9 +50,10 @@ export function MentionsEvolutionChart({
       selectedEntityId={selectedCompetitorId}
       onEntityChange={onCompetitorChange}
       isLoading={isLoading}
-      primaryColor="rgb(59, 130, 246)"
-      secondaryColor="rgb(239, 68, 68)"
-      emptyStateMessage="Run analyses with different prompts to see mention trends"
+      primaryColor="rgb(34, 197, 94)" // green-500
+      secondaryColor="rgb(249, 115, 22)" // orange-500
+      emptyStateMessage="Run analysis with Perplexity or Gemini to track citations over time"
     />
   );
 }
+
