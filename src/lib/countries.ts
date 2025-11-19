@@ -92,7 +92,6 @@ export const countries: Country[] = [
   { code: 'TN', name: 'Tunisia', flag: getFlagEmoji('TN') },
   { code: 'GH', name: 'Ghana', flag: getFlagEmoji('GH') },
   { code: 'SN', name: 'Senegal', flag: getFlagEmoji('SN') },
-  { code: 'CL', name: 'Chile', flag: getFlagEmoji('CL') },
   { code: 'BO', name: 'Bolivia', flag: getFlagEmoji('BO') },
   { code: 'PY', name: 'Paraguay', flag: getFlagEmoji('PY') },
   { code: 'GT', name: 'Guatemala', flag: getFlagEmoji('GT') },
