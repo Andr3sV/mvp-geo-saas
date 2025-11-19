@@ -96,10 +96,34 @@ export async function getShareOfVoice(
   // Count brand mentions
   const brandMentions = brandCitations?.length || 0;
 
-  // Count competitor mentions by competitor
-  // If region filter is active, only count competitors with matching region or GLOBAL
+  // First, get ALL active competitors for this region (even if they have 0 mentions)
+  // This ensures all competitors defined for the region appear in the selector
+  let allCompetitorsQuery = supabase
+    .from("competitors")
+    .select("id, name, domain, region")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  if (regionFilter) {
+    // Get competitors with region matching OR GLOBAL
+    allCompetitorsQuery = allCompetitorsQuery.or(`region.eq.${region},region.eq.GLOBAL`);
+  }
+
+  const { data: allCompetitors } = await allCompetitorsQuery;
+
+  // Initialize competitor stats with ALL competitors for the region
   const competitorStats = new Map<string, { id: string; name: string; domain: string; mentions: number }>();
   
+  allCompetitors?.forEach((competitor: any) => {
+    competitorStats.set(competitor.name, {
+      id: competitor.id,
+      name: competitor.name,
+      domain: competitor.domain || "",
+      mentions: 0, // Initialize with 0 mentions
+    });
+  });
+
+  // Now count mentions from citations (only those in the region filter)
   competitorCitations?.forEach((citation: any) => {
     const competitor = citation.competitors;
     if (!competitor || !competitor.is_active) return;
@@ -112,15 +136,10 @@ export async function getShareOfVoice(
       }
     }
 
-    if (!competitorStats.has(competitor.name)) {
-      competitorStats.set(competitor.name, {
-        id: citation.competitor_id,
-        name: competitor.name,
-        domain: competitor.domain || "",
-        mentions: 0,
-      });
+    // Increment mentions if competitor exists in stats
+    if (competitorStats.has(competitor.name)) {
+      competitorStats.get(competitor.name)!.mentions++;
     }
-    competitorStats.get(competitor.name)!.mentions++;
   });
 
   // Calculate totals

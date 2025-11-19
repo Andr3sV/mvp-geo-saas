@@ -2,6 +2,7 @@
 
 import { TrendingUp } from "lucide-react";
 import { EvolutionChart } from "@/components/shared/evolution-chart";
+import { useEffect } from "react";
 
 interface Competitor {
   id: string;
@@ -32,6 +33,13 @@ export function MentionsEvolutionChart({
   onCompetitorChange,
   isLoading,
 }: MentionsEvolutionChartProps) {
+  useEffect(() => {
+    console.log('🔍 [MentionsEvolutionChart] Received competitors:', {
+      count: competitors.length,
+      competitors: competitors.map(c => ({ name: c.name, id: c.id, domain: c.domain }))
+    });
+  }, [competitors]);
+
   return (
     <EvolutionChart
       title="Mentions Evolution"

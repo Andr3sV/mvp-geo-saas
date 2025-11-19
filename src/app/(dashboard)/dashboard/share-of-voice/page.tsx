@@ -14,6 +14,7 @@ import {
   getShareOfVoiceInsights,
   getShareOfVoiceOverTime,
 } from "@/lib/queries/share-of-voice";
+import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
@@ -45,6 +46,7 @@ export default function ShareOfVoicePage() {
   const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
   const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
+  const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
@@ -58,6 +60,50 @@ export default function ShareOfVoicePage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId, selectedCompetitorId, dateRange, platform, region]);
+
+  // Load competitors filtered by region for the selector
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadRegionFilteredCompetitors();
+      // Reset selected competitor when region changes
+      setSelectedCompetitorId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, region]);
+
+  const loadRegionFilteredCompetitors = async () => {
+    if (!selectedProjectId) return;
+
+    console.log('🔍 [loadRegionFilteredCompetitors] Called with:', { selectedProjectId, region });
+
+    try {
+      const result = await getCompetitorsByRegion(selectedProjectId, region);
+      console.log('🔍 [loadRegionFilteredCompetitors] Result:', {
+        hasData: !!result.data,
+        count: result.data?.length,
+        error: result.error,
+        competitors: result.data?.map((c: any) => ({ name: c.name, region: c.region }))
+      });
+
+      if (result.data) {
+        const competitorsForSelector = result.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          domain: c.domain || c.name,
+        }));
+        console.log('✅ [loadRegionFilteredCompetitors] Setting competitors:', {
+          count: competitorsForSelector.length,
+          competitors: competitorsForSelector.map(c => ({ name: c.name, id: c.id, domain: c.domain })),
+          allDataWithRegions: result.data.map((c: any) => ({ name: c.name, region: c.region }))
+        });
+        setRegionFilteredCompetitors(competitorsForSelector);
+      } else if (result.error) {
+        console.error('❌ [loadRegionFilteredCompetitors] Error:', result.error);
+      }
+    } catch (error) {
+      console.error("❌ [loadRegionFilteredCompetitors] Exception:", error);
+    }
+  };
 
   const loadData = async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
@@ -185,13 +231,21 @@ export default function ShareOfVoicePage() {
       </div>
 
       {/* Mentions Evolution Chart */}
+      {(() => {
+        console.log('🔍 [ShareOfVoicePage Render] Passing competitors to MentionsEvolutionChart:', {
+          count: regionFilteredCompetitors.length,
+          competitors: regionFilteredCompetitors.map(c => ({ name: c.name, id: c.id, domain: c.domain })),
+          region: region
+        });
+        return null;
+      })()}
       <MentionsEvolutionChart
         data={evolutionData}
         brandName={evolutionBrandName}
         brandDomain={evolutionBrandDomain}
         competitorName={evolutionCompetitorName}
         competitorDomain={evolutionCompetitorDomain}
-        competitors={sovData.competitors}
+        competitors={regionFilteredCompetitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
         isLoading={isLoadingEvolution}
