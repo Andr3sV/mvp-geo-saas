@@ -78,7 +78,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
   const competitors = Array.from(competitorStats.values()).map((comp) => ({
     id: comp.id,
     name: comp.name,
-    domain: comp.domain,
+    domain: comp.domain || comp.name, // Fallback to name if no domain
     mentions: comp.mentions,
     percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
   }));
@@ -97,7 +97,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
   return {
     brand: {
       name: project?.name || "Your Brand",
-      domain: project?.client_url || "",
+      domain: project?.client_url || project?.name || "", // Fallback to name if no URL
       mentions: brandMentions,
       percentage: Number(brandPercentage.toFixed(1)),
     },
