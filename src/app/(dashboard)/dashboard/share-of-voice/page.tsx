@@ -12,7 +12,9 @@ import {
   getShareOfVoice,
   getShareOfVoiceTrends,
   getShareOfVoiceInsights,
+  getShareOfVoiceOverTime,
 } from "@/lib/queries/share-of-voice";
+import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 
 export default function ShareOfVoicePage() {
   const { selectedProjectId } = useProject();
@@ -20,12 +22,26 @@ export default function ShareOfVoicePage() {
   const [sovData, setSovData] = useState<any>(null);
   const [trendsData, setTrendsData] = useState<any>(null);
   const [insights, setInsights] = useState<any[]>([]);
+  
+  // Evolution chart state
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
+  const [evolutionData, setEvolutionData] = useState<any[]>([]);
+  const [evolutionBrandName, setEvolutionBrandName] = useState("");
+  const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
+  const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
 
   useEffect(() => {
     if (selectedProjectId) {
       loadData();
     }
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadEvolutionData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, selectedCompetitorId]);
 
   const loadData = async () => {
     if (!selectedProjectId) return;
@@ -46,6 +62,28 @@ export default function ShareOfVoicePage() {
       console.error("Error loading Share of Voice data:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadEvolutionData = async () => {
+    if (!selectedProjectId) return;
+
+    setIsLoadingEvolution(true);
+
+    try {
+      const evolution = await getShareOfVoiceOverTime(
+        selectedProjectId,
+        selectedCompetitorId,
+        30
+      );
+
+      setEvolutionData(evolution.data);
+      setEvolutionBrandName(evolution.brandName);
+      setEvolutionCompetitorName(evolution.competitorName);
+    } catch (error) {
+      console.error("Error loading evolution data:", error);
+    } finally {
+      setIsLoadingEvolution(false);
     }
   };
 
@@ -107,6 +145,17 @@ export default function ShareOfVoicePage() {
           icon={Users}
         />
       </div>
+
+      {/* Mentions Evolution Chart */}
+      <MentionsEvolutionChart
+        data={evolutionData}
+        brandName={evolutionBrandName}
+        competitorName={evolutionCompetitorName}
+        competitors={sovData.competitors}
+        selectedCompetitorId={selectedCompetitorId}
+        onCompetitorChange={setSelectedCompetitorId}
+        isLoading={isLoadingEvolution}
+      />
 
       {/* Share of Voice Chart */}
       <Card>

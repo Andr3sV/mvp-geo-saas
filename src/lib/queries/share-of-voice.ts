@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { format, subDays, eachDayOfInterval } from "date-fns";
 
 // =============================================
 // SHARE OF VOICE METRICS
@@ -307,5 +308,94 @@ export async function getShareOfVoiceInsights(projectId: string) {
   }
 
   return insights;
+}
+
+// =============================================
+// SHARE OF VOICE OVER TIME
+// =============================================
+
+/**
+ * Get daily mentions evolution for brand and a specific competitor
+ * Used for time-series chart visualization
+ */
+export async function getShareOfVoiceOverTime(
+  projectId: string,
+  competitorId: string | null,
+  days: number = 30
+) {
+  const supabase = await createClient();
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range
+  const endDate = new Date();
+  const startDate = subDays(endDate, days);
+
+  // Get brand mentions over time
+  const { data: brandMentions } = await supabase
+    .from("citations_detail")
+    .select("id, created_at")
+    .eq("project_id", projectId)
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString());
+
+  // Get competitor mentions over time (if competitor selected)
+  let competitorMentions: any[] = [];
+  let competitorName = "";
+
+  if (competitorId) {
+    const { data: compData } = await supabase
+      .from("competitor_citations")
+      .select(`
+        id,
+        created_at,
+        competitors!inner(name)
+      `)
+      .eq("project_id", projectId)
+      .eq("competitor_id", competitorId)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
+
+    competitorMentions = compData || [];
+    competitorName = compData?.[0]?.competitors?.name || "Competitor";
+  }
+
+  // Create array of all days in range
+  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+
+  // Count mentions by day
+  const dailyData = allDays.map((day) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+
+    // Count brand mentions for this day
+    const brandCount = brandMentions?.filter((m) => {
+      const mentionDate = format(new Date(m.created_at), "yyyy-MM-dd");
+      return mentionDate === dayStr;
+    }).length || 0;
+
+    // Count competitor mentions for this day
+    const competitorCount = competitorMentions.filter((m) => {
+      const mentionDate = format(new Date(m.created_at), "yyyy-MM-dd");
+      return mentionDate === dayStr;
+    }).length || 0;
+
+    return {
+      date: format(day, "MMM dd"),
+      fullDate: dayStr,
+      brandMentions: brandCount,
+      competitorMentions: competitorCount,
+    };
+  });
+
+  return {
+    data: dailyData,
+    brandName: project?.name || "Your Brand",
+    competitorName,
+  };
 }
 
