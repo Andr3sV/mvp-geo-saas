@@ -90,7 +90,7 @@ export async function getShareOfVoice(
     // 1. Competitor's assigned region matches OR is GLOBAL
     // 2. Prompt's region matches (where the citation was generated)
     competitorCitationsQuery = competitorCitationsQuery
-      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .or(`competitors.region.eq.${region},competitors.region.eq.GLOBAL`)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
@@ -237,7 +237,7 @@ export async function getShareOfVoiceTrends(
 
   if (regionFilter) {
     currentCompQuery = currentCompQuery
-      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .or(`competitors.region.eq.${region},competitors.region.eq.GLOBAL`)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
@@ -289,7 +289,7 @@ export async function getShareOfVoiceTrends(
 
   if (regionFilter) {
     previousCompQuery = previousCompQuery
-      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .or(`competitors.region.eq.${region},competitors.region.eq.GLOBAL`)
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
