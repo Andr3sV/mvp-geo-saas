@@ -75,7 +75,7 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
-  const [mode, setMode] = React.useState<"presets" | "calendar">("presets");
+  const [showCalendar, setShowCalendar] = React.useState(false);
   const [customRange, setCustomRange] = React.useState<DateRange | undefined>(
     value && value.preset === "custom" ? { from: value.from, to: value.to } : undefined
   );
@@ -89,7 +89,12 @@ export function DateRangePicker({
       ...range,
       preset: preset.value,
     });
+    setShowCalendar(false);
     setOpen(false);
+  };
+
+  const handleCustomClick = () => {
+    setShowCalendar(true);
   };
 
   const handleCustomRangeSelect = (range: DateRange | undefined) => {
@@ -103,6 +108,7 @@ export function DateRangePicker({
         to: customRange.to,
         preset: "custom",
       });
+      setShowCalendar(false);
       setOpen(false);
     }
   };
@@ -132,11 +138,14 @@ export function DateRangePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex">
-          {/* Sidebar with presets */}
-          <div className="border-r w-40">
-            <div className="p-3 border-b">
-              <p className="text-sm font-medium">Quick select</p>
+        {!showCalendar ? (
+          // Presets view
+          <div className="w-[240px]">
+            <div className="border-b p-3">
+              <p className="text-sm font-medium">Select date range</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Choose a preset or custom range
+              </p>
             </div>
             <div className="p-2">
               {presets.map((preset) => (
@@ -144,66 +153,73 @@ export function DateRangePicker({
                   key={preset.value}
                   onClick={() => handlePresetSelect(preset)}
                   className={cn(
-                    "relative flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+                    "relative flex w-full items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors",
                     "hover:bg-accent hover:text-accent-foreground",
-                    selectedPreset === preset.value && value?.preset !== "custom" && "bg-accent font-medium"
+                    "focus:bg-accent focus:text-accent-foreground",
+                    selectedPreset === preset.value && value?.preset !== "custom" && "bg-accent"
                   )}
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-3 w-3",
+                      "mr-2 h-4 w-4",
                       selectedPreset === preset.value && value?.preset !== "custom"
                         ? "opacity-100"
                         : "opacity-0"
                     )}
                   />
-                  <span>{preset.label}</span>
+                  <span className="flex-1 text-left">{preset.label}</span>
                 </button>
               ))}
-              <div className="my-2 border-t" />
+              <div className="my-1 border-t" />
               <button
-                onClick={() => setMode("calendar")}
+                onClick={handleCustomClick}
                 className={cn(
-                  "relative flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+                  "relative flex w-full items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors",
                   "hover:bg-accent hover:text-accent-foreground",
-                  value?.preset === "custom" && "bg-accent font-medium"
+                  value?.preset === "custom" && "bg-accent"
                 )}
               >
                 <Check
                   className={cn(
-                    "mr-2 h-3 w-3",
+                    "mr-2 h-4 w-4",
                     value?.preset === "custom" ? "opacity-100" : "opacity-0"
                   )}
                 />
-                <span>Custom</span>
+                <span className="flex-1 text-left">Custom range...</span>
               </button>
             </div>
           </div>
-
-          {/* Calendar */}
-          {mode === "calendar" && (
-            <div className="p-3">
-              <Calendar
-                mode="range"
-                defaultMonth={customRange?.from || selectedRange.from}
-                selected={customRange}
-                onSelect={handleCustomRangeSelect}
-                numberOfMonths={2}
-                disabled={(date) => date > new Date()}
-              />
-              {customRange?.from && customRange?.to && (
-                <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <span className="text-sm text-muted-foreground">
-                    {format(customRange.from, "MMM d, yyyy")} - {format(customRange.to, "MMM d, yyyy")}
-                  </span>
-                  <Button size="sm" onClick={applyCustomRange}>
-                    Apply
-                  </Button>
-                </div>
-              )}
+        ) : (
+          // Calendar view
+          <div className="p-3">
+            <div className="mb-3">
+              <button
+                onClick={() => setShowCalendar(false)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to presets
+              </button>
             </div>
-          )}
-        </div>
+            <Calendar
+              mode="range"
+              defaultMonth={subDays(new Date(), 30)}
+              selected={customRange}
+              onSelect={handleCustomRangeSelect}
+              numberOfMonths={2}
+              disabled={(date) => date > new Date()}
+            />
+            {customRange?.from && customRange?.to && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground">
+                  {format(customRange.from, "MMM d, yyyy")} - {format(customRange.to, "MMM d, yyyy")}
+                </span>
+                <Button size="sm" onClick={applyCustomRange}>
+                  Apply
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );
