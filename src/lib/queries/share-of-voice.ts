@@ -71,7 +71,7 @@ export async function getShareOfVoice(
       id,
       created_at,
       competitor_id,
-      competitors!inner(name, domain, is_active),
+      competitors!inner(name, domain, is_active, region),
       ai_responses!inner(
         platform,
         prompt_tracking!inner(region)
@@ -86,7 +86,12 @@ export async function getShareOfVoice(
   }
 
   if (regionFilter) {
-    competitorCitationsQuery = competitorCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
+    // Filter by:
+    // 1. Competitor's assigned region matches OR is GLOBAL
+    // 2. Prompt's region matches (where the citation was generated)
+    competitorCitationsQuery = competitorCitationsQuery
+      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .eq("ai_responses.prompt_tracking.region", region);
   }
 
   const { data: competitorCitations } = await competitorCitationsQuery;
@@ -216,7 +221,7 @@ export async function getShareOfVoiceTrends(
     .select(`
       id,
       competitor_id,
-      competitors!inner(name, is_active),
+      competitors!inner(name, is_active, region),
       ai_responses!inner(
         platform,
         prompt_tracking!inner(region)
@@ -231,7 +236,9 @@ export async function getShareOfVoiceTrends(
   }
 
   if (regionFilter) {
-    currentCompQuery = currentCompQuery.eq("ai_responses.prompt_tracking.region", region);
+    currentCompQuery = currentCompQuery
+      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .eq("ai_responses.prompt_tracking.region", region);
   }
 
   const [currentBrandResult, currentCompResult] = await Promise.all([
@@ -266,7 +273,7 @@ export async function getShareOfVoiceTrends(
     .select(`
       id,
       competitor_id,
-      competitors!inner(name, is_active),
+      competitors!inner(name, is_active, region),
       ai_responses!inner(
         platform,
         prompt_tracking!inner(region)
@@ -281,7 +288,9 @@ export async function getShareOfVoiceTrends(
   }
 
   if (regionFilter) {
-    previousCompQuery = previousCompQuery.eq("ai_responses.prompt_tracking.region", region);
+    previousCompQuery = previousCompQuery
+      .or(`region.eq.${region},region.eq.GLOBAL`, { foreignTable: 'competitors' })
+      .eq("ai_responses.prompt_tracking.region", region);
   }
 
   const [previousBrandResult, previousCompResult] = await Promise.all([
@@ -504,7 +513,7 @@ export async function getShareOfVoiceOverTime(
       .select(`
         id,
         created_at,
-        competitors!inner(name, domain),
+        competitors!inner(name, domain, region),
         ai_responses!inner(
           platform,
           prompt_tracking!inner(region)
@@ -520,6 +529,8 @@ export async function getShareOfVoiceOverTime(
     }
 
     if (regionFilter) {
+      // Since a specific competitor is selected, we still filter by prompt region
+      // (the competitor's assigned region is validated at selection time in getShareOfVoice)
       compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
     }
 
