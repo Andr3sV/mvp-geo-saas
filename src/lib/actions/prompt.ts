@@ -3,14 +3,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export type PromptCategory = 
-  | "product"
-  | "pricing"
-  | "features"
-  | "competitors"
-  | "use_cases"
-  | "technical"
-  | "general";
+// Changed to string to allow dynamic user-created tags/topics
+// Users can now create any category/topic they want
+export type PromptCategory = string;
 
 export async function getProjectPrompts(projectId: string) {
   const supabase = await createClient();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,25 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createPrompt, type PromptCategory } from "@/lib/actions/prompt";
+import { createPrompt } from "@/lib/actions/prompt";
 import { CountrySelect } from "@/components/ui/country-select";
-
-const CATEGORIES: { value: PromptCategory; label: string }[] = [
-  { value: "general", label: "General" },
-  { value: "product", label: "Product" },
-  { value: "pricing", label: "Pricing" },
-  { value: "features", label: "Features" },
-  { value: "competitors", label: "Competitors" },
-  { value: "use_cases", label: "Use Cases" },
-  { value: "technical", label: "Technical" },
-];
+import { TagInput } from "@/components/ui/tag-input";
+import { getProjectTags } from "@/lib/actions/tags";
 
 interface CreatePromptDialogProps {
   open: boolean;
@@ -46,10 +31,29 @@ export function CreatePromptDialog({
   onSuccess,
 }: CreatePromptDialogProps) {
   const [prompt, setPrompt] = useState("");
-  const [category, setCategory] = useState<PromptCategory>("general");
+  const [category, setCategory] = useState("general");
   const [region, setRegion] = useState("GLOBAL");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingTags, setExistingTags] = useState<string[]>([]);
+  const [loadingTags, setLoadingTags] = useState(false);
+
+  // Load existing tags when dialog opens
+  useEffect(() => {
+    if (open && projectId) {
+      loadTags();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, projectId]);
+
+  const loadTags = async () => {
+    setLoadingTags(true);
+    const result = await getProjectTags(projectId);
+    if (result.data) {
+      setExistingTags(result.data);
+    }
+    setLoadingTags(false);
+  };
 
   const handleSubmit = async () => {
     if (!prompt.trim()) {
@@ -109,19 +113,17 @@ export function CreatePromptDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={(value) => setCategory(value as PromptCategory)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>
-                      {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="category">Topic / Tag</Label>
+              <TagInput
+                value={category}
+                onValueChange={setCategory}
+                suggestions={existingTags}
+                placeholder={loadingTags ? "Loading tags..." : "Type or select a tag..."}
+                disabled={creating || loadingTags}
+              />
+              <p className="text-xs text-muted-foreground">
+                Create custom topics or reuse existing ones
+              </p>
             </div>
 
             <div className="space-y-2">
