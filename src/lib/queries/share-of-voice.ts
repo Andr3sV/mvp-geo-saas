@@ -97,7 +97,8 @@ export async function getShareOfVoice(
   const brandMentions = brandCitations?.length || 0;
 
   // First, get ALL active competitors for this region (even if they have 0 mentions)
-  // This ensures all competitors defined for the region appear in the selector
+  // This ensures all competitors defined for the region appear in Market Share Distribution
+  // Filter: ONLY competitors with the selected region (NOT GLOBAL)
   let allCompetitorsQuery = supabase
     .from("competitors")
     .select("id, name, domain, region")
@@ -105,8 +106,8 @@ export async function getShareOfVoice(
     .eq("is_active", true);
 
   if (regionFilter) {
-    // Get competitors with region matching OR GLOBAL
-    allCompetitorsQuery = allCompetitorsQuery.or(`region.eq.${region},region.eq.GLOBAL`);
+    // Get ONLY competitors with region matching the filter (NOT GLOBAL)
+    allCompetitorsQuery = allCompetitorsQuery.eq("region", region);
   }
 
   const { data: allCompetitors } = await allCompetitorsQuery;
@@ -128,11 +129,11 @@ export async function getShareOfVoice(
     const competitor = citation.competitors;
     if (!competitor || !competitor.is_active) return;
 
-    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
+    // Filter by competitor region - ONLY exact match (not GLOBAL)
     if (regionFilter) {
       const competitorRegion = competitor.region;
-      if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        return; // Skip this competitor
+      if (competitorRegion !== region) {
+        return; // Skip this competitor - must be exact match
       }
     }
 

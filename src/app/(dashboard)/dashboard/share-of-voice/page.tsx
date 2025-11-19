@@ -263,23 +263,43 @@ export default function ShareOfVoicePage() {
           <div className="space-y-4">
             {/* All entities (brand + competitors) sorted by percentage */}
             {(() => {
-              // Combine brand and competitors
+              // Filter competitors to only show those assigned to the selected region
+              // Use regionFilteredCompetitors to ensure we only show competitors from the region
+              const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+              const filteredCompetitors = sovData.competitors.filter((comp: any) =>
+                regionCompetitorIds.has(comp.id)
+              );
+
+              // Recalculate total mentions and percentages based on filtered competitors
+              const filteredCompetitorMentions = filteredCompetitors.reduce(
+                (sum: number, comp: any) => sum + comp.mentions,
+                0
+              );
+              const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+
+              // Combine brand and filtered competitors with recalculated percentages
               const allEntities = [
                 {
                   id: "brand",
                   name: sovData.brand.name,
                   domain: sovData.brand.domain,
                   mentions: sovData.brand.mentions,
-                  percentage: sovData.brand.percentage,
+                  percentage:
+                    filteredTotalMentions > 0
+                      ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
+                      : 0,
                   isBrand: true,
                   trend: trendsData.brandTrend,
                 },
-                ...sovData.competitors.map((comp: any) => ({
+                ...filteredCompetitors.map((comp: any) => ({
                   id: comp.id,
                   name: comp.name,
                   domain: comp.domain,
                   mentions: comp.mentions,
-                  percentage: comp.percentage,
+                  percentage:
+                    filteredTotalMentions > 0
+                      ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
+                      : 0,
                   isBrand: false,
                   trend:
                     trendsData.competitorTrends.find((t: any) => t.name === comp.name)
