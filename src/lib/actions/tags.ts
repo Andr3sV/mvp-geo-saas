@@ -30,8 +30,6 @@ export async function getProjectTags(projectId: string) {
 
   const uniqueTags = [...new Set(tags)].sort();
 
-  console.log(`[getProjectTags] Found ${uniqueTags.length} unique tags for project ${projectId}:`, uniqueTags);
-
   return { data: uniqueTags, error: null };
 }
 

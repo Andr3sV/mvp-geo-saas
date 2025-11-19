@@ -31,17 +31,15 @@ export function EditableTagBadge({
   useEffect(() => {
     if (open) {
       loadTags();
-      setInputValue(currentTag);
+      // Start with empty input to show all tags
+      setInputValue("");
     }
-  }, [open, currentTag]);
+  }, [open]);
 
   const loadTags = async () => {
     const result = await getProjectTags(projectId);
     if (result.data) {
-      console.log("Loaded tags from project:", result.data);
       setExistingTags(result.data);
-    } else {
-      console.error("Failed to load tags:", result.error);
     }
   };
 
@@ -71,10 +69,6 @@ export function EditableTagBadge({
   const filteredTags = existingTags.filter((tag) =>
     tag.toLowerCase().includes(inputValue.toLowerCase())
   );
-
-  console.log("Existing tags:", existingTags);
-  console.log("Input value:", inputValue);
-  console.log("Filtered tags:", filteredTags);
 
   const showCreateOption =
     inputValue.trim() &&
@@ -119,7 +113,7 @@ export function EditableTagBadge({
       <PopoverContent className="w-[250px] p-0" align="start">
         <Command>
           <CommandInput
-            placeholder="Search or create tag..."
+            placeholder="Type to search or create..."
             value={inputValue}
             onValueChange={setInputValue}
           />
