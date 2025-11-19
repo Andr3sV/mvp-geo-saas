@@ -9,11 +9,11 @@ import { createClient } from "@/lib/supabase/server";
 export async function getProjectTags(projectId: string) {
   const supabase = await createClient();
 
+  // Get ALL prompts (including those with null category)
   const { data, error } = await supabase
     .from("prompt_tracking")
     .select("category")
     .eq("project_id", projectId)
-    .not("category", "is", null)
     .order("category", { ascending: true });
 
   if (error) {
@@ -21,10 +21,16 @@ export async function getProjectTags(projectId: string) {
     return { data: [], error: error.message };
   }
 
-  // Get unique tags
-  const uniqueTags = [...new Set(data.map((item) => item.category))].filter(
-    (tag): tag is string => tag !== null && tag !== undefined && tag.trim() !== ""
-  );
+  // Get unique tags, treating null/empty as "general"
+  const tags = data.map((item) => {
+    const cat = item.category;
+    if (!cat || cat.trim() === "") return "general";
+    return cat.trim();
+  });
+
+  const uniqueTags = [...new Set(tags)].sort();
+
+  console.log(`[getProjectTags] Found ${uniqueTags.length} unique tags for project ${projectId}:`, uniqueTags);
 
   return { data: uniqueTags, error: null };
 }
