@@ -23,7 +23,9 @@ interface Competitor {
 interface MentionsEvolutionChartProps {
   data: any[];
   brandName: string;
+  brandDomain: string;
   competitorName: string;
+  competitorDomain: string;
   competitors: Competitor[];
   selectedCompetitorId: string | null;
   onCompetitorChange: (competitorId: string) => void;
@@ -33,7 +35,9 @@ interface MentionsEvolutionChartProps {
 export function MentionsEvolutionChart({
   data,
   brandName,
+  brandDomain,
   competitorName,
+  competitorDomain,
   competitors,
   selectedCompetitorId,
   onCompetitorChange,
@@ -100,7 +104,7 @@ export function MentionsEvolutionChart({
                   : "bg-background hover:bg-muted"
               )}
             >
-              <BrandLogo domain={brandName} name={brandName} size={16} />
+              <BrandLogo domain={brandDomain} name={brandName} size={16} />
               <span>{brandName}</span>
               {!selectedCompetitorId && <Check className="h-3 w-3" />}
             </button>

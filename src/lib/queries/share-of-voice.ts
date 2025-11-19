@@ -325,10 +325,10 @@ export async function getShareOfVoiceOverTime(
 ) {
   const supabase = await createClient();
 
-  // Get project info
+  // Get project info (including domain for logo)
   const { data: project } = await supabase
     .from("projects")
-    .select("name")
+    .select("name, client_url")
     .eq("id", projectId)
     .single();
 
@@ -347,6 +347,7 @@ export async function getShareOfVoiceOverTime(
   // Get competitor mentions over time (if competitor selected)
   let competitorMentions: any[] = [];
   let competitorName = "";
+  let competitorDomain = "";
 
   if (competitorId) {
     const { data: compData } = await supabase
@@ -354,7 +355,7 @@ export async function getShareOfVoiceOverTime(
       .select(`
         id,
         created_at,
-        competitors!inner(name)
+        competitors!inner(name, domain)
       `)
       .eq("project_id", projectId)
       .eq("competitor_id", competitorId)
@@ -363,6 +364,7 @@ export async function getShareOfVoiceOverTime(
 
     competitorMentions = compData || [];
     competitorName = compData?.[0]?.competitors?.name || "Competitor";
+    competitorDomain = compData?.[0]?.competitors?.domain || "";
   }
 
   // Create array of all days in range
@@ -395,7 +397,9 @@ export async function getShareOfVoiceOverTime(
   return {
     data: dailyData,
     brandName: project?.name || "Your Brand",
+    brandDomain: project?.client_url || project?.name || "",
     competitorName,
+    competitorDomain,
   };
 }
 

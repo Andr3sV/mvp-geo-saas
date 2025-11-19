@@ -27,7 +27,9 @@ export default function ShareOfVoicePage() {
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [evolutionBrandName, setEvolutionBrandName] = useState("");
+  const [evolutionBrandDomain, setEvolutionBrandDomain] = useState("");
   const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
+  const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
 
   useEffect(() => {
@@ -79,7 +81,9 @@ export default function ShareOfVoicePage() {
 
       setEvolutionData(evolution.data);
       setEvolutionBrandName(evolution.brandName);
+      setEvolutionBrandDomain(evolution.brandDomain);
       setEvolutionCompetitorName(evolution.competitorName);
+      setEvolutionCompetitorDomain(evolution.competitorDomain);
     } catch (error) {
       console.error("Error loading evolution data:", error);
     } finally {
@@ -150,7 +154,9 @@ export default function ShareOfVoicePage() {
       <MentionsEvolutionChart
         data={evolutionData}
         brandName={evolutionBrandName}
+        brandDomain={evolutionBrandDomain}
         competitorName={evolutionCompetitorName}
+        competitorDomain={evolutionCompetitorDomain}
         competitors={sovData.competitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
