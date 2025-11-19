@@ -34,6 +34,9 @@ export default function ShareOfVoicePage() {
   // Platform filter state
   const [platform, setPlatform] = useState<string>("all");
   
+  // Region filter state
+  const [region, setRegion] = useState<string>("GLOBAL");
+  
   // Evolution chart state
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
@@ -47,14 +50,14 @@ export default function ShareOfVoicePage() {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadData();
     }
-  }, [selectedProjectId, dateRange, platform]);
+  }, [selectedProjectId, dateRange, platform, region]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId, dateRange, platform]);
+  }, [selectedProjectId, selectedCompetitorId, dateRange, platform, region]);
 
   const loadData = async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
@@ -63,9 +66,9 @@ export default function ShareOfVoicePage() {
 
     try {
       const [sov, trends, insightsData] = await Promise.all([
-        getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to, platform),
-        getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to, platform),
-        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to, platform),
+        getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+        getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to, platform, region),
       ]);
 
       setSovData(sov);
@@ -89,7 +92,8 @@ export default function ShareOfVoicePage() {
         selectedCompetitorId,
         dateRange.from,
         dateRange.to,
-        platform
+        platform,
+        region
       );
 
       setEvolutionData(evolution.data);
@@ -113,6 +117,7 @@ export default function ShareOfVoicePage() {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
+    setRegion(filters.region);
   };
 
   if (isLoading || !sovData) {
@@ -139,8 +144,9 @@ export default function ShareOfVoicePage() {
       />
 
       <FiltersToolbar 
-        dateRange={dateRange} 
+        dateRange={dateRange}
         platform={platform}
+        region={region}
         onApply={handleFiltersChange} 
       />
 

@@ -20,6 +20,7 @@ interface FiltersToolbarProps {
 	className?: string;
 	dateRange?: DateRangeValue;
 	platform?: string;
+	region?: string;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
@@ -31,9 +32,10 @@ export function FiltersToolbar({
 	className, 
 	dateRange: controlledDateRange, 
 	platform: controlledPlatform,
+	region: controlledRegion,
 	onApply 
 }: FiltersToolbarProps) {
-	const [region, setRegion] = useState<string>("GLOBAL");
+	const [region, setRegion] = useState<string>(controlledRegion || "GLOBAL");
 	const [dateRange, setDateRange] = useState<DateRangeValue>(
 		controlledDateRange || {
 			from: subDays(new Date(), 29),
@@ -55,16 +57,24 @@ export function FiltersToolbar({
 		}
 	}, [controlledPlatform]);
 
+	useEffect(() => {
+		if (controlledRegion !== undefined) {
+			setRegion(controlledRegion);
+		}
+	}, [controlledRegion]);
+
 	const resetFilters = () => {
 		const resetDateRange = {
 			from: subDays(new Date(), 29),
 			to: new Date(),
 		};
-		setRegion("GLOBAL");
+		const resetRegion = "GLOBAL";
+		const resetPlatform = "all";
+		setRegion(resetRegion);
 		setDateRange(resetDateRange);
-		setPlatform("all");
+		setPlatform(resetPlatform);
 		// Auto-apply reset
-		onApply?.({ region: "GLOBAL", dateRange: resetDateRange, platform: "all" });
+		onApply?.({ region: resetRegion, dateRange: resetDateRange, platform: resetPlatform });
 	};
 
 	const apply = () => {
@@ -78,7 +88,11 @@ export function FiltersToolbar({
 					<div className="w-full md:w-52">
 						<CountrySelect
 							value={region}
-							onValueChange={setRegion}
+							onValueChange={(newRegion) => {
+								setRegion(newRegion);
+								// Auto-apply when region changes
+								onApply?.({ region: newRegion, dateRange, platform });
+							}}
 							placeholder="Select country..."
 						/>
 					</div>
