@@ -13,11 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CountrySelect } from "@/components/ui/country-select";
 import { DateRangePicker, DateRangeValue } from "@/components/ui/date-range-picker";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { subDays } from "date-fns";
 
 interface FiltersToolbarProps {
 	className?: string;
+	dateRange?: DateRangeValue;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
@@ -25,13 +26,22 @@ interface FiltersToolbarProps {
 	}) => void;
 }
 
-export function FiltersToolbar({ className, onApply }: FiltersToolbarProps) {
+export function FiltersToolbar({ className, dateRange: controlledDateRange, onApply }: FiltersToolbarProps) {
 	const [region, setRegion] = useState<string>("GLOBAL");
-	const [dateRange, setDateRange] = useState<DateRangeValue>({
-		from: subDays(new Date(), 29),
-		to: new Date(),
-	});
+	const [dateRange, setDateRange] = useState<DateRangeValue>(
+		controlledDateRange || {
+			from: subDays(new Date(), 29),
+			to: new Date(),
+		}
+	);
 	const [platform, setPlatform] = useState<string>("all");
+
+	// Sync with controlled prop
+	useEffect(() => {
+		if (controlledDateRange) {
+			setDateRange(controlledDateRange);
+		}
+	}, [controlledDateRange]);
 
 	const resetFilters = () => {
 		setRegion("GLOBAL");
@@ -61,7 +71,14 @@ export function FiltersToolbar({ className, onApply }: FiltersToolbarProps) {
 					<div className="w-full md:w-64">
 						<DateRangePicker
 							value={dateRange}
-							onChange={setDateRange}
+							onChange={(newRange) => {
+								// Update local state
+								setDateRange(newRange);
+								// Apply immediately when Apply button is clicked in picker
+								if (newRange.from && newRange.to) {
+									onApply?.({ region, dateRange: newRange, platform });
+								}
+							}}
 						/>
 					</div>
 

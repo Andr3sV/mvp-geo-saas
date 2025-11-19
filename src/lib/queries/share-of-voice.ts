@@ -11,7 +11,11 @@ import { format, subDays, eachDayOfInterval } from "date-fns";
  * Calculate Share of Voice for brand vs competitors
  * Returns percentage of mentions across all tracked entities
  */
-export async function getShareOfVoice(projectId: string, days: number = 30) {
+export async function getShareOfVoice(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date
+) {
   const supabase = await createClient();
 
   // Get project info (name and client_url for favicon)
@@ -21,17 +25,21 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
     .eq("id", projectId)
     .single();
 
-  // Calculate date range
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  // Calculate date range (default to last 30 days if not provided)
+  const endDate = toDate || new Date();
+  const startDate = fromDate || (() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date;
+  })();
 
   // Get brand citations in period
   const { data: brandCitations } = await supabase
     .from("citations_detail")
     .select("id, created_at")
     .eq("project_id", projectId)
-    .gte("created_at", startDate.toISOString());
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString());
 
   // Get competitor citations in period with competitor info
   const { data: competitorCitations } = await supabase
@@ -43,7 +51,8 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
       competitors!inner(name, domain, is_active)
     `)
     .eq("project_id", projectId)
-    .gte("created_at", startDate.toISOString());
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString());
 
   // Count brand mentions
   const brandMentions = brandCitations?.length || 0;
@@ -115,18 +124,27 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
 /**
  * Calculate Share of Voice trends by comparing current vs previous period
  */
-export async function getShareOfVoiceTrends(projectId: string, days: number = 30) {
+export async function getShareOfVoiceTrends(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date
+) {
   const supabase = await createClient();
 
-  // Current period
-  const currentEndDate = new Date();
-  const currentStartDate = new Date();
-  currentStartDate.setDate(currentStartDate.getDate() - days);
+  // Current period (default to last 30 days if not provided)
+  const currentEndDate = toDate || new Date();
+  const currentStartDate = fromDate || (() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return date;
+  })();
 
-  // Previous period (same duration)
+  // Calculate period duration
+  const periodDuration = currentEndDate.getTime() - currentStartDate.getTime();
+
+  // Previous period (same duration, before current period)
   const previousEndDate = new Date(currentStartDate);
-  const previousStartDate = new Date(currentStartDate);
-  previousStartDate.setDate(previousStartDate.getDate() - days);
+  const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
 
   // Get current period data
   const [currentBrandResult, currentCompResult] = await Promise.all([
@@ -241,10 +259,14 @@ export async function getShareOfVoiceTrends(projectId: string, days: number = 30
 /**
  * Generate AI-powered insights based on Share of Voice data
  */
-export async function getShareOfVoiceInsights(projectId: string) {
+export async function getShareOfVoiceInsights(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date
+) {
   const [sovData, trendsData] = await Promise.all([
-    getShareOfVoice(projectId, 30),
-    getShareOfVoiceTrends(projectId, 30),
+    getShareOfVoice(projectId, fromDate, toDate),
+    getShareOfVoiceTrends(projectId, fromDate, toDate),
   ]);
 
   const insights: Array<{
@@ -321,7 +343,8 @@ export async function getShareOfVoiceInsights(projectId: string) {
 export async function getShareOfVoiceOverTime(
   projectId: string,
   competitorId: string | null,
-  days: number = 30
+  fromDate?: Date,
+  toDate?: Date
 ) {
   const supabase = await createClient();
 
@@ -332,9 +355,9 @@ export async function getShareOfVoiceOverTime(
     .eq("id", projectId)
     .single();
 
-  // Calculate date range
-  const endDate = new Date();
-  const startDate = subDays(endDate, days);
+  // Calculate date range (default to last 30 days if not provided)
+  const endDate = toDate || new Date();
+  const startDate = fromDate || subDays(endDate, 30);
 
   // Get brand mentions over time
   const { data: brandMentions } = await supabase

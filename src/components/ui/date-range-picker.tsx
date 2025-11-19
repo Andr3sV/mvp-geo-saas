@@ -30,44 +30,63 @@ export function DateRangePicker({
   onChange,
   className,
 }: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false);
   const [selectedRange, setSelectedRange] = React.useState<DateRange | undefined>(
     value ? { from: value.from, to: value.to } : undefined
   );
 
+  // Sync selectedRange with value when value changes (from parent)
   React.useEffect(() => {
     if (value) {
       setSelectedRange({ from: value.from, to: value.to });
     }
   }, [value]);
 
-  const handleSelect = (range: DateRange | undefined) => {
-    setSelectedRange(range);
-    if (range?.from && range?.to) {
-      onChange?.({ from: range.from, to: range.to });
+  // Sync selectedRange with value when popover opens
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (isOpen && value) {
+      // Reset to applied value when opening
+      setSelectedRange({ from: value.from, to: value.to });
     }
   };
 
+  const handleSelect = (range: DateRange | undefined) => {
+    setSelectedRange(range);
+    // Don't close automatically - wait for Apply button
+  };
+
+  const handleApply = () => {
+    if (selectedRange?.from && selectedRange?.to) {
+      onChange?.({ from: selectedRange.from, to: selectedRange.to });
+      setOpen(false);
+    }
+  };
+
+  // Always show applied value (value) in trigger, not temporary selection
+  const displayRange = value;
+
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             id="date"
             variant="outline"
             className={cn(
               "w-full justify-start text-left font-normal",
-              !selectedRange && "text-muted-foreground"
+              !displayRange && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
-            {selectedRange?.from ? (
-              selectedRange.to ? (
+            {displayRange?.from ? (
+              displayRange.to ? (
                 <>
-                  {format(selectedRange.from, "LLL dd, y")} -{" "}
-                  {format(selectedRange.to, "LLL dd, y")}
+                  {format(displayRange.from, "LLL dd, y")} -{" "}
+                  {format(displayRange.to, "LLL dd, y")}
                 </>
               ) : (
-                format(selectedRange.from, "LLL dd, y")
+                format(displayRange.from, "LLL dd, y")
               )
             ) : (
               <span>Pick a date range</span>
@@ -75,15 +94,28 @@ export function DateRangePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={selectedRange?.from || new Date()}
-            selected={selectedRange}
-            onSelect={handleSelect}
-            numberOfMonths={2}
-            disabled={(date) => date > new Date()}
-          />
+          <div className="p-3">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={selectedRange?.from || new Date()}
+              selected={selectedRange}
+              onSelect={handleSelect}
+              numberOfMonths={2}
+              disabled={(date) => date > new Date()}
+            />
+            {selectedRange?.from && selectedRange?.to && (
+              <div className="flex items-center justify-between border-t pt-3 mt-3">
+                <div className="text-sm text-muted-foreground">
+                  {format(selectedRange.from, "LLL dd, y")} -{" "}
+                  {format(selectedRange.to, "LLL dd, y")}
+                </div>
+                <Button size="sm" onClick={handleApply}>
+                  Apply
+                </Button>
+              </div>
+            )}
+          </div>
         </PopoverContent>
       </Popover>
     </div>

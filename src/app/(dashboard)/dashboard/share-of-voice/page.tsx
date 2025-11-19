@@ -15,6 +15,8 @@ import {
   getShareOfVoiceOverTime,
 } from "@/lib/queries/share-of-voice";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
+import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { subDays } from "date-fns";
 
 export default function ShareOfVoicePage() {
   const { selectedProjectId } = useProject();
@@ -22,6 +24,12 @@ export default function ShareOfVoicePage() {
   const [sovData, setSovData] = useState<any>(null);
   const [trendsData, setTrendsData] = useState<any>(null);
   const [insights, setInsights] = useState<any[]>([]);
+  
+  // Date range state
+  const [dateRange, setDateRange] = useState<DateRangeValue>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
   
   // Evolution chart state
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
@@ -33,28 +41,28 @@ export default function ShareOfVoicePage() {
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
       loadData();
     }
-  }, [selectedProjectId]);
+  }, [selectedProjectId, dateRange]);
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId]);
+  }, [selectedProjectId, selectedCompetitorId, dateRange]);
 
   const loadData = async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoading(true);
 
     try {
       const [sov, trends, insightsData] = await Promise.all([
-        getShareOfVoice(selectedProjectId, 30),
-        getShareOfVoiceTrends(selectedProjectId, 30),
-        getShareOfVoiceInsights(selectedProjectId),
+        getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to),
+        getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to),
+        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to),
       ]);
 
       setSovData(sov);
@@ -68,7 +76,7 @@ export default function ShareOfVoicePage() {
   };
 
   const loadEvolutionData = async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoadingEvolution(true);
 
@@ -76,7 +84,8 @@ export default function ShareOfVoicePage() {
       const evolution = await getShareOfVoiceOverTime(
         selectedProjectId,
         selectedCompetitorId,
-        30
+        dateRange.from,
+        dateRange.to
       );
 
       setEvolutionData(evolution.data);
@@ -88,6 +97,16 @@ export default function ShareOfVoicePage() {
       console.error("Error loading evolution data:", error);
     } finally {
       setIsLoadingEvolution(false);
+    }
+  };
+
+  const handleFiltersChange = (filters: {
+    region: string;
+    dateRange: DateRangeValue;
+    platform: string;
+  }) => {
+    if (filters.dateRange.from && filters.dateRange.to) {
+      setDateRange(filters.dateRange);
     }
   };
 
@@ -114,7 +133,7 @@ export default function ShareOfVoicePage() {
         description="Compare your brand mentions against competitors in AI responses"
       />
 
-      <FiltersToolbar />
+      <FiltersToolbar dateRange={dateRange} onApply={handleFiltersChange} />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
