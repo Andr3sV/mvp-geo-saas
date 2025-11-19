@@ -19,6 +19,7 @@ import { subDays } from "date-fns";
 interface FiltersToolbarProps {
 	className?: string;
 	dateRange?: DateRangeValue;
+	platform?: string;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
@@ -26,7 +27,12 @@ interface FiltersToolbarProps {
 	}) => void;
 }
 
-export function FiltersToolbar({ className, dateRange: controlledDateRange, onApply }: FiltersToolbarProps) {
+export function FiltersToolbar({ 
+	className, 
+	dateRange: controlledDateRange, 
+	platform: controlledPlatform,
+	onApply 
+}: FiltersToolbarProps) {
 	const [region, setRegion] = useState<string>("GLOBAL");
 	const [dateRange, setDateRange] = useState<DateRangeValue>(
 		controlledDateRange || {
@@ -34,22 +40,31 @@ export function FiltersToolbar({ className, dateRange: controlledDateRange, onAp
 			to: new Date(),
 		}
 	);
-	const [platform, setPlatform] = useState<string>("all");
+	const [platform, setPlatform] = useState<string>(controlledPlatform || "all");
 
-	// Sync with controlled prop
+	// Sync with controlled props
 	useEffect(() => {
 		if (controlledDateRange) {
 			setDateRange(controlledDateRange);
 		}
 	}, [controlledDateRange]);
 
+	useEffect(() => {
+		if (controlledPlatform !== undefined) {
+			setPlatform(controlledPlatform);
+		}
+	}, [controlledPlatform]);
+
 	const resetFilters = () => {
-		setRegion("GLOBAL");
-		setDateRange({
+		const resetDateRange = {
 			from: subDays(new Date(), 29),
 			to: new Date(),
-		});
+		};
+		setRegion("GLOBAL");
+		setDateRange(resetDateRange);
 		setPlatform("all");
+		// Auto-apply reset
+		onApply?.({ region: "GLOBAL", dateRange: resetDateRange, platform: "all" });
 	};
 
 	const apply = () => {
@@ -83,7 +98,14 @@ export function FiltersToolbar({ className, dateRange: controlledDateRange, onAp
 					</div>
 
 					<div className="w-full md:w-52">
-						<Select value={platform} onValueChange={setPlatform}>
+						<Select 
+							value={platform} 
+							onValueChange={(newPlatform) => {
+								setPlatform(newPlatform);
+								// Auto-apply when platform changes
+								onApply?.({ region, dateRange, platform: newPlatform });
+							}}
+						>
 							<SelectTrigger className="w-full">
 								<SelectValue placeholder="Platform" />
 							</SelectTrigger>

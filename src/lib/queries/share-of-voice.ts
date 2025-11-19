@@ -14,7 +14,8 @@ import { format, subDays, eachDayOfInterval } from "date-fns";
 export async function getShareOfVoice(
   projectId: string,
   fromDate?: Date,
-  toDate?: Date
+  toDate?: Date,
+  platform?: string
 ) {
   const supabase = await createClient();
 
@@ -33,26 +34,48 @@ export async function getShareOfVoice(
     return date;
   })();
 
-  // Get brand citations in period
-  const { data: brandCitations } = await supabase
+  // Build platform filter for ai_responses
+  const platformFilter = platform && platform !== "all" 
+    ? { platform: { eq: platform } } 
+    : undefined;
+
+  // Get brand citations in period with platform filter
+  let brandCitationsQuery = supabase
     .from("citations_detail")
-    .select("id, created_at")
+    .select(`
+      id,
+      created_at,
+      ai_responses!inner(platform)
+    `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
 
-  // Get competitor citations in period with competitor info
-  const { data: competitorCitations } = await supabase
+  if (platform && platform !== "all") {
+    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
+  }
+
+  const { data: brandCitations } = await brandCitationsQuery;
+
+  // Get competitor citations in period with competitor info and platform filter
+  let competitorCitationsQuery = supabase
     .from("competitor_citations")
     .select(`
       id,
       created_at,
       competitor_id,
-      competitors!inner(name, domain, is_active)
+      competitors!inner(name, domain, is_active),
+      ai_responses!inner(platform)
     `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
+
+  if (platform && platform !== "all") {
+    competitorCitationsQuery = competitorCitationsQuery.eq("ai_responses.platform", platform);
+  }
+
+  const { data: competitorCitations } = await competitorCitationsQuery;
 
   // Count brand mentions
   const brandMentions = brandCitations?.length || 0;
@@ -127,7 +150,8 @@ export async function getShareOfVoice(
 export async function getShareOfVoiceTrends(
   projectId: string,
   fromDate?: Date,
-  toDate?: Date
+  toDate?: Date,
+  platform?: string
 ) {
   const supabase = await createClient();
 
@@ -146,46 +170,79 @@ export async function getShareOfVoiceTrends(
   const previousEndDate = new Date(currentStartDate);
   const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
 
+  // Build platform filter
+  const platformFilter = platform && platform !== "all";
+
   // Get current period data
+  let currentBrandQuery = supabase
+    .from("citations_detail")
+    .select(`
+      id,
+      ai_responses!inner(platform)
+    `)
+    .eq("project_id", projectId)
+    .gte("created_at", currentStartDate.toISOString())
+    .lte("created_at", currentEndDate.toISOString());
+
+  if (platformFilter) {
+    currentBrandQuery = currentBrandQuery.eq("ai_responses.platform", platform);
+  }
+
+  let currentCompQuery = supabase
+    .from("competitor_citations")
+    .select(`
+      id,
+      competitor_id,
+      competitors!inner(name, is_active),
+      ai_responses!inner(platform)
+    `)
+    .eq("project_id", projectId)
+    .gte("created_at", currentStartDate.toISOString())
+    .lte("created_at", currentEndDate.toISOString());
+
+  if (platformFilter) {
+    currentCompQuery = currentCompQuery.eq("ai_responses.platform", platform);
+  }
+
   const [currentBrandResult, currentCompResult] = await Promise.all([
-    supabase
-      .from("citations_detail")
-      .select("id")
-      .eq("project_id", projectId)
-      .gte("created_at", currentStartDate.toISOString())
-      .lte("created_at", currentEndDate.toISOString()),
-    
-    supabase
-      .from("competitor_citations")
-      .select(`
-        id,
-        competitor_id,
-        competitors!inner(name, is_active)
-      `)
-      .eq("project_id", projectId)
-      .gte("created_at", currentStartDate.toISOString())
-      .lte("created_at", currentEndDate.toISOString()),
+    currentBrandQuery,
+    currentCompQuery,
   ]);
 
   // Get previous period data
+  let previousBrandQuery = supabase
+    .from("citations_detail")
+    .select(`
+      id,
+      ai_responses!inner(platform)
+    `)
+    .eq("project_id", projectId)
+    .gte("created_at", previousStartDate.toISOString())
+    .lte("created_at", previousEndDate.toISOString());
+
+  if (platformFilter) {
+    previousBrandQuery = previousBrandQuery.eq("ai_responses.platform", platform);
+  }
+
+  let previousCompQuery = supabase
+    .from("competitor_citations")
+    .select(`
+      id,
+      competitor_id,
+      competitors!inner(name, is_active),
+      ai_responses!inner(platform)
+    `)
+    .eq("project_id", projectId)
+    .gte("created_at", previousStartDate.toISOString())
+    .lte("created_at", previousEndDate.toISOString());
+
+  if (platformFilter) {
+    previousCompQuery = previousCompQuery.eq("ai_responses.platform", platform);
+  }
+
   const [previousBrandResult, previousCompResult] = await Promise.all([
-    supabase
-      .from("citations_detail")
-      .select("id")
-      .eq("project_id", projectId)
-      .gte("created_at", previousStartDate.toISOString())
-      .lte("created_at", previousEndDate.toISOString()),
-    
-    supabase
-      .from("competitor_citations")
-      .select(`
-        id,
-        competitor_id,
-        competitors!inner(name, is_active)
-      `)
-      .eq("project_id", projectId)
-      .gte("created_at", previousStartDate.toISOString())
-      .lte("created_at", previousEndDate.toISOString()),
+    previousBrandQuery,
+    previousCompQuery,
   ]);
 
   // Calculate current period stats
@@ -262,11 +319,12 @@ export async function getShareOfVoiceTrends(
 export async function getShareOfVoiceInsights(
   projectId: string,
   fromDate?: Date,
-  toDate?: Date
+  toDate?: Date,
+  platform?: string
 ) {
   const [sovData, trendsData] = await Promise.all([
-    getShareOfVoice(projectId, fromDate, toDate),
-    getShareOfVoiceTrends(projectId, fromDate, toDate),
+    getShareOfVoice(projectId, fromDate, toDate, platform),
+    getShareOfVoiceTrends(projectId, fromDate, toDate, platform),
   ]);
 
   const insights: Array<{
@@ -344,7 +402,8 @@ export async function getShareOfVoiceOverTime(
   projectId: string,
   competitorId: string | null,
   fromDate?: Date,
-  toDate?: Date
+  toDate?: Date,
+  platform?: string
 ) {
   const supabase = await createClient();
 
@@ -359,13 +418,26 @@ export async function getShareOfVoiceOverTime(
   const endDate = toDate || new Date();
   const startDate = fromDate || subDays(endDate, 30);
 
+  // Build platform filter
+  const platformFilter = platform && platform !== "all";
+
   // Get brand mentions over time
-  const { data: brandMentions } = await supabase
+  let brandMentionsQuery = supabase
     .from("citations_detail")
-    .select("id, created_at")
+    .select(`
+      id,
+      created_at,
+      ai_responses!inner(platform)
+    `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
+
+  if (platformFilter) {
+    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.platform", platform);
+  }
+
+  const { data: brandMentions } = await brandMentionsQuery;
 
   // Get competitor mentions over time (if competitor selected)
   let competitorMentions: any[] = [];
@@ -373,17 +445,24 @@ export async function getShareOfVoiceOverTime(
   let competitorDomain = "";
 
   if (competitorId) {
-    const { data: compData } = await supabase
+    let compQuery = supabase
       .from("competitor_citations")
       .select(`
         id,
         created_at,
-        competitors!inner(name, domain)
+        competitors!inner(name, domain),
+        ai_responses!inner(platform)
       `)
       .eq("project_id", projectId)
       .eq("competitor_id", competitorId)
       .gte("created_at", startDate.toISOString())
       .lte("created_at", endDate.toISOString());
+
+    if (platformFilter) {
+      compQuery = compQuery.eq("ai_responses.platform", platform);
+    }
+
+    const { data: compData } = await compQuery;
 
     competitorMentions = compData || [];
     competitorName = compData?.[0]?.competitors?.name || "Competitor";

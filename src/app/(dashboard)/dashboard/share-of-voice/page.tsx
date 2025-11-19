@@ -31,6 +31,9 @@ export default function ShareOfVoicePage() {
     to: new Date(),
   });
   
+  // Platform filter state
+  const [platform, setPlatform] = useState<string>("all");
+  
   // Evolution chart state
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
@@ -44,14 +47,14 @@ export default function ShareOfVoicePage() {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadData();
     }
-  }, [selectedProjectId, dateRange]);
+  }, [selectedProjectId, dateRange, platform]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId, dateRange]);
+  }, [selectedProjectId, selectedCompetitorId, dateRange, platform]);
 
   const loadData = async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
@@ -60,9 +63,9 @@ export default function ShareOfVoicePage() {
 
     try {
       const [sov, trends, insightsData] = await Promise.all([
-        getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to),
-        getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to),
-        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to),
+        getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to, platform),
+        getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to, platform),
+        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to, platform),
       ]);
 
       setSovData(sov);
@@ -85,7 +88,8 @@ export default function ShareOfVoicePage() {
         selectedProjectId,
         selectedCompetitorId,
         dateRange.from,
-        dateRange.to
+        dateRange.to,
+        platform
       );
 
       setEvolutionData(evolution.data);
@@ -108,6 +112,7 @@ export default function ShareOfVoicePage() {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
+    setPlatform(filters.platform);
   };
 
   if (isLoading || !sovData) {
@@ -133,7 +138,11 @@ export default function ShareOfVoicePage() {
         description="Compare your brand mentions against competitors in AI responses"
       />
 
-      <FiltersToolbar dateRange={dateRange} onApply={handleFiltersChange} />
+      <FiltersToolbar 
+        dateRange={dateRange} 
+        platform={platform}
+        onApply={handleFiltersChange} 
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
