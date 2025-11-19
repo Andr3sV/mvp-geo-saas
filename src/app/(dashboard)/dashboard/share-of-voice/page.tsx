@@ -6,6 +6,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { useProject } from "@/contexts/project-context";
 import {
   getShareOfVoice,
@@ -123,7 +124,8 @@ export default function ShareOfVoicePage() {
               const allEntities = [
                 {
                   id: "brand",
-                  name: "Your Brand",
+                  name: sovData.brand.name,
+                  domain: sovData.brand.domain,
                   mentions: sovData.brand.mentions,
                   percentage: sovData.brand.percentage,
                   isBrand: true,
@@ -132,6 +134,7 @@ export default function ShareOfVoicePage() {
                 ...sovData.competitors.map((comp: any) => ({
                   id: comp.id,
                   name: comp.name,
+                  domain: comp.domain,
                   mentions: comp.mentions,
                   percentage: comp.percentage,
                   isBrand: false,
@@ -160,10 +163,15 @@ export default function ShareOfVoicePage() {
                 <div key={entity.id} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {entity.isBrand && <Trophy className="h-4 w-4 text-yellow-500" />}
+                      <BrandLogo 
+                        domain={entity.domain || entity.name} 
+                        name={entity.name} 
+                        size={20} 
+                      />
                       <span className={entity.isBrand ? "font-semibold" : "font-medium"}>
                         {entity.name}
                       </span>
+                      {entity.isBrand && <Trophy className="h-4 w-4 text-yellow-500" />}
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm text-muted-foreground">

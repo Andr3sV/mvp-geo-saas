@@ -13,6 +13,13 @@ import { createClient } from "@/lib/supabase/server";
 export async function getShareOfVoice(projectId: string, days: number = 30) {
   const supabase = await createClient();
 
+  // Get project info (name and client_url for favicon)
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url")
+    .eq("id", projectId)
+    .single();
+
   // Calculate date range
   const endDate = new Date();
   const startDate = new Date();
@@ -32,7 +39,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
       id,
       created_at,
       competitor_id,
-      competitors!inner(name, is_active)
+      competitors!inner(name, domain, is_active)
     `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString());
@@ -41,7 +48,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
   const brandMentions = brandCitations?.length || 0;
 
   // Count competitor mentions by competitor
-  const competitorStats = new Map<string, { id: string; name: string; mentions: number }>();
+  const competitorStats = new Map<string, { id: string; name: string; domain: string; mentions: number }>();
   
   competitorCitations?.forEach((citation: any) => {
     const competitor = citation.competitors;
@@ -51,6 +58,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
       competitorStats.set(competitor.name, {
         id: citation.competitor_id,
         name: competitor.name,
+        domain: competitor.domain || "",
         mentions: 0,
       });
     }
@@ -70,6 +78,7 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
   const competitors = Array.from(competitorStats.values()).map((comp) => ({
     id: comp.id,
     name: comp.name,
+    domain: comp.domain,
     mentions: comp.mentions,
     percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
   }));
@@ -79,14 +88,16 @@ export async function getShareOfVoice(projectId: string, days: number = 30) {
 
   // Determine market position
   const allEntities = [
-    { name: "Your Brand", mentions: brandMentions, percentage: brandPercentage },
+    { name: project?.name || "Your Brand", mentions: brandMentions, percentage: brandPercentage },
     ...competitors,
   ].sort((a, b) => b.mentions - a.mentions);
 
-  const marketPosition = allEntities.findIndex((e) => e.name === "Your Brand") + 1;
+  const marketPosition = allEntities.findIndex((e) => e.name === (project?.name || "Your Brand")) + 1;
 
   return {
     brand: {
+      name: project?.name || "Your Brand",
+      domain: project?.client_url || "",
       mentions: brandMentions,
       percentage: Number(brandPercentage.toFixed(1)),
     },
