@@ -85,7 +85,7 @@ export function MentionsEvolutionChart({
               Mentions Evolution
             </CardTitle>
             <CardDescription className="text-sm">
-              Track daily mention trends over the last 30 days
+              Track daily mention trends
             </CardDescription>
           </div>
         </div>

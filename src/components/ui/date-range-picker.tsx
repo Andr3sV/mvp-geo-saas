@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Calendar, Check } from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { format, subDays, startOfYear, subMonths } from "date-fns";
+import { DateRange, DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,59 +14,24 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
-export interface DateRange {
+export interface DateRangeValue {
   from: Date;
   to: Date;
   preset?: string;
 }
 
 interface DateRangePickerProps {
-  value?: DateRange;
-  onChange?: (range: DateRange) => void;
+  value?: DateRangeValue;
+  onChange?: (range: DateRangeValue) => void;
   className?: string;
 }
 
 const presets = [
-  {
-    label: "Last 7 days",
-    value: "7d",
-    getRange: () => ({
-      from: subDays(new Date(), 6),
-      to: new Date(),
-    }),
-  },
-  {
-    label: "Last 30 days",
-    value: "30d",
-    getRange: () => ({
-      from: subDays(new Date(), 29),
-      to: new Date(),
-    }),
-  },
-  {
-    label: "Last 90 days",
-    value: "90d",
-    getRange: () => ({
-      from: subDays(new Date(), 89),
-      to: new Date(),
-    }),
-  },
-  {
-    label: "Year to date",
-    value: "ytd",
-    getRange: () => ({
-      from: startOfYear(new Date()),
-      to: new Date(),
-    }),
-  },
-  {
-    label: "Last 12 months",
-    value: "12m",
-    getRange: () => ({
-      from: subMonths(new Date(), 12),
-      to: new Date(),
-    }),
-  },
+  { label: "Last 7 days", value: "7d", days: 7 },
+  { label: "Last 30 days", value: "30d", days: 30 },
+  { label: "Last 90 days", value: "90d", days: 90 },
+  { label: "Year to date", value: "ytd", days: null },
+  { label: "Last 12 months", value: "12m", days: 365 },
 ];
 
 export function DateRangePicker({
@@ -73,28 +40,45 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
-  
-  const selectedPreset = value?.preset || "30d";
-  const selectedRange = value || presets.find(p => p.value === "30d")!.getRange();
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(
+    value ? { from: value.from, to: value.to } : undefined
+  );
 
-  const handleSelect = (preset: typeof presets[0]) => {
-    const range = preset.getRange();
-    onChange?.({
-      ...range,
-      preset: preset.value,
-    });
+  const handlePresetClick = (preset: typeof presets[0]) => {
+    let from: Date;
+    const to = new Date();
+
+    if (preset.value === "ytd") {
+      from = startOfYear(to);
+    } else if (preset.days) {
+      from = subDays(to, preset.days - 1);
+    } else {
+      return;
+    }
+
+    const newRange = { from, to, preset: preset.value };
+    setDateRange({ from, to });
+    onChange?.(newRange);
     setOpen(false);
   };
 
-  const formatDateRange = () => {
-    if (!selectedRange.from || !selectedRange.to) {
-      return "Select date range";
+  const handleSelect = (range: DateRange | undefined) => {
+    setDateRange(range);
+    if (range?.from && range?.to) {
+      onChange?.({
+        from: range.from,
+        to: range.to,
+        preset: "custom",
+      });
+      setOpen(false);
     }
-    
-    const fromStr = format(selectedRange.from, "MMM d");
-    const toStr = format(selectedRange.to, "MMM d, yyyy");
-    
-    return `${fromStr} - ${toStr}`;
+  };
+
+  const formatDateRange = () => {
+    if (value?.from && value?.to) {
+      return `${format(value.from, "MMM d")} - ${format(value.to, "MMM d, yyyy")}`;
+    }
+    return "Select date range";
   };
 
   return (
@@ -102,62 +86,45 @@ export function DateRangePicker({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className={cn("w-full justify-start text-left font-normal", className)}
+          className={cn("justify-start text-left font-normal", className)}
         >
-          <Calendar className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-          <span className="flex-1">{formatDateRange()}</span>
+          <CalendarIcon className="mr-2 h-4 w-4" />
+          {formatDateRange()}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
-        <div className="flex flex-col">
-          <div className="border-b p-3">
-            <p className="text-sm font-medium">Date Range</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Select a time period for your analysis
-            </p>
-          </div>
-          
-          <div className="p-2">
-            {presets.map((preset) => (
-              <button
-                key={preset.value}
-                onClick={() => handleSelect(preset)}
-                className={cn(
-                  "relative flex w-full items-center rounded-sm px-2 py-2 text-sm outline-none transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "focus:bg-accent focus:text-accent-foreground",
-                  selectedPreset === preset.value && "bg-accent"
-                )}
-              >
-                <Check
+      <PopoverContent className="w-auto p-0" align="start">
+        <div className="flex">
+          {/* Sidebar with presets */}
+          <div className="border-r">
+            <div className="p-2 space-y-1">
+              {presets.map((preset) => (
+                <button
+                  key={preset.value}
+                  onClick={() => handlePresetClick(preset)}
                   className={cn(
-                    "mr-2 h-4 w-4",
-                    selectedPreset === preset.value ? "opacity-100" : "opacity-0"
+                    "w-full text-left px-3 py-2 text-sm rounded hover:bg-accent transition-colors",
+                    value?.preset === preset.value && "bg-accent"
                   )}
-                />
-                <span className="flex-1 text-left">{preset.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {format(preset.getRange().from, "MMM d")} -{" "}
-                  {format(preset.getRange().to, "MMM d")}
-                </span>
-              </button>
-            ))}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
-          
-          {/* Custom date range - Coming soon */}
-          <div className="border-t p-3">
-            <button
-              disabled
-              className="w-full rounded-sm bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
-            >
-              Custom range (coming soon)
-            </button>
+
+          {/* Calendar */}
+          <div className="p-3">
+            <DayPicker
+              mode="range"
+              selected={dateRange}
+              onSelect={handleSelect}
+              numberOfMonths={2}
+              disabled={{ after: new Date() }}
+              className={cn("rdp-custom")}
+            />
           </div>
         </div>
       </PopoverContent>
     </Popover>
   );
 }
-
