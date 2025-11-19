@@ -91,7 +91,6 @@ export function MentionsEvolutionChart({
         </div>
 
         <div className="mt-6 space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">Compare with</p>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => onCompetitorChange("")}
