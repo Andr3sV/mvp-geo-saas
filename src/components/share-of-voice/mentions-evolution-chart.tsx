@@ -39,7 +39,6 @@ export function MentionsEvolutionChart({
   onCompetitorChange,
   isLoading,
 }: MentionsEvolutionChartProps) {
-  // Custom tooltip with modern design
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -69,12 +68,8 @@ export function MentionsEvolutionChart({
     return null;
   };
 
-  // Calculate total mentions for each entity
   const brandTotal = data.reduce((sum, item) => sum + item.brandMentions, 0);
   const competitorTotal = data.reduce((sum, item) => sum + item.competitorMentions, 0);
-
-  // Find selected competitor info
-  const selectedCompetitor = competitors.find((c) => c.id === selectedCompetitorId);
 
   return (
     <Card className="border-border/50">
@@ -91,11 +86,9 @@ export function MentionsEvolutionChart({
           </div>
         </div>
 
-        {/* Competitor selector - modern pills design */}
         <div className="mt-6 space-y-3">
           <p className="text-xs font-medium text-muted-foreground">Compare with</p>
           <div className="flex flex-wrap gap-2">
-            {/* Brand only option */}
             <button
               onClick={() => onCompetitorChange("")}
               disabled={isLoading}
@@ -112,7 +105,6 @@ export function MentionsEvolutionChart({
               {!selectedCompetitorId && <Check className="h-3 w-3" />}
             </button>
 
-            {/* Competitors */}
             {competitors.map((comp) => (
               <button
                 key={comp.id}
@@ -140,7 +132,6 @@ export function MentionsEvolutionChart({
           )}
         </div>
 
-        {/* Legend with totals */}
         <div className="mt-6 flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-500" />
@@ -186,17 +177,6 @@ export function MentionsEvolutionChart({
                 data={data}
                 margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
               >
-                <defs>
-                  <linearGradient id="brandGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="rgb(59, 130, 246)" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="rgb(59, 130, 246)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="competitorGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="rgb(239, 68, 68)" stopOpacity={0.1} />
-                    <stop offset="95%" stopColor="rgb(239, 68, 68)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="hsl(var(--border))"
@@ -251,7 +231,7 @@ export function MentionsEvolutionChart({
                     dot={false}
                     activeDot={{
                       r: 5,
-                      fill="rgb(239, 68, 68)",
+                      fill: "rgb(239, 68, 68)",
                       strokeWidth: 2,
                       stroke: "#fff",
                     }}
