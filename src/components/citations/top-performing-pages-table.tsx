@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, ExternalLink } from "lucide-react";
 
 interface PageData {
   pageUrl: string;
@@ -80,13 +80,26 @@ export function TopPerformingPagesTable({ data }: TopPerformingPagesTableProps) 
                   <TableRow key={page.pageUrl}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <div>
-                        <p className="font-medium text-sm truncate max-w-md">
-                          {page.pageTitle || getTruncatedUrl(page.pageUrl)}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono">
+                      <div className="space-y-1">
+                        <a
+                          href={page.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center gap-2 hover:text-primary transition-colors"
+                        >
+                          <p className="font-medium text-sm truncate max-w-md group-hover:underline">
+                            {page.pageTitle || getTruncatedUrl(page.pageUrl)}
+                          </p>
+                          <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-primary flex-shrink-0" />
+                        </a>
+                        <a
+                          href={page.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs text-muted-foreground font-mono hover:text-primary transition-colors hover:underline"
+                        >
                           {getTruncatedUrl(page.pageUrl, 60)}
-                        </p>
+                        </a>
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-medium">
