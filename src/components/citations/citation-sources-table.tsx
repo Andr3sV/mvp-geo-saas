@@ -271,8 +271,9 @@ export function CitationSourcesTable({
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
+            <div className="flex justify-end">
+              <Pagination className="ml-auto mr-0 w-auto justify-end">
+                <PaginationContent>
                 <PaginationItem>
                   <PaginationPrevious
                     href="#"
@@ -319,7 +320,8 @@ export function CitationSourcesTable({
                   />
                 </PaginationItem>
               </PaginationContent>
-            </Pagination>
+              </Pagination>
+            </div>
           )}
         </div>
       </CardContent>
