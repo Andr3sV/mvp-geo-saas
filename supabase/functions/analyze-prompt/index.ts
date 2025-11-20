@@ -74,6 +74,21 @@ serve(async (req: Request) => {
     logInfo('analyze-prompt', `Starting analysis for prompt: ${prompt_tracking_id}`);
     logInfo('analyze-prompt', `Target platforms: ${targetPlatforms.join(', ')}`);
 
+    // Get prompt details including region
+    const { data: promptData, error: promptError } = await supabase
+      .from('prompt_tracking')
+      .select('region')
+      .eq('id', prompt_tracking_id)
+      .single();
+
+    if (promptError) {
+      logError('analyze-prompt', 'Failed to fetch prompt details', promptError);
+      return errorResponse('Failed to fetch prompt details');
+    }
+
+    const promptRegion = promptData?.region || 'GLOBAL';
+    logInfo('analyze-prompt', `Prompt region: ${promptRegion}`);
+
     // Create analysis job
     const { data: job, error: jobError } = await supabase
       .from('analysis_jobs')
@@ -97,7 +112,7 @@ serve(async (req: Request) => {
 
     // Process each platform in parallel
     const platformPromises = targetPlatforms.map((platform) =>
-      processPromptForPlatform(supabase, job.id, project_id, prompt_tracking_id, prompt_text, platform)
+      processPromptForPlatform(supabase, job.id, project_id, prompt_tracking_id, prompt_text, platform, promptRegion)
     );
 
     // Execute all platforms and wait for results
@@ -138,6 +153,20 @@ serve(async (req: Request) => {
 });
 
 // =============================================
+// HELPER: ENRICH PROMPT WITH REGION CONTEXT
+// =============================================
+
+function enrichPromptWithRegion(prompt: string, region: string): string {
+  if (!region || region === 'GLOBAL') {
+    return prompt;
+  }
+
+  // Add regional context using the ISO country code
+  // Modern LLMs understand ISO 3166-1 alpha-2 country codes (e.g., ES, US, GB)
+  return `${prompt}\n\nNote: Please provide information relevant to ${region}. Focus on local context, regional brands, and country-specific information when applicable.`;
+}
+
+// =============================================
 // HELPER: PROCESS PROMPT FOR SINGLE PLATFORM
 // =============================================
 
@@ -147,7 +176,8 @@ async function processPromptForPlatform(
   projectId: string,
   promptTrackingId: string,
   promptText: string,
-  platform: AIProvider
+  platform: AIProvider,
+  region: string = 'GLOBAL'
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -179,11 +209,19 @@ async function processPromptForPlatform(
       throw new Error(`Failed to create AI response record: ${insertError.message}`);
     }
 
-    // Call AI platform
-    const result = await callAI(platform, promptText, {
+    // Enrich prompt with region context if region is specified
+    const enrichedPrompt = enrichPromptWithRegion(promptText, region);
+    
+    if (region !== 'GLOBAL') {
+      logInfo('analyze-prompt', `Enriched prompt with region context: ${region}`);
+    }
+
+    // Call AI platform with enriched prompt
+    const result = await callAI(platform, enrichedPrompt, {
       apiKey,
       temperature: 0.7,
       maxTokens: 2000,
+      region, // Pass region for reference (already included in enriched prompt)
     });
 
     // Update AI response with results

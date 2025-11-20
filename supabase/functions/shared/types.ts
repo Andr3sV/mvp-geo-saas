@@ -99,6 +99,7 @@ export interface AIClientConfig {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  region?: string; // Optional region for regional context
 }
 
 export interface AICompletionResult {
