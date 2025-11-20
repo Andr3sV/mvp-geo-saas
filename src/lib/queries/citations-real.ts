@@ -1135,7 +1135,8 @@ export async function getCitationSources(
     filters
   );
 
-  // Get paginated citations
+  // Get paginated citations with response_text from ai_responses
+  // Note: We show response_text (full AI response) instead of citation_text (individual mention)
   const { data: citations } = await applyRegionFilter(
     applyPlatformFilter(
       applyDateFilter(
@@ -1143,13 +1144,14 @@ export async function getCitationSources(
           .from("citations_detail")
           .select(`
             id,
-            citation_text,
             cited_url,
             cited_domain,
             sentiment,
             created_at,
             ai_responses!inner(
+              id,
               platform,
+              response_text,
               prompt_tracking!inner(region)
             )
           `)
@@ -1176,7 +1178,7 @@ export async function getCitationSources(
 
   const mappedCitations = citations.map((citation: any) => ({
     id: citation.id,
-    citationText: citation.citation_text,
+    citationText: citation.ai_responses?.response_text || "", // Full AI response text
     citedUrl: citation.cited_url,
     citedDomain: citation.cited_domain,
     platform: citation.ai_responses?.platform || "unknown",

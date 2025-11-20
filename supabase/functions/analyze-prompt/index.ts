@@ -337,6 +337,35 @@ async function triggerCitationProcessing(
       await supabase.from('citations_detail').insert(citationRecords);
     }
 
+    // IMPORTANT: Save ALL URLs from the LLM response, even if no brand mentions
+    // This ensures we don't lose any URLs used by the LLM
+    // Each URL gets its own record in citations_detail
+    if (citationUrls.length > 0) {
+      logInfo('analyze-prompt', `Saving ${citationUrls.length} URLs from LLM response`);
+      
+      const urlRecords = citationUrls.map((url: string, index: number) => ({
+        ai_response_id: aiResponseId,
+        project_id: projectId,
+        citation_text: null, // No specific mention text, just the URL
+        context_before: null,
+        context_after: null,
+        position_in_response: null,
+        is_direct_mention: false, // Not a direct mention, just a source URL
+        confidence_score: 1.0, // High confidence - URL came directly from LLM
+        sentiment: null, // No sentiment for URLs alone
+        cited_url: url,
+        cited_domain: extractDomain(url),
+      }));
+
+      const { error: urlError } = await supabase.from('citations_detail').insert(urlRecords);
+      
+      if (urlError) {
+        logError('analyze-prompt', 'Failed to insert URL records', urlError);
+      } else {
+        logInfo('analyze-prompt', `Successfully saved ${urlRecords.length} URLs to citations_detail`);
+      }
+    }
+
     // Extract and insert competitor citations
     for (const competitor of activeCompetitors) {
       logInfo('analyze-prompt', `Checking for citations of competitor: ${competitor.name}`);
