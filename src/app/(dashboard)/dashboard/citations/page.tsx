@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { MetricCard } from "@/components/citations/metric-card";
-import { CitationsTimelineChart } from "@/components/citations/citations-timeline-chart";
+import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
 import { CitationDRBreakdown } from "@/components/citations/citation-dr-breakdown";
 import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains-table";
 import { HighValueOpportunitiesTable } from "@/components/citations/high-value-opportunities-table";
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import {
   getQuickLookMetrics,
-  getCitationsOverTime,
+  getCitationsEvolution,
   getDRBreakdown,
   getMostCitedDomains,
   getHighValueOpportunities,
@@ -27,14 +27,16 @@ import {
   getCompetitiveTopicAnalysis,
   getCitationSources,
 } from "@/lib/queries/citations-real";
+import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
+import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { subDays } from "date-fns";
 
 export default function CitationsPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [quickMetrics, setQuickMetrics] = useState<any>(null);
-  const [timelineData, setTimelineData] = useState<any[]>([]);
   const [drBreakdown, setDRBreakdown] = useState<any>({ high: 0, medium: 0, low: 0, unverified: 0 });
   const [mostCitedDomains, setMostCitedDomains] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
@@ -42,11 +44,104 @@ export default function CitationsPage() {
   const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
   const [citationSources, setCitationSources] = useState<any[]>([]);
 
+  // Filters state
+  const [dateRange, setDateRange] = useState<DateRangeValue>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
+  const [platform, setPlatform] = useState<string>("all");
+  const [region, setRegion] = useState<string>("GLOBAL");
+
+  // Evolution chart state
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
+  const [evolutionData, setEvolutionData] = useState<any[]>([]);
+  const [evolutionBrandName, setEvolutionBrandName] = useState("");
+  const [evolutionBrandDomain, setEvolutionBrandDomain] = useState("");
+  const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
+  const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
+  const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
+  const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
+
   useEffect(() => {
     if (selectedProjectId) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
+      loadEvolutionData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, selectedCompetitorId, dateRange, platform, region]);
+
+  // Load competitors filtered by region for the selector
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadRegionFilteredCompetitors();
+      // Reset selected competitor when region changes
+      setSelectedCompetitorId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, region]);
+
+  const loadRegionFilteredCompetitors = async () => {
+    if (!selectedProjectId) return;
+
+    try {
+      const result = await getCompetitorsByRegion(selectedProjectId, region);
+      if (result.data) {
+        const competitorsForSelector = result.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          domain: c.domain || c.name,
+        }));
+        setRegionFilteredCompetitors(competitorsForSelector);
+      }
+    } catch (error) {
+      console.error("Error loading region filtered competitors:", error);
+    }
+  };
+
+  const loadEvolutionData = async () => {
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
+
+    setIsLoadingEvolution(true);
+
+    try {
+      const evolution = await getCitationsEvolution(
+        selectedProjectId,
+        selectedCompetitorId,
+        dateRange.from,
+        dateRange.to,
+        platform,
+        region
+      );
+
+      setEvolutionData(evolution.data);
+      setEvolutionBrandName(evolution.brandName);
+      setEvolutionBrandDomain(evolution.brandDomain);
+      setEvolutionCompetitorName(evolution.competitorName);
+      setEvolutionCompetitorDomain(evolution.competitorDomain);
+    } catch (error) {
+      console.error("Error loading evolution data:", error);
+    } finally {
+      setIsLoadingEvolution(false);
+    }
+  };
+
+  const handleFiltersChange = (filters: {
+    region: string;
+    dateRange: DateRangeValue;
+    platform: string;
+  }) => {
+    if (filters.dateRange.from && filters.dateRange.to) {
+      setDateRange(filters.dateRange);
+    }
+    setPlatform(filters.platform);
+    setRegion(filters.region);
+  };
 
   const loadData = async () => {
     if (!selectedProjectId) return;
@@ -56,7 +151,6 @@ export default function CitationsPage() {
         try {
           const [
             metricsData,
-            timelineResult,
             drResult,
             domainsResult,
             opportunitiesResult,
@@ -65,7 +159,6 @@ export default function CitationsPage() {
             sourcesResult,
           ] = await Promise.all([
             getQuickLookMetrics(selectedProjectId),
-            getCitationsOverTime(selectedProjectId, 30),
             getDRBreakdown(selectedProjectId),
             getMostCitedDomains(selectedProjectId, 10),
             getHighValueOpportunities(selectedProjectId, 10),
@@ -75,7 +168,6 @@ export default function CitationsPage() {
           ]);
 
           setQuickMetrics(metricsData);
-          setTimelineData(timelineResult);
           setDRBreakdown(drResult);
           setMostCitedDomains(domainsResult);
           setOpportunities(opportunitiesResult);
@@ -114,7 +206,12 @@ export default function CitationsPage() {
       />
 
       {/* Filters Toolbar */}
-      <FiltersToolbar />
+      <FiltersToolbar
+        dateRange={dateRange}
+        platform={platform}
+        region={region}
+        onApply={handleFiltersChange}
+      />
 
       {/* Quick Look Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -148,14 +245,24 @@ export default function CitationsPage() {
         />
       </div>
 
-      {/* Timeline and DR Breakdown */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <CitationsTimelineChart data={timelineData} />
-        <CitationDRBreakdown data={drBreakdown} />
-      </div>
+      {/* Citations Evolution Chart - Full Width */}
+      <CitationsEvolutionChart
+        data={evolutionData}
+        brandName={evolutionBrandName}
+        brandDomain={evolutionBrandDomain}
+        competitorName={evolutionCompetitorName}
+        competitorDomain={evolutionCompetitorDomain}
+        competitors={regionFilteredCompetitors}
+        selectedCompetitorId={selectedCompetitorId}
+        onCompetitorChange={setSelectedCompetitorId}
+        isLoading={isLoadingEvolution}
+      />
 
-      {/* Most Cited Domains */}
-      <MostCitedDomainsTable data={mostCitedDomains} />
+      {/* DR Breakdown and Most Cited Domains - Side by Side */}
+      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+        <CitationDRBreakdown data={drBreakdown} />
+        <MostCitedDomainsTable data={mostCitedDomains} />
+      </div>
 
       {/* Citation Sources - Individual URLs */}
       <CitationSourcesTable data={citationSources} />

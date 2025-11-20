@@ -152,6 +152,140 @@ export async function getCitationsOverTime(
 }
 
 // =============================================
+// CITATIONS EVOLUTION (BRAND VS COMPETITOR)
+// =============================================
+
+/**
+ * Get daily citations evolution for brand and a specific competitor
+ * Used for time-series chart visualization (similar to Share of Voice)
+ * Only includes citations WITH URLs (real citations from web search)
+ */
+export async function getCitationsEvolution(
+  projectId: string,
+  competitorId: string | null,
+  fromDate?: Date,
+  toDate?: Date,
+  platform?: string,
+  region?: string
+) {
+  const supabase = await createClient();
+  const { format, subDays, eachDayOfInterval } = await import("date-fns");
+
+  // Get project info (including domain for logo)
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range (default to last 30 days if not provided)
+  const endDate = toDate || new Date();
+  const startDate = fromDate || subDays(endDate, 30);
+
+  // Build platform and region filters
+  const platformFilter = platform && platform !== "all";
+  const regionFilter = region && region !== "GLOBAL";
+
+  // Get brand citations over time (only with URLs)
+  let brandCitationsQuery = supabase
+    .from("citations_detail")
+    .select(`
+      id,
+      created_at,
+      ai_responses!inner(
+        platform,
+        prompt_tracking!inner(region)
+      )
+    `)
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null) // ✅ Only real citations with URLs
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString());
+
+  if (platformFilter) {
+    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
+  }
+
+  if (regionFilter) {
+    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
+  }
+
+  const { data: brandCitations } = await brandCitationsQuery;
+
+  // Get competitor citations over time (if competitor selected)
+  let competitorCitations: any[] = [];
+  let competitorName = "";
+  let competitorDomain = "";
+
+  if (competitorId) {
+    let compQuery = supabase
+      .from("competitor_citations")
+      .select(`
+        id,
+        created_at,
+        competitors!inner(name, domain, region),
+        ai_responses!inner(
+          platform,
+          prompt_tracking!inner(region)
+        )
+      `)
+      .eq("project_id", projectId)
+      .eq("competitor_id", competitorId)
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString());
+
+    if (platformFilter) {
+      compQuery = compQuery.eq("ai_responses.platform", platform);
+    }
+
+    if (regionFilter) {
+      compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
+    }
+
+    const { data: compData } = await compQuery;
+
+    competitorCitations = compData || [];
+    competitorName = compData?.[0]?.competitors?.name || "Competitor";
+    competitorDomain = compData?.[0]?.competitors?.domain || "";
+  }
+
+  // Create array of all days in range
+  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+
+  // Count citations by day
+  const dailyData = allDays.map((day) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+
+    // Count brand citations for this day
+    const brandCount = (brandCitations || []).filter((c) => {
+      const citationDate = format(new Date(c.created_at), "yyyy-MM-dd");
+      return citationDate === dayStr;
+    }).length;
+
+    // Count competitor citations for this day
+    const competitorCount = competitorCitations.filter((c) => {
+      const citationDate = format(new Date(c.created_at), "yyyy-MM-dd");
+      return citationDate === dayStr;
+    }).length;
+
+    return {
+      date: format(day, "MMM dd"),
+      fullDate: dayStr,
+      brandCitations: brandCount,
+      competitorCitations: competitorCount,
+    };
+  });
+
+  return {
+    data: dailyData,
+    brandName: project?.name || "Your Brand",
+    brandDomain: project?.client_url || project?.name || "",
+    competitorName,
+    competitorDomain,
+  };
+}
+
+// =============================================
 // DR BREAKDOWN (REAL DATA)
 // =============================================
 
