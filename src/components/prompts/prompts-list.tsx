@@ -72,7 +72,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
                  role="button"
                  tabIndex={0}
             >
-            <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-2">
               <div className="flex items-start gap-2">
                 <p className="flex-1 font-medium">{prompt.prompt}</p>
                 <div className="flex gap-2">
@@ -91,9 +91,9 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
               <p className="text-xs text-muted-foreground">
                 Created {new Date(prompt.created_at).toLocaleDateString()}
               </p>
-            </div>
+              </div>
 
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <RunAnalysisButton
                 promptId={prompt.id}
                 promptText={prompt.prompt}
@@ -136,6 +136,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
+              </div>
             </div>
             
             {/* Citations Summary */}
