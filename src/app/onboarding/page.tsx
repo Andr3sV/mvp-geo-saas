@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -161,7 +162,13 @@ export default function OnboardingPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center px-4">
-          <span className="text-xl font-semibold">Ateneai</span>
+          <Image
+            src="/ateneai-logo.png"
+            alt="Ateneai"
+            width={150}
+            height={40}
+            className="h-10 w-auto"
+          />
         </div>
       </header>
 
