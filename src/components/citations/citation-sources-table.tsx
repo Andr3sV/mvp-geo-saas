@@ -162,9 +162,12 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
                   <TableCell className="px-5 w-[30%]">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <p className="text-sm line-clamp-2 max-w-[280px] cursor-help">
-                          {citation.citationText}
-                        </p>
+                        <div
+                          className="text-sm line-clamp-2 max-w-[280px] cursor-help [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_sup]:text-[10px] [&_sup]:text-muted-foreground/70"
+                          dangerouslySetInnerHTML={{
+                            __html: formatCitationText(citation.citationText),
+                          }}
+                        />
                       </TooltipTrigger>
                       <TooltipContent
                         side="top"
