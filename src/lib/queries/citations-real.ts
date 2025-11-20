@@ -604,89 +604,142 @@ export async function getHighValueOpportunities(projectId: string, limit: number
  * Get prompts with most citations
  * OPTIMIZED: Batch queries with JOINs
  */
+/**
+ * Get top performing pages from your domain (pages that are most cited by AI)
+ * Groups by cited_url to show which pages from your domain get the most citations
+ */
 export async function getTopPerformingPages(projectId: string, limit: number = 10) {
   const supabase = await createClient();
 
-  // Get citations with prompt info in single query - only citations WITH URLs
+  // Get project domain to filter citations from your own domain
+  const { data: project } = await supabase
+    .from("projects")
+    .select("client_url")
+    .eq("id", projectId)
+    .single();
+
+  if (!project?.client_url) {
+    return [];
+  }
+
+  // Extract domain from client_url (e.g., "https://example.com" -> "example.com")
+  const projectDomain = project.client_url
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0]
+    .toLowerCase();
+
+  // Get all citations with URLs, platform, and response info
   const { data: citations } = await supabase
     .from("citations_detail")
     .select(`
       id,
+      cited_url,
+      cited_domain,
       ai_response_id,
       ai_responses!inner(
-        prompt_tracking_id,
-        prompt_tracking!inner(prompt)
+        platform,
+        prompt_tracking_id
       )
     `)
     .eq("project_id", projectId)
-    .not("cited_url", "is", null); // ✅ Only real citations with URLs
+    .not("cited_url", "is", null); // Only citations with URLs
 
-  if (!citations) return [];
+  if (!citations || citations.length === 0) {
+    return [];
+  }
 
-  // Get all responses for impression count
-  const { data: allResponses } = await supabase
-    .from("ai_responses")
-    .select("id, prompt_tracking_id")
-    .eq("project_id", projectId)
-    .eq("status", "success")
-    .not("prompt_tracking_id", "is", null);
-
-  // Group by prompt
-  const promptStats = new Map<string, any>();
-
-  // Count impressions (responses) per prompt
-  allResponses?.forEach((response) => {
-    const promptId = response.prompt_tracking_id;
-    if (!promptId) return;
-
-    if (!promptStats.has(promptId)) {
-      promptStats.set(promptId, {
-        promptId,
-        prompt: null,
-        citations: 0,
-        impressions: 0,
-      });
-    }
-    promptStats.get(promptId)!.impressions++;
-  });
-
-  // Count citations per prompt
-  citations.forEach((citation: any) => {
-    const promptData = citation.ai_responses?.prompt_tracking;
-    const promptId = citation.ai_responses?.prompt_tracking_id;
+  // Filter citations to only include URLs from your own domain
+  const yourDomainCitations = citations.filter((citation: any) => {
+    const citedDomain = citation.cited_domain?.toLowerCase() || "";
+    const citedUrl = citation.cited_url?.toLowerCase() || "";
     
-    if (!promptId) return;
+    // Check if the cited domain or URL belongs to your domain
+    return (
+      citedDomain.includes(projectDomain) ||
+      citedUrl.includes(projectDomain)
+    );
+  });
 
-    if (!promptStats.has(promptId)) {
-      promptStats.set(promptId, {
-        promptId,
-        prompt: promptData?.prompt || "Unknown prompt",
-        citations: 0,
-        impressions: 0,
+  if (yourDomainCitations.length === 0) {
+    return [];
+  }
+
+  // Group by cited_url (page URL)
+  const pageStats = new Map<string, {
+    pageUrl: string;
+    pageTitle: string;
+    totalCitations: number;
+    uniqueAiAnswers: Set<string>; // Set of ai_response_id
+    platformBreakdown: Record<string, number>;
+  }>();
+
+  // Process each citation
+  yourDomainCitations.forEach((citation: any) => {
+    const pageUrl = citation.cited_url;
+    const platform = citation.ai_responses?.platform || "unknown";
+    const aiResponseId = citation.ai_response_id;
+
+    if (!pageUrl) return;
+
+    // Initialize page stats if not exists
+    if (!pageStats.has(pageUrl)) {
+      pageStats.set(pageUrl, {
+        pageUrl,
+        pageTitle: citation.cited_domain || pageUrl, // Use domain as title fallback
+        totalCitations: 0,
+        uniqueAiAnswers: new Set(),
+        platformBreakdown: {},
       });
     }
 
-    const stats = promptStats.get(promptId)!;
-    stats.citations++;
-    if (!stats.prompt && promptData?.prompt) {
-      stats.prompt = promptData.prompt;
+    const stats = pageStats.get(pageUrl)!;
+    stats.totalCitations++;
+    stats.uniqueAiAnswers.add(aiResponseId);
+
+    // Count by platform
+    if (!stats.platformBreakdown[platform]) {
+      stats.platformBreakdown[platform] = 0;
     }
+    stats.platformBreakdown[platform]++;
   });
 
-  // Convert to array and calculate rates
-  const performance = Array.from(promptStats.values())
-    .filter((stats) => stats.impressions > 0)
-    .map((stats) => ({
-      url: stats.prompt || "Unknown prompt",
-      citations: stats.citations,
-      impressions: stats.impressions,
-      citationRate: ((stats.citations / stats.impressions) * 100).toFixed(1),
-      avgPosition: 1, // Simulated
-    }))
-    .sort((a, b) => b.citations - a.citations)
+  // Convert to array format expected by the table
+  const topPages = Array.from(pageStats.values())
+    .map((stats) => {
+      // Extract a better page title from URL if domain is not descriptive
+      let pageTitle = stats.pageTitle;
+      try {
+        const url = new URL(stats.pageUrl);
+        // Use pathname as title if it's more descriptive than just domain
+        const pathname = url.pathname.replace(/^\//, '').replace(/\/$/, '');
+        if (pathname && pathname !== '') {
+          // Decode URL and format nicely
+          pageTitle = decodeURIComponent(pathname)
+            .split('/')
+            .filter(p => p)
+            .map(p => p.charAt(0).toUpperCase() + p.slice(1))
+            .join(' / ') || stats.pageTitle;
+        }
+      } catch {
+        // If URL parsing fails, use the domain as title
+        pageTitle = stats.pageTitle;
+      }
+
+      return {
+        pageUrl: stats.pageUrl,
+        pageTitle: pageTitle,
+        totalCitations: stats.totalCitations,
+        uniqueAiAnswers: stats.uniqueAiAnswers.size,
+        platformBreakdown: stats.platformBreakdown,
+        // Trend calculation could be added later by comparing with previous period
+        trend: undefined as string | undefined,
+      };
+    })
+    .sort((a, b) => b.totalCitations - a.totalCitations)
     .slice(0, limit);
 
-  return performance;
+  return topPages;
 }
 
 // =============================================
