@@ -587,7 +587,9 @@ export async function getHighValueOpportunities(
 ) {
   const supabase = await createClient();
 
-  // Get all brand citations WITH URLs only (domains where we ARE mentioned)
+  // Get brand citations WITH URLs only (domains where we ARE mentioned)
+  // IMPORTANT: Filter by citation_text IS NOT NULL to exclude URLs without brand mentions
+  // URLs without brand mentions have citation_text = NULL (they're just URLs saved from LLM)
   const { data: brandCitations } = await applyRegionFilter(
     applyPlatformFilter(
       applyDateFilter(
@@ -603,7 +605,8 @@ export async function getHighValueOpportunities(
           `)
           .eq("project_id", projectId)
           .not("cited_url", "is", null)
-          .not("cited_domain", "is", null),
+          .not("cited_domain", "is", null)
+          .not("citation_text", "is", null), // Only citations with brand mentions
         filters
       ),
       filters
@@ -616,11 +619,8 @@ export async function getHighValueOpportunities(
     brandCitations?.map((c) => c.cited_domain) || []
   );
 
-  // Get competitor citations with domain info
-  // Note: competitor_citations doesn't have cited_url/cited_domain yet
-  // So we need to get it from the brand citations in the same ai_response
-  
-  // First, get all brand citation domains grouped by ai_response_id
+  // Get all brand citation domains grouped by ai_response_id
+  // Used to check if brand is cited in a specific response
   const brandCitationsByResponse = new Map<string, Set<string>>();
   brandCitations?.forEach((citation) => {
     if (!brandCitationsByResponse.has(citation.ai_response_id)) {
@@ -631,7 +631,8 @@ export async function getHighValueOpportunities(
     }
   });
 
-  // Get ALL citations_detail (brand citations) to know which domains exist
+  // Get ALL citations_detail (includes URLs with and without brand mentions)
+  // Used to find domains cited in each response
   const { data: allCitations } = await applyRegionFilter(
     applyPlatformFilter(
       applyDateFilter(
@@ -695,20 +696,23 @@ export async function getHighValueOpportunities(
     const responseId = compCitation.ai_response_id;
     const competitorName = compCitation.competitors?.name;
     
-    // Find all domains cited in this response
+    // Check if brand is cited in this same response
+    // If brand is cited, skip this response entirely (not an opportunity)
+    const brandCitedInResponse = brandCitationsByResponse.has(responseId);
+    if (brandCitedInResponse) {
+      return; // Skip this response - brand is already cited
+    }
+    
+    // Find all domains cited in this response (from allCitations which includes ALL URLs)
     const domainsInResponse = allCitations
       .filter(c => c.ai_response_id === responseId)
       .map(c => c.cited_domain)
       .filter(d => d != null);
 
-    // Check if brand is cited in this same response
-    const brandCitedInResponse = brandCitationsByResponse.has(responseId);
-
     // For each domain in this response where competitor is mentioned
+    // Note: We already checked that brand is NOT cited in this response above
     domainsInResponse.forEach((domain) => {
-      // Skip if brand is already cited in this response/domain
-      if (brandCitedInResponse) return;
-      // Skip if brand is cited in this domain in any response
+      // Skip if brand is cited in this domain in any other response
       if (domainsWithBrand.has(domain)) return;
 
       if (!domainOpportunities.has(domain)) {
