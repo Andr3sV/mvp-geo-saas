@@ -62,6 +62,39 @@ const getSentimentBadge = (sentiment: string) => {
   }
 };
 
+/**
+ * Convert markdown-like formatting to HTML for better readability
+ * Handles: **bold**, *italic*, [citation numbers], and line breaks
+ */
+const formatCitationText = (text: string): string => {
+  if (!text) return "";
+
+  let formatted = text;
+
+  // Escape HTML to prevent XSS (though we control the input)
+  formatted = formatted
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // First, convert **bold** to <strong>bold</strong>
+  // Use non-greedy matching to handle multiple bold sections
+  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
+
+  // Then convert *italic* to <em>italic</em> (only single asterisks remaining)
+  // Match *text* where text doesn't contain asterisks
+  formatted = formatted.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+
+  // Convert citation references [1][2][3] to superscript with better styling
+  // Make them smaller and less prominent
+  formatted = formatted.replace(/\[(\d+)\]/g, '<sup class="text-[10px] text-muted-foreground/70 ml-0.5">[$1]</sup>');
+
+  // Preserve line breaks (convert \n to <br />)
+  formatted = formatted.replace(/\n/g, "<br />");
+
+  return formatted;
+};
+
 export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
   if (!data || data.length === 0) {
     return (
@@ -137,9 +170,12 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
                         side="top"
                         className="max-w-md p-4 text-sm bg-popover text-popover-foreground border shadow-lg"
                       >
-                        <p className="whitespace-pre-wrap leading-relaxed">
-                          {citation.citationText}
-                        </p>
+                        <div
+                          className="leading-relaxed [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90"
+                          dangerouslySetInnerHTML={{
+                            __html: formatCitationText(citation.citationText),
+                          }}
+                        />
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
