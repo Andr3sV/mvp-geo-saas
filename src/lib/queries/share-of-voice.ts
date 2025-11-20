@@ -611,8 +611,8 @@ export async function getShareOfVoiceOverTime(
     const { data: compData } = await compQuery;
 
     competitorMentions = compData || [];
-    competitorName = compData?.[0]?.competitors?.name || "Competitor";
-    competitorDomain = compData?.[0]?.competitors?.domain || "";
+    competitorName = (compData as any)?.[0]?.competitors?.name || "Competitor";
+    competitorDomain = (compData as any)?.[0]?.competitors?.domain || "";
   }
 
   // Create array of all days in range
