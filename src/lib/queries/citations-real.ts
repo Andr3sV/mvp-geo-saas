@@ -161,7 +161,7 @@ export async function getQuickLookMetrics(
 
   // Total Citation Pages - count unique responses with citations
   const uniqueResponses = new Set(
-    responsesWithCitationsResult.data?.map((c) => c.ai_response_id) || []
+    responsesWithCitationsResult.data?.map((c: any) => c.ai_response_id) || []
   );
   const totalCitationPages = uniqueResponses.size;
 
@@ -170,7 +170,7 @@ export async function getQuickLookMetrics(
 
   // Domains Mentioning Me - count unique platforms
   const uniquePlatforms = new Set(
-    platformsResult.data?.map((p) => p.platform) || []
+    platformsResult.data?.map((p: any) => p.platform) || []
   );
   const domainsMentioningMe = uniquePlatforms.size;
 
@@ -179,9 +179,9 @@ export async function getQuickLookMetrics(
   const sentiments = sentimentsResult.data;
   
   if (sentiments && sentiments.length > 0) {
-    const positiveCount = sentiments.filter((s) => s.sentiment === "positive").length;
-    const neutralCount = sentiments.filter((s) => s.sentiment === "neutral").length;
-    const negativeCount = sentiments.filter((s) => s.sentiment === "negative").length;
+    const positiveCount = sentiments.filter((s: any) => s.sentiment === "positive").length;
+    const neutralCount = sentiments.filter((s: any) => s.sentiment === "neutral").length;
+    const negativeCount = sentiments.filter((s: any) => s.sentiment === "negative").length;
     
     // Rating: positive=100, neutral=50, negative=0, averaged
     const totalScore =
@@ -351,8 +351,8 @@ export async function getCitationsEvolution(
     const { data: compData } = await compQuery;
 
     competitorCitations = compData || [];
-    competitorName = compData?.[0]?.competitors?.name || "Competitor";
-    competitorDomain = compData?.[0]?.competitors?.domain || "";
+    competitorName = (compData as any)?.[0]?.competitors?.name || "Competitor";
+    competitorDomain = (compData as any)?.[0]?.competitors?.domain || "";
   }
 
   // Create array of all days in range
@@ -616,13 +616,13 @@ export async function getHighValueOpportunities(
 
   // Create a Set of domains where brand is already cited
   const domainsWithBrand = new Set(
-    brandCitations?.map((c) => c.cited_domain) || []
+    brandCitations?.map((c: any) => c.cited_domain) || []
   );
 
   // Get all brand citation domains grouped by ai_response_id
   // Used to check if brand is cited in a specific response
   const brandCitationsByResponse = new Map<string, Set<string>>();
-  brandCitations?.forEach((citation) => {
+  brandCitations?.forEach((citation: any) => {
     if (!brandCitationsByResponse.has(citation.ai_response_id)) {
       brandCitationsByResponse.set(citation.ai_response_id, new Set());
     }
@@ -705,13 +705,13 @@ export async function getHighValueOpportunities(
     
     // Find all domains cited in this response (from allCitations which includes ALL URLs)
     const domainsInResponse = allCitations
-      .filter(c => c.ai_response_id === responseId)
-      .map(c => c.cited_domain)
-      .filter(d => d != null);
+      .filter((c: any) => c.ai_response_id === responseId)
+      .map((c: any) => c.cited_domain)
+      .filter((d: any) => d != null);
 
     // For each domain in this response where competitor is mentioned
     // Note: We already checked that brand is NOT cited in this response above
-    domainsInResponse.forEach((domain) => {
+    domainsInResponse.forEach((domain: any) => {
       // Skip if brand is cited in this domain in any other response
       if (domainsWithBrand.has(domain)) return;
 
@@ -736,7 +736,7 @@ export async function getHighValueOpportunities(
       
       // Get sentiment from the citation
       const citation = allCitations.find(
-        c => c.ai_response_id === responseId && c.cited_domain === domain
+        (c: any) => c.ai_response_id === responseId && c.cited_domain === domain
       );
       if (citation?.sentiment) {
         opp.sentiments.push(citation.sentiment);
