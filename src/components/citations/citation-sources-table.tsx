@@ -12,6 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CitationSource {
   id: string;
@@ -122,9 +127,21 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
                     </div>
                   </TableCell>
                   <TableCell className="px-5 w-[30%]">
-                    <p className="text-sm line-clamp-2 max-w-[280px]">
-                      {citation.citationText}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm line-clamp-2 max-w-[280px] cursor-help">
+                          {citation.citationText}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="max-w-md p-4 text-sm bg-popover text-popover-foreground border shadow-lg"
+                      >
+                        <p className="whitespace-pre-wrap leading-relaxed">
+                          {citation.citationText}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="px-5">{getPlatformBadge(citation.platform)}</TableCell>
                   <TableCell className="px-5">{getSentimentBadge(citation.sentiment)}</TableCell>
