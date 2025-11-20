@@ -67,26 +67,25 @@ export default function CitationsPage() {
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
       loadData();
-      loadCitationSources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]);
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
 
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
       loadCitationSources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, citationSourcesPage]);
+  }, [selectedProjectId, citationSourcesPage, dateRange.from, dateRange.to, platform, region]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId, dateRange, platform, region]);
+  }, [selectedProjectId, selectedCompetitorId, dateRange.from, dateRange.to, platform, region]);
 
   // Load competitors filtered by region for the selector
   useEffect(() => {
@@ -153,16 +152,25 @@ export default function CitationsPage() {
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
+    setCitationSourcesPage(1);
   };
 
   const loadCitationSources = async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
+
+    const filtersPayload = {
+      fromDate: dateRange.from,
+      toDate: dateRange.to,
+      platform,
+      region,
+    };
 
     try {
       const sourcesResult = await getCitationSources(
         selectedProjectId,
         citationSourcesPage,
-        citationSourcesPageSize
+        citationSourcesPageSize,
+        filtersPayload
       );
 
       setCitationSources(sourcesResult.data);
@@ -174,8 +182,15 @@ export default function CitationsPage() {
   };
 
   const loadData = async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
     
+    const filtersPayload = {
+      fromDate: dateRange.from,
+      toDate: dateRange.to,
+      platform,
+      region,
+    };
+
     setIsLoading(true);
     
         try {
@@ -187,12 +202,12 @@ export default function CitationsPage() {
             pagesResult,
             topicsResult,
           ] = await Promise.all([
-            getQuickLookMetrics(selectedProjectId),
-            getDRBreakdown(selectedProjectId),
-            getMostCitedDomains(selectedProjectId, 10),
-            getHighValueOpportunities(selectedProjectId, 10),
-            getTopPerformingPages(selectedProjectId, 10),
-            getCompetitiveTopicAnalysis(selectedProjectId),
+            getQuickLookMetrics(selectedProjectId, filtersPayload),
+            getDRBreakdown(selectedProjectId, filtersPayload),
+            getMostCitedDomains(selectedProjectId, 10, filtersPayload),
+            getHighValueOpportunities(selectedProjectId, 10, filtersPayload),
+            getTopPerformingPages(selectedProjectId, 10, filtersPayload),
+            getCompetitiveTopicAnalysis(selectedProjectId, filtersPayload),
           ]);
 
           setQuickMetrics(metricsData);
