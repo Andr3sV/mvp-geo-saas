@@ -9,6 +9,7 @@ import { deletePrompt, togglePromptActive } from "@/lib/actions/prompt";
 import { EditPromptDialog } from "./edit-prompt-dialog";
 import { RunAnalysisButton } from "./run-analysis-button";
 import { EditableTagBadge } from "./editable-tag-badge";
+import { PromptCitationsSummary } from "./prompt-citations-summary";
 import { getCountryByCode } from "@/lib/countries";
 import {
   AlertDialog,
@@ -32,6 +33,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
   const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
 
   const handleToggle = async (promptId: string, isActive: boolean) => {
     setLoading(promptId);
@@ -50,14 +52,26 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
     setLoading(null);
   };
 
+  const toggleExpanded = (promptId: string) => {
+    const newExpanded = new Set(expandedPrompts);
+    if (newExpanded.has(promptId)) {
+      newExpanded.delete(promptId);
+    } else {
+      newExpanded.add(promptId);
+    }
+    setExpandedPrompts(newExpanded);
+  };
+
   return (
     <>
       <div className="space-y-3">
         {prompts.map((prompt) => (
-          <div
-            key={prompt.id}
-            className="flex items-start gap-4 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
-          >
+          <div key={prompt.id} className="rounded-lg border">
+            <div className="flex items-start gap-4 p-4 hover:bg-muted/50 transition-colors"
+                 onClick={() => toggleExpanded(prompt.id)}
+                 role="button"
+                 tabIndex={0}
+            >
             <div className="flex-1 space-y-2">
               <div className="flex items-start gap-2">
                 <p className="flex-1 font-medium">{prompt.prompt}</p>
@@ -102,7 +116,10 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setEditingPrompt(prompt)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingPrompt(prompt);
+                }}
                 disabled={loading === prompt.id}
               >
                 <Edit2 className="h-4 w-4" />
@@ -111,12 +128,21 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setDeletingPromptId(prompt.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingPromptId(prompt.id);
+                }}
                 disabled={loading === prompt.id}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
+            
+            {/* Citations Summary */}
+            <PromptCitationsSummary 
+              promptId={prompt.id}
+              isVisible={expandedPrompts.has(prompt.id)}
+            />
           </div>
         ))}
       </div>
