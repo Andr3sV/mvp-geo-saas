@@ -103,17 +103,17 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Source URL</TableHead>
-                <TableHead>Citation Text</TableHead>
-                <TableHead>Platform</TableHead>
-                <TableHead>Sentiment</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="px-5">Source URL</TableHead>
+                <TableHead className="px-5 w-[30%]">Citation Text</TableHead>
+                <TableHead className="px-5">Platform</TableHead>
+                <TableHead className="px-5">Sentiment</TableHead>
+                <TableHead className="text-right px-5">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.map((citation) => (
                 <TableRow key={citation.id}>
-                  <TableCell>
+                  <TableCell className="px-5">
                     <div className="flex flex-col gap-1">
                       <span className="font-medium text-sm">{citation.citedDomain}</span>
                       <span className="text-xs text-muted-foreground truncate max-w-[300px]">
@@ -121,14 +121,14 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <p className="text-sm line-clamp-2 max-w-md">
+                  <TableCell className="px-5 w-[30%]">
+                    <p className="text-sm line-clamp-2 max-w-[280px]">
                       {citation.citationText}
                     </p>
                   </TableCell>
-                  <TableCell>{getPlatformBadge(citation.platform)}</TableCell>
-                  <TableCell>{getSentimentBadge(citation.sentiment)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="px-5">{getPlatformBadge(citation.platform)}</TableCell>
+                  <TableCell className="px-5">{getSentimentBadge(citation.sentiment)}</TableCell>
+                  <TableCell className="text-right px-5">
                     <Button
                       variant="ghost"
                       size="sm"

@@ -44,17 +44,17 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead>Domain</TableHead>
-                <TableHead className="text-center">Est. DR</TableHead>
-                <TableHead className="text-center">Platforms</TableHead>
-                <TableHead className="text-right">Citations</TableHead>
+                <TableHead className="w-[50px] px-5">#</TableHead>
+                <TableHead className="px-5">Domain</TableHead>
+                <TableHead className="text-center px-5">Est. DR</TableHead>
+                <TableHead className="text-center px-5">Platforms</TableHead>
+                <TableHead className="text-right px-5">Citations</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 px-6 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <p>No citation domains available yet</p>
                       <p className="text-xs">
@@ -66,21 +66,21 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
               ) : (
                 data.map((domain, index) => (
                   <TableRow key={domain.domain}>
-                    <TableCell className="font-medium">{index + 1}</TableCell>
-                    <TableCell className="font-mono text-sm">
+                    <TableCell className="font-medium px-6">{index + 1}</TableCell>
+                    <TableCell className="font-mono text-sm px-6">
                       {domain.domain}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center px-6">
                       <span className={getDRColor(domain.dr)}>
                         {domain.dr}
                       </span>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center px-6">
                       <span className="text-xs text-muted-foreground">
                         {domain.platforms?.length || 0} platform{domain.platforms?.length !== 1 ? "s" : ""}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell className="text-right font-semibold px-6">
                       {domain.citations}
                     </TableCell>
                   </TableRow>
