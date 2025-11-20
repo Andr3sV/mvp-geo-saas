@@ -188,14 +188,69 @@ export function CitationSourcesTable({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ExternalLink className="h-5 w-5" />
-          Citation Sources
-        </CardTitle>
-        <CardDescription>
-          Showing {startIndex}-{endIndex} of {total} citation{total !== 1 ? "s" : ""}
-        </CardDescription>
+      <CardHeader className="space-y-0">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ExternalLink className="h-5 w-5" />
+              Citation Sources
+            </CardTitle>
+            <CardDescription>
+              Showing {startIndex}-{endIndex} of {total} citation{total !== 1 ? "s" : ""}
+            </CardDescription>
+          </div>
+          {totalPages > 1 && (
+            <Pagination className="ml-auto mr-0 w-auto justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page > 1) {
+                        onPageChange(page - 1);
+                      }
+                    }}
+                    className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+
+                {getPageNumbers().map((pageNum, index) => (
+                  <PaginationItem key={index}>
+                    {pageNum === "ellipsis" ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onPageChange(pageNum);
+                        }}
+                        isActive={pageNum === page}
+                        className="cursor-pointer"
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page < totalPages) {
+                        onPageChange(page + 1);
+                      }
+                    }}
+                    className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -269,60 +324,6 @@ export function CitationSourcesTable({
             </Table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-end">
-              <Pagination className="ml-auto mr-0 w-auto justify-end">
-                <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (page > 1) {
-                        onPageChange(page - 1);
-                      }
-                    }}
-                    className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-
-                {getPageNumbers().map((pageNum, index) => (
-                  <PaginationItem key={index}>
-                    {pageNum === "ellipsis" ? (
-                      <PaginationEllipsis />
-                    ) : (
-                      <PaginationLink
-                        href="#"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          onPageChange(pageNum);
-                        }}
-                        isActive={pageNum === page}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    )}
-                  </PaginationItem>
-                ))}
-
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (page < totalPages) {
-                        onPageChange(page + 1);
-                      }
-                    }}
-                    className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-              </Pagination>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>
