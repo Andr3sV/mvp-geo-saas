@@ -39,10 +39,10 @@ export function MetricCard({
 
   return (
     <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1.5 flex-1">
-            <p className="text-sm font-medium text-muted-foreground">
+      <CardContent className="px-6 py-1">
+        <div className="flex items-start justify-between h-full">
+          <div className="flex-1 min-h-[60px] flex flex-col justify-between">
+            <p className="text-sm font-medium text-muted-foreground leading-tight mb-1">
               {title}
             </p>
             <div className="flex items-baseline gap-2">
@@ -57,11 +57,11 @@ export function MetricCard({
               )}
             </div>
             {description && (
-              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+              <p className="text-xs text-muted-foreground leading-tight mt-1">{description}</p>
             )}
           </div>
           {icon && (
-            <div className="flex-shrink-0 text-muted-foreground">{icon}</div>
+            <div className="flex-shrink-0 text-muted-foreground ml-2">{icon}</div>
           )}
         </div>
       </CardContent>
