@@ -883,9 +883,23 @@ export async function getCompetitiveTopicAnalysis(projectId: string) {
  * Get individual citation sources with URLs
  * Shows the actual articles/pages that cited the brand
  */
-export async function getCitationSources(projectId: string, limit: number = 20) {
+export async function getCitationSources(
+  projectId: string,
+  page: number = 1,
+  pageSize: number = 10
+) {
   const supabase = await createClient();
 
+  const offset = (page - 1) * pageSize;
+
+  // Get total count for pagination
+  const { count } = await supabase
+    .from("citations_detail")
+    .select("*", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .not("cited_url", "is", null); // Only citations with URLs
+
+  // Get paginated citations
   const { data: citations } = await supabase
     .from("citations_detail")
     .select(`
@@ -900,11 +914,19 @@ export async function getCitationSources(projectId: string, limit: number = 20) 
     .eq("project_id", projectId)
     .not("cited_url", "is", null) // Only citations with URLs
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .range(offset, offset + pageSize - 1);
 
-  if (!citations) return [];
+  if (!citations) {
+    return {
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0,
+    };
+  }
 
-  return citations.map((citation: any) => ({
+  const mappedCitations = citations.map((citation: any) => ({
     id: citation.id,
     citationText: citation.citation_text,
     citedUrl: citation.cited_url,
@@ -913,5 +935,16 @@ export async function getCitationSources(projectId: string, limit: number = 20) 
     sentiment: citation.sentiment || "neutral",
     createdAt: citation.created_at,
   }));
+
+  const total = count || 0;
+  const totalPages = Math.ceil(total / pageSize);
+
+  return {
+    data: mappedCitations,
+    total,
+    page,
+    pageSize,
+    totalPages,
+  };
 }
 

@@ -43,6 +43,10 @@ export default function CitationsPage() {
   const [topPages, setTopPages] = useState<any[]>([]);
   const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
   const [citationSources, setCitationSources] = useState<any[]>([]);
+  const [citationSourcesTotal, setCitationSourcesTotal] = useState(0);
+  const [citationSourcesPage, setCitationSourcesPage] = useState(1);
+  const [citationSourcesPageSize] = useState(10);
+  const [citationSourcesTotalPages, setCitationSourcesTotalPages] = useState(0);
 
   // Filters state
   const [dateRange, setDateRange] = useState<DateRangeValue>({
@@ -65,9 +69,17 @@ export default function CitationsPage() {
   useEffect(() => {
     if (selectedProjectId) {
       loadData();
+      loadCitationSources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadCitationSources();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, citationSourcesPage]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
@@ -143,6 +155,24 @@ export default function CitationsPage() {
     setRegion(filters.region);
   };
 
+  const loadCitationSources = async () => {
+    if (!selectedProjectId) return;
+
+    try {
+      const sourcesResult = await getCitationSources(
+        selectedProjectId,
+        citationSourcesPage,
+        citationSourcesPageSize
+      );
+
+      setCitationSources(sourcesResult.data);
+      setCitationSourcesTotal(sourcesResult.total);
+      setCitationSourcesTotalPages(sourcesResult.totalPages);
+    } catch (error) {
+      console.error("Error loading citation sources:", error);
+    }
+  };
+
   const loadData = async () => {
     if (!selectedProjectId) return;
     
@@ -156,7 +186,6 @@ export default function CitationsPage() {
             opportunitiesResult,
             pagesResult,
             topicsResult,
-            sourcesResult,
           ] = await Promise.all([
             getQuickLookMetrics(selectedProjectId),
             getDRBreakdown(selectedProjectId),
@@ -164,7 +193,6 @@ export default function CitationsPage() {
             getHighValueOpportunities(selectedProjectId, 10),
             getTopPerformingPages(selectedProjectId, 10),
             getCompetitiveTopicAnalysis(selectedProjectId),
-            getCitationSources(selectedProjectId, 20),
           ]);
 
           setQuickMetrics(metricsData);
@@ -173,7 +201,6 @@ export default function CitationsPage() {
           setOpportunities(opportunitiesResult);
           setTopPages(pagesResult);
           setCompetitiveTopics(topicsResult);
-          setCitationSources(sourcesResult);
         } catch (error) {
           console.error("Error loading citation data:", error);
         } finally {
@@ -265,7 +292,14 @@ export default function CitationsPage() {
       </div>
 
       {/* Citation Sources - Individual URLs */}
-      <CitationSourcesTable data={citationSources} />
+      <CitationSourcesTable
+        data={citationSources}
+        total={citationSourcesTotal}
+        page={citationSourcesPage}
+        pageSize={citationSourcesPageSize}
+        totalPages={citationSourcesTotalPages}
+        onPageChange={setCitationSourcesPage}
+      />
 
       {/* Tabs for additional insights */}
       <Tabs defaultValue="opportunities" className="w-full">

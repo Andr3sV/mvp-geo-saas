@@ -17,6 +17,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface CitationSource {
   id: string;
@@ -30,6 +39,11 @@ interface CitationSource {
 
 interface CitationSourcesTableProps {
   data: CitationSource[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
 }
 
 const getPlatformBadge = (platform: string) => {
@@ -95,7 +109,54 @@ const formatCitationText = (text: string): string => {
   return formatted;
 };
 
-export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
+export function CitationSourcesTable({
+  data,
+  total,
+  page,
+  pageSize,
+  totalPages,
+  onPageChange,
+}: CitationSourcesTableProps) {
+  const startIndex = (page - 1) * pageSize + 1;
+  const endIndex = Math.min(page * pageSize, total);
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages: (number | "ellipsis")[] = [];
+    const maxVisible = 5;
+
+    if (totalPages <= maxVisible) {
+      // Show all pages if total is small
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Always show first page
+      pages.push(1);
+
+      if (page > 3) {
+        pages.push("ellipsis");
+      }
+
+      // Show pages around current page
+      const start = Math.max(2, page - 1);
+      const end = Math.min(totalPages - 1, page + 1);
+
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+
+      if (page < totalPages - 2) {
+        pages.push("ellipsis");
+      }
+
+      // Always show last page
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
   if (!data || data.length === 0) {
     return (
       <Card>
@@ -133,78 +194,133 @@ export function CitationSourcesTable({ data }: CitationSourcesTableProps) {
           Citation Sources
         </CardTitle>
         <CardDescription>
-          Individual sources citing your brand ({data.length} citation{data.length !== 1 ? "s" : ""})
+          Showing {startIndex}-{endIndex} of {total} citation{total !== 1 ? "s" : ""}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="px-5">Source URL</TableHead>
-                <TableHead className="px-5 w-[30%]">Citation Text</TableHead>
-                <TableHead className="px-5">Platform</TableHead>
-                <TableHead className="px-5">Sentiment</TableHead>
-                <TableHead className="text-right px-5">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map((citation) => (
-                <TableRow key={citation.id}>
-                  <TableCell className="px-5">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium text-sm">{citation.citedDomain}</span>
-                      <span className="text-xs text-muted-foreground truncate max-w-[300px]">
-                        {citation.citedUrl}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-5 w-[30%]">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="text-sm line-clamp-2 max-w-[280px] cursor-help [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_sup]:text-[10px] [&_sup]:text-muted-foreground/70"
-                          dangerouslySetInnerHTML={{
-                            __html: formatCitationText(citation.citationText),
-                          }}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent
-                        side="top"
-                        className="max-w-md p-4 text-sm bg-popover text-popover-foreground border shadow-lg"
-                      >
-                        <div
-                          className="leading-relaxed [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90"
-                          dangerouslySetInnerHTML={{
-                            __html: formatCitationText(citation.citationText),
-                          }}
-                        />
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell className="px-5">{getPlatformBadge(citation.platform)}</TableCell>
-                  <TableCell className="px-5">{getSentimentBadge(citation.sentiment)}</TableCell>
-                  <TableCell className="text-right px-5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                    >
-                      <a
-                        href={citation.citedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        <span>View</span>
-                      </a>
-                    </Button>
-                  </TableCell>
+        <div className="space-y-4">
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="px-5">Source URL</TableHead>
+                  <TableHead className="px-5 w-[30%]">Citation Text</TableHead>
+                  <TableHead className="px-5">Platform</TableHead>
+                  <TableHead className="px-5">Sentiment</TableHead>
+                  <TableHead className="text-right px-5">Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.map((citation) => (
+                  <TableRow key={citation.id}>
+                    <TableCell className="px-5">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-sm">{citation.citedDomain}</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-[300px]">
+                          {citation.citedUrl}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-5 w-[30%]">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="text-sm line-clamp-2 max-w-[280px] cursor-help [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_sup]:text-[10px] [&_sup]:text-muted-foreground/70"
+                            dangerouslySetInnerHTML={{
+                              __html: formatCitationText(citation.citationText),
+                            }}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="max-w-md p-4 text-sm bg-popover text-popover-foreground border shadow-lg"
+                        >
+                          <div
+                            className="leading-relaxed [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90"
+                            dangerouslySetInnerHTML={{
+                              __html: formatCitationText(citation.citationText),
+                            }}
+                          />
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell className="px-5">{getPlatformBadge(citation.platform)}</TableCell>
+                    <TableCell className="px-5">{getSentimentBadge(citation.sentiment)}</TableCell>
+                    <TableCell className="text-right px-5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                      >
+                        <a
+                          href={citation.citedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>View</span>
+                        </a>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page > 1) {
+                        onPageChange(page - 1);
+                      }
+                    }}
+                    className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+
+                {getPageNumbers().map((pageNum, index) => (
+                  <PaginationItem key={index}>
+                    {pageNum === "ellipsis" ? (
+                      <PaginationEllipsis />
+                    ) : (
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onPageChange(pageNum);
+                        }}
+                        isActive={pageNum === page}
+                        className="cursor-pointer"
+                      >
+                        {pageNum}
+                      </PaginationLink>
+                    )}
+                  </PaginationItem>
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page < totalPages) {
+                        onPageChange(page + 1);
+                      }
+                    }}
+                    className={page === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
         </div>
       </CardContent>
     </Card>
