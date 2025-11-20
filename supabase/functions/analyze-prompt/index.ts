@@ -388,6 +388,8 @@ async function triggerCitationProcessing(
           sentiment: analyzeSentiment(citation.text),
           compared_with_brand: checkIfComparedWithBrand(citation.text, brandName),
           competitive_context: extractCompetitiveContext(citation.text, brandName, competitor.name),
+          cited_url: citation.cited_url || null,
+          cited_domain: citation.cited_domain || null,
         }));
 
         logInfo('analyze-prompt', `Inserting ${competitorCitationRecords.length} competitor citation records`);

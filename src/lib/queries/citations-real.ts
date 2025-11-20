@@ -666,13 +666,18 @@ export async function getHighValueOpportunities(
           .select(`
             ai_response_id,
             competitor_id,
+            cited_url,
+            cited_domain,
+            sentiment,
             competitors!inner(name),
             ai_responses!inner(
               platform,
               prompt_tracking!inner(region)
             )
           `)
-          .eq("project_id", projectId),
+          .eq("project_id", projectId)
+          .not("cited_url", "is", null) // Only competitor citations with URLs
+          .not("cited_domain", "is", null),
         filters
       ),
       filters
@@ -691,10 +696,17 @@ export async function getHighValueOpportunities(
     responseIds: Set<string>;
   }>();
 
-  // For each competitor citation, find the domains in that response
+  // For each competitor citation with URL, check if it's an opportunity
   compCitations.forEach((compCitation: any) => {
     const responseId = compCitation.ai_response_id;
     const competitorName = compCitation.competitors?.name;
+    const domain = compCitation.cited_domain;
+    
+    // Skip if no domain
+    if (!domain) return;
+    
+    // Skip if brand is cited in this domain in any response
+    if (domainsWithBrand.has(domain)) return;
     
     // Check if brand is cited in this same response
     // If brand is cited, skip this response entirely (not an opportunity)
@@ -702,46 +714,30 @@ export async function getHighValueOpportunities(
     if (brandCitedInResponse) {
       return; // Skip this response - brand is already cited
     }
+
+    if (!domainOpportunities.has(domain)) {
+      domainOpportunities.set(domain, {
+        domain,
+        competitorsMentioned: [],
+        citationFrequency: 0,
+        sentiments: [],
+        responseIds: new Set(),
+      });
+    }
+
+    const opp = domainOpportunities.get(domain)!;
     
-    // Find all domains cited in this response (from allCitations which includes ALL URLs)
-    const domainsInResponse = allCitations
-      .filter((c: any) => c.ai_response_id === responseId)
-      .map((c: any) => c.cited_domain)
-      .filter((d: any) => d != null);
-
-    // For each domain in this response where competitor is mentioned
-    // Note: We already checked that brand is NOT cited in this response above
-    domainsInResponse.forEach((domain: any) => {
-      // Skip if brand is cited in this domain in any other response
-      if (domainsWithBrand.has(domain)) return;
-
-      if (!domainOpportunities.has(domain)) {
-        domainOpportunities.set(domain, {
-          domain,
-          competitorsMentioned: [],
-          citationFrequency: 0,
-          sentiments: [],
-          responseIds: new Set(),
-        });
-      }
-
-      const opp = domainOpportunities.get(domain)!;
-      
-      if (competitorName && !opp.competitorsMentioned.includes(competitorName)) {
-        opp.competitorsMentioned.push(competitorName);
-      }
-      
-      opp.citationFrequency++;
-      opp.responseIds.add(responseId);
-      
-      // Get sentiment from the citation
-      const citation = allCitations.find(
-        (c: any) => c.ai_response_id === responseId && c.cited_domain === domain
-      );
-      if (citation?.sentiment) {
-        opp.sentiments.push(citation.sentiment);
-      }
-    });
+    if (competitorName && !opp.competitorsMentioned.includes(competitorName)) {
+      opp.competitorsMentioned.push(competitorName);
+    }
+    
+    opp.citationFrequency++;
+    opp.responseIds.add(responseId);
+    
+    // Use sentiment directly from competitor citation
+    if (compCitation.sentiment) {
+      opp.sentiments.push(compCitation.sentiment);
+    }
   });
 
   // Calculate opportunity scores and format results
