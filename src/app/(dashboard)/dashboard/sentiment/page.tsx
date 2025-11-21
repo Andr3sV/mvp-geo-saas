@@ -119,8 +119,8 @@ export default function SentimentPage() {
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Date Range</label>
               <DateRangePicker
-                date={dateRange}
-                onDateChange={setDateRange}
+                value={dateRange}
+                onChange={setDateRange}
                 className="w-full"
               />
             </div>
