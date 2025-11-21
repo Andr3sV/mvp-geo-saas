@@ -51,7 +51,7 @@ serve(async (req) => {
     // Get project details for brand information
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('brand_name, competitors')
+      .select('brand_name')
       .eq('id', project_id)
       .single();
 
@@ -60,6 +60,17 @@ serve(async (req) => {
         JSON.stringify({ error: 'Project not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Get competitors from separate table
+    const { data: competitors, error: competitorsError } = await supabase
+      .from('competitors')
+      .select('name, domain')
+      .eq('project_id', project_id)
+      .eq('is_active', true);
+
+    if (competitorsError) {
+      console.error('Failed to fetch competitors:', competitorsError);
     }
 
     // Build query for AI responses to analyze
@@ -115,7 +126,7 @@ serve(async (req) => {
         const sentimentResults = await analyzeSentimentWithAI(
           response.response_text,
           project.brand_name,
-          project.competitors || []
+          competitors || []
         );
 
         const processingTime = Date.now() - startTime;
