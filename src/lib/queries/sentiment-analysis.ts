@@ -188,6 +188,11 @@ export async function getSentimentMetrics(
       ? brandData.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / brandData.length
       : 0;
 
+    // Get unique analyzed response IDs
+    const uniqueAnalyzedIds = new Set(
+      analysesData.map((a: any) => a.ai_response_id)
+    );
+
     return {
       totalAnalyses, // Will be overridden with unique count
       totalUniqueAnalyzedResponses: uniqueAnalyzedIds.size,

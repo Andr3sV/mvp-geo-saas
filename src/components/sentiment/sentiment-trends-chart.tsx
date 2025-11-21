@@ -129,40 +129,35 @@ export function SentimentTrendsChart({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <TrendingUp className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <CardTitle>Sentiment Trends Over Time</CardTitle>
-              <CardDescription>
-                Track daily sentiment patterns ({trends.length} days)
-              </CardDescription>
-            </div>
+        <div className="flex items-center gap-3 mb-4">
+          <TrendingUp className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <CardTitle>Sentiment Trends Over Time</CardTitle>
+            <CardDescription>
+              Track daily sentiment patterns ({trends.length} days)
+            </CardDescription>
           </div>
-
-          {/* Competitor Selector */}
-          {competitors.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Compare with:</span>
-              <div className="flex gap-2">
-                {competitors.slice(0, 4).map((competitor) => (
-                  <button
-                    key={competitor.id}
-                    onClick={() => onCompetitorChange(competitor.id === selectedCompetitorId ? '' : competitor.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                      selectedCompetitorId === competitor.id
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background hover:bg-muted border-border"
-                    }`}
-                  >
-                    <BrandLogo domain={competitor.domain} size="xs" />
-                    <span className="text-xs font-medium">{competitor.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Competitor Selector */}
+        {competitors.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {competitors.map((competitor) => (
+              <button
+                key={competitor.id}
+                onClick={() => onCompetitorChange(competitor.id === selectedCompetitorId ? '' : competitor.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                  selectedCompetitorId === competitor.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background hover:bg-muted border-border"
+                }`}
+              >
+                <BrandLogo domain={competitor.domain} size="xs" />
+                <span className="text-xs font-medium">{competitor.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
 
       <CardContent>
