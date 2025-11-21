@@ -174,8 +174,8 @@ export default function SentimentPage() {
       />
 
       {/* Filters Toolbar with Analysis Trigger */}
-      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end">
-        <div className="flex-1 w-full">
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+        <div className="flex-1">
           <FiltersToolbar
             dateRange={dateRange}
             platform={platform}
@@ -183,14 +183,12 @@ export default function SentimentPage() {
             onApply={handleFiltersChange}
           />
         </div>
-        <div className="w-full lg:w-auto">
-          <SentimentAnalysisTrigger
-            projectId={selectedProjectId!}
-            onAnalysisComplete={handleAnalysisComplete}
-            totalResponses={totalResponses}
-            analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
-          />
-        </div>
+        <SentimentAnalysisTrigger
+          projectId={selectedProjectId!}
+          onAnalysisComplete={handleAnalysisComplete}
+          totalResponses={totalResponses}
+          analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
+        />
       </div>
 
       {/* Sentiment Pulse and Key Attributes - Side by Side */}
