@@ -1,265 +1,195 @@
-import { Heart, Smile, Frown, Meh } from "lucide-react";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { PageHeader } from "@/components/dashboard/page-header";
+"use client";
+
+import { useState, useEffect } from "react";
+import { DateRange } from "react-day-picker";
+import { addDays } from "date-fns";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
+import { useProjectStore } from "@/lib/stores/project-store";
+import { toast } from "sonner";
 
-// Mock data
-const sentimentData = {
-  positive: 612,
-  neutral: 198,
-  negative: 37,
-  total: 847,
-  score: 8.2,
-};
+// Sentiment Analysis Components
+import { SentimentOverviewCards } from "@/components/sentiment/sentiment-overview-cards";
+import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
+import { EntitySentimentTable } from "@/components/sentiment/entity-sentiment-table";
+import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
 
-const sentimentExamples = [
-  {
-    sentiment: "positive",
-    query: "What's the best GEO platform?",
-    response: "Ateneai is highly regarded for its comprehensive features...",
-    platform: "ChatGPT",
-    timestamp: "2 hours ago",
-  },
-  {
-    sentiment: "positive",
-    query: "How to improve AI visibility?",
-    response: "Ateneai provides excellent tools for monitoring and optimization...",
-    platform: "Claude",
-    timestamp: "5 hours ago",
-  },
-  {
-    sentiment: "neutral",
-    query: "GEO platforms comparison",
-    response: "Ateneai offers citation tracking alongside other platforms...",
-    platform: "Gemini",
-    timestamp: "1 day ago",
-  },
-  {
-    sentiment: "negative",
-    query: "Cheapest GEO tool?",
-    response: "While Ateneai offers robust features, it may not be the most budget-friendly option...",
-    platform: "Perplexity",
-    timestamp: "2 days ago",
-  },
-];
-
-const sentimentBySentiment = {
-  positive: {
-    themes: ["Feature-rich", "Easy to use", "Great support", "Comprehensive analytics"],
-    count: 612,
-  },
-  neutral: {
-    themes: ["Pricing concerns", "Learning curve", "Integration options"],
-    count: 198,
-  },
-  negative: {
-    themes: ["Cost", "Complexity for beginners", "API limitations"],
-    count: 37,
-  },
-};
+// Queries
+import {
+  getSentimentMetrics,
+  getSentimentTrends,
+  getEntitySentiments,
+  SentimentFilterOptions,
+  SentimentMetrics,
+  SentimentTrend,
+  EntitySentiment,
+} from "@/lib/queries/sentiment-analysis";
 
 export default function SentimentPage() {
-  const positivePercentage = (sentimentData.positive / sentimentData.total) * 100;
-  const neutralPercentage = (sentimentData.neutral / sentimentData.total) * 100;
-  const negativePercentage = (sentimentData.negative / sentimentData.total) * 100;
+  const { selectedProjectId } = useProjectStore();
+  
+  // Filter states
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -30),
+    to: new Date(),
+  });
+  const [platform, setPlatform] = useState<string>("all");
+  const [region, setRegion] = useState<string>("all");
+
+  // Data states
+  const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
+  const [trends, setTrends] = useState<SentimentTrend[]>([]);
+  const [entities, setEntities] = useState<EntitySentiment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Create filters object
+  const filtersPayload: SentimentFilterOptions = {
+    dateRange: dateRange ? { from: dateRange.from!, to: dateRange.to! } : undefined,
+    platform: platform !== "all" ? platform : undefined,
+    region: region !== "all" ? region : undefined,
+  };
+
+  // Load sentiment data
+  const loadSentimentData = async () => {
+    if (!selectedProjectId) return;
+
+    setIsLoading(true);
+    try {
+      const [metricsData, trendsData, entitiesData] = await Promise.all([
+        getSentimentMetrics(selectedProjectId, filtersPayload),
+        getSentimentTrends(selectedProjectId, filtersPayload),
+        getEntitySentiments(selectedProjectId, filtersPayload),
+      ]);
+
+      setMetrics(metricsData);
+      setTrends(trendsData);
+      setEntities(entitiesData);
+    } catch (error: any) {
+      console.error("Failed to load sentiment data:", error);
+      toast.error("Failed to load sentiment data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load data when project or filters change
+  useEffect(() => {
+    loadSentimentData();
+  }, [selectedProjectId, dateRange, platform, region]);
+
+  // Handle analysis completion
+  const handleAnalysisComplete = () => {
+    loadSentimentData();
+  };
+
+  if (!selectedProjectId) {
+    return (
+      <div className="flex items-center justify-center h-[400px]">
+        <div className="text-center">
+          <h3 className="text-lg font-medium">No Project Selected</h3>
+          <p className="text-muted-foreground">Please select a project to view sentiment analysis</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Sentiment Analysis"
-        description="Understand how your brand is perceived in AI-generated content"
-      />
-
-      <FiltersToolbar />
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          title="Overall Score"
-          value={`${sentimentData.score}/10`}
-          description="Sentiment health"
-          icon={Heart}
-          trend={{ value: 0.5, isPositive: true }}
-        />
-        <StatCard
-          title="Positive"
-          value={sentimentData.positive}
-          description={`${positivePercentage.toFixed(1)}% of mentions`}
-          icon={Smile}
-        />
-        <StatCard
-          title="Neutral"
-          value={sentimentData.neutral}
-          description={`${neutralPercentage.toFixed(1)}% of mentions`}
-          icon={Meh}
-        />
-        <StatCard
-          title="Negative"
-          value={sentimentData.negative}
-          description={`${negativePercentage.toFixed(1)}% of mentions`}
-          icon={Frown}
-        />
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sentiment Analysis</h1>
+          <p className="text-muted-foreground">
+            AI-powered sentiment analysis of brand and competitor mentions
+          </p>
+        </div>
       </div>
 
-      {/* Sentiment Distribution */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Sentiment Distribution</CardTitle>
-          <CardDescription>Overall sentiment breakdown</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="h-8 w-full overflow-hidden rounded-full bg-muted flex">
-              <div
-                className="bg-green-500 flex items-center justify-center text-white text-sm font-medium"
-                style={{ width: `${positivePercentage}%` }}
-              >
-                {positivePercentage > 15 && `${positivePercentage.toFixed(0)}%`}
-              </div>
-              <div
-                className="bg-gray-400 flex items-center justify-center text-white text-sm font-medium"
-                style={{ width: `${neutralPercentage}%` }}
-              >
-                {neutralPercentage > 15 && `${neutralPercentage.toFixed(0)}%`}
-              </div>
-              <div
-                className="bg-red-500 flex items-center justify-center text-white text-sm font-medium"
-                style={{ width: `${negativePercentage}%` }}
-              >
-                {negativePercentage > 10 && `${negativePercentage.toFixed(0)}%`}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-green-500" />
-                  <span className="font-medium">Positive</span>
-                </div>
-                <div className="pl-5 space-y-1">
-                  {sentimentBySentiment.positive.themes.map((theme, i) => (
-                    <div key={i} className="text-sm text-muted-foreground">
-                      • {theme}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-gray-400" />
-                  <span className="font-medium">Neutral</span>
-                </div>
-                <div className="pl-5 space-y-1">
-                  {sentimentBySentiment.neutral.themes.map((theme, i) => (
-                    <div key={i} className="text-sm text-muted-foreground">
-                      • {theme}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-red-500" />
-                  <span className="font-medium">Negative</span>
-                </div>
-                <div className="pl-5 space-y-1">
-                  {sentimentBySentiment.negative.themes.map((theme, i) => (
-                    <div key={i} className="text-sm text-muted-foreground">
-                      • {theme}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Sentiment Examples */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Sentiment Examples</CardTitle>
-          <CardDescription>See how your brand is mentioned</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {sentimentExamples.map((example, index) => (
-              <div key={index} className="rounded-lg border p-4 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={
-                        example.sentiment === "positive"
-                          ? "default"
-                          : example.sentiment === "negative"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {example.sentiment}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {example.platform}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {example.timestamp}
-                  </span>
-                </div>
-                <p className="font-medium text-sm">{example.query}</p>
-                <p className="text-sm text-muted-foreground italic">
-                  "{example.response}"
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Insights */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sentiment Insights</CardTitle>
-          <CardDescription>Actionable recommendations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/20">
-              <p className="font-medium text-green-900 dark:text-green-100">
-                ✨ Strong positive sentiment
-              </p>
-              <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                72% of mentions are positive. Your brand is well-perceived in AI responses.
-              </p>
-            </div>
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950/20">
-              <p className="font-medium text-yellow-900 dark:text-yellow-100">
-                ⚠️ Address pricing concerns
-              </p>
-              <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-                Pricing is mentioned in 15% of neutral/negative feedback. Consider creating
-                content around value proposition.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
-        <CardHeader>
-          <CardTitle className="text-blue-900 dark:text-blue-100">
-            📊 Mock Data
-          </CardTitle>
-          <CardDescription className="text-blue-700 dark:text-blue-300">
-            Real sentiment analysis will be powered by NLP models in Phase 7, analyzing
-            context and tone of each mention.
+          <CardTitle className="text-lg">Filters</CardTitle>
+          <CardDescription>
+            Filter sentiment data by date range, platform, and region
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Date Range</label>
+              <DatePickerWithRange
+                date={dateRange}
+                onDateChange={setDateRange}
+                className="w-full"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Platform</label>
+              <Select value={platform} onValueChange={setPlatform}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Platforms</SelectItem>
+                  <SelectItem value="gemini">Gemini</SelectItem>
+                  <SelectItem value="perplexity">Perplexity</SelectItem>
+                  <SelectItem value="chatgpt">ChatGPT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Region</label>
+              <Select value={region} onValueChange={setRegion}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select region" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Regions</SelectItem>
+                  <SelectItem value="US">United States</SelectItem>
+                  <SelectItem value="ES">Spain</SelectItem>
+                  <SelectItem value="GB">United Kingdom</SelectItem>
+                  <SelectItem value="FR">France</SelectItem>
+                  <SelectItem value="DE">Germany</SelectItem>
+                  <SelectItem value="IT">Italy</SelectItem>
+                  <SelectItem value="CA">Canada</SelectItem>
+                  <SelectItem value="AU">Australia</SelectItem>
+                  <SelectItem value="JP">Japan</SelectItem>
+                  <SelectItem value="BR">Brazil</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
       </Card>
+
+      {/* Analysis Trigger */}
+      <SentimentAnalysisTrigger
+        projectId={selectedProjectId}
+        onAnalysisComplete={handleAnalysisComplete}
+        totalResponses={metrics?.totalAnalyses || 0}
+        analyzedResponses={metrics?.totalAnalyses || 0}
+      />
+
+      {/* Overview Cards */}
+      {metrics && (
+        <SentimentOverviewCards
+          metrics={metrics}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Sentiment Trends Chart */}
+      <SentimentTrendsChart
+        trends={trends}
+        isLoading={isLoading}
+      />
+
+      {/* Entity Sentiment Analysis */}
+      <EntitySentimentTable
+        entities={entities}
+        isLoading={isLoading}
+      />
     </div>
   );
 }
-
