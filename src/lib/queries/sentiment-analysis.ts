@@ -12,7 +12,8 @@ export interface SentimentFilterOptions {
 }
 
 export interface SentimentMetrics {
-  totalAnalyses: number;
+  totalAnalyses: number; // Unique responses analyzed
+  totalSentimentRows: number; // Total rows in sentiment_analysis table
   brandAnalyses: number;
   competitorAnalyses: number;
   averageSentiment: number;
@@ -129,6 +130,7 @@ export async function getSentimentMetrics(
       // Return empty metrics if table doesn't exist yet
       return {
         totalAnalyses: 0,
+        totalSentimentRows: 0,
         brandAnalyses: 0,
         competitorAnalyses: 0,
         averageSentiment: 0,
@@ -152,16 +154,20 @@ export async function getSentimentMetrics(
     }
 
     const analysesData = analyses || [];
-    const totalAnalyses = analysesData.length;
+    const totalSentimentRows = analysesData.length; // Total rows in table
+    
+    // Count unique responses (will be overridden by page.tsx with actual unique count)
+    const totalAnalyses = totalSentimentRows;
+    
     const brandAnalyses = analysesData.filter((a: any) => a.analysis_type === 'brand').length;
     const competitorAnalyses = analysesData.filter((a: any) => a.analysis_type === 'competitor').length;
 
-    const averageSentiment = totalAnalyses > 0 
-      ? analysesData.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / totalAnalyses 
+    const averageSentiment = totalSentimentRows > 0 
+      ? analysesData.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / totalSentimentRows 
       : 0;
 
-    const confidenceScore = totalAnalyses > 0
-      ? analysesData.reduce((sum: number, a: any) => sum + a.confidence_score, 0) / totalAnalyses
+    const confidenceScore = totalSentimentRows > 0
+      ? analysesData.reduce((sum: number, a: any) => sum + a.confidence_score, 0) / totalSentimentRows
       : 0;
 
     const sentimentDistribution = {
@@ -171,7 +177,8 @@ export async function getSentimentMetrics(
     };
 
     return {
-      totalAnalyses,
+      totalAnalyses, // Will be overridden with unique count
+      totalSentimentRows, // Actual DB rows
       brandAnalyses,
       competitorAnalyses,
       averageSentiment,
@@ -183,6 +190,7 @@ export async function getSentimentMetrics(
     // Return empty metrics on any error
     return {
       totalAnalyses: 0,
+      totalSentimentRows: 0,
       brandAnalyses: 0,
       competitorAnalyses: 0,
       averageSentiment: 0,
