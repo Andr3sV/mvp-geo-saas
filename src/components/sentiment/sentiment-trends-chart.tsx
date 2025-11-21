@@ -152,7 +152,7 @@ export function SentimentTrendsChart({
                     : "bg-background hover:bg-muted border-border"
                 }`}
               >
-                <BrandLogo domain={competitor.domain} size="xs" />
+                <BrandLogo domain={competitor.domain} size={16} />
                 <span className="text-xs font-medium">{competitor.name}</span>
               </button>
             ))}
@@ -217,7 +217,7 @@ export function SentimentTrendsChart({
         <div className="mt-6 flex items-center justify-center gap-6 text-sm">
           {brandEntity && (
             <div className="flex items-center gap-2">
-              <BrandLogo domain={brandEntity.entityDomain || ''} size="sm" />
+              <BrandLogo domain={brandEntity.entityDomain || ''} size={20} />
               <span className="font-medium">{brandEntity.entityName}</span>
             </div>
           )}
@@ -225,7 +225,7 @@ export function SentimentTrendsChart({
             <>
               <span className="text-muted-foreground">vs</span>
               <div className="flex items-center gap-2">
-                <BrandLogo domain={selectedCompetitor.domain} size="sm" />
+                <BrandLogo domain={selectedCompetitor.domain} size={20} />
                 <span className="font-medium">{selectedCompetitor.name}</span>
               </div>
             </>
