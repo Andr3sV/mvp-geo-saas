@@ -528,3 +528,96 @@ function getTopAttributes(attributes: string[]): string[] {
     .slice(0, 5)
     .map(([attr]) => attr);
 }
+
+// Get attribute breakdown with counts and percentages
+export async function getAttributeBreakdown(
+  projectId: string,
+  filters: SentimentFilterOptions = {}
+): Promise<{
+  brandAttributes: {
+    positive: Array<{ attribute: string; count: number; percentage: number }>;
+    neutral: Array<{ attribute: string; count: number; percentage: number }>;
+    negative: Array<{ attribute: string; count: number; percentage: number }>;
+  };
+  competitorAttributes: {
+    positive: Array<{ attribute: string; count: number; percentage: number }>;
+    neutral: Array<{ attribute: string; count: number; percentage: number }>;
+    negative: Array<{ attribute: string; count: number; percentage: number }>;
+  };
+}> {
+  try {
+    const supabase = createClient();
+
+    // Check if table exists
+    const { data, error } = await supabase
+      .from('sentiment_analysis')
+      .select('analysis_type, positive_attributes, neutral_attributes, negative_attributes')
+      .eq('project_id', projectId)
+      .limit(1);
+
+    if (error) {
+      console.log('Sentiment analysis table not ready for attributes:', error.message);
+      return {
+        brandAttributes: { positive: [], neutral: [], negative: [] },
+        competitorAttributes: { positive: [], neutral: [], negative: [] },
+      };
+    }
+
+    // Get all sentiment data
+    const { data: sentimentData, error: sentimentError } = await supabase
+      .from('sentiment_analysis')
+      .select('analysis_type, positive_attributes, neutral_attributes, negative_attributes')
+      .eq('project_id', projectId);
+
+    if (sentimentError) {
+      throw new Error(`Failed to fetch attribute data: ${sentimentError.message}`);
+    }
+
+    const processAttributes = (
+      analyses: any[],
+      type: 'positive' | 'neutral' | 'negative'
+    ) => {
+      const frequencyMap = new Map<string, number>();
+      const totalCount = analyses.length;
+
+      analyses.forEach((analysis: any) => {
+        const attrs = analysis[`${type}_attributes`] || [];
+        attrs.forEach((attr: string) => {
+          frequencyMap.set(attr, (frequencyMap.get(attr) || 0) + 1);
+        });
+      });
+
+      return Array.from(frequencyMap.entries())
+        .map(([attribute, count]) => ({
+          attribute,
+          count,
+          sentiment: type,
+          percentage: totalCount > 0 ? (count / totalCount) * 100 : 0,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+    };
+
+    const brandAnalyses = (sentimentData || []).filter((a: any) => a.analysis_type === 'brand');
+    const competitorAnalyses = (sentimentData || []).filter((a: any) => a.analysis_type === 'competitor');
+
+    return {
+      brandAttributes: {
+        positive: processAttributes(brandAnalyses, 'positive') as any,
+        neutral: processAttributes(brandAnalyses, 'neutral') as any,
+        negative: processAttributes(brandAnalyses, 'negative') as any,
+      },
+      competitorAttributes: {
+        positive: processAttributes(competitorAnalyses, 'positive') as any,
+        neutral: processAttributes(competitorAnalyses, 'neutral') as any,
+        negative: processAttributes(competitorAnalyses, 'negative') as any,
+      },
+    };
+  } catch (error: any) {
+    console.error('Error fetching attribute breakdown:', error);
+    return {
+      brandAttributes: { positive: [], neutral: [], negative: [] },
+      competitorAttributes: { positive: [], neutral: [], negative: [] },
+    };
+  }
+}

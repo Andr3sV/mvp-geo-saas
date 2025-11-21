@@ -14,12 +14,15 @@ import { SentimentOverviewCards } from "@/components/sentiment/sentiment-overvie
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { EntitySentimentTable } from "@/components/sentiment/entity-sentiment-table";
 import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
+import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
+import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
 
 // Queries
 import {
   getSentimentMetrics,
   getSentimentTrends,
   getEntitySentiments,
+  getAttributeBreakdown,
   SentimentFilterOptions,
   SentimentMetrics,
   SentimentTrend,
@@ -41,6 +44,7 @@ export default function SentimentPage() {
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
   const [trends, setTrends] = useState<SentimentTrend[]>([]);
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
+  const [attributes, setAttributes] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [totalResponses, setTotalResponses] = useState(0);
 
@@ -67,15 +71,17 @@ export default function SentimentPage() {
       
       setTotalResponses(count || 0);
 
-      const [metricsData, trendsData, entitiesData] = await Promise.all([
+      const [metricsData, trendsData, entitiesData, attributesData] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
         getSentimentTrends(selectedProjectId, filtersPayload),
         getEntitySentiments(selectedProjectId, filtersPayload),
+        getAttributeBreakdown(selectedProjectId, filtersPayload),
       ]);
 
       setMetrics(metricsData);
       setTrends(trendsData);
       setEntities(entitiesData);
+      setAttributes(attributesData);
     } catch (error: any) {
       console.error("Failed to load sentiment data:", error);
       toast.error("Failed to load sentiment data");
@@ -196,7 +202,22 @@ export default function SentimentPage() {
         isLoading={isLoading}
       />
 
-      {/* Entity Sentiment Analysis */}
+      {/* Brand vs Competitors Comparison */}
+      <SentimentComparison
+        entities={entities}
+        isLoading={isLoading}
+      />
+
+      {/* Attribute Breakdown */}
+      {attributes && (
+        <AttributeBreakdown
+          brandAttributes={attributes.brandAttributes}
+          competitorAttributes={attributes.competitorAttributes}
+          isLoading={isLoading}
+        />
+      )}
+
+      {/* Entity Sentiment Analysis (Detailed) */}
       <EntitySentimentTable
         entities={entities}
         isLoading={isLoading}
