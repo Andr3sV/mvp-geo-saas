@@ -84,7 +84,7 @@ export function SentimentOverviewCards({ metrics, isLoading }: SentimentOverview
         </CardContent>
       </Card>
 
-      {/* Confidence Score */}
+      {/* AI Confidence */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">AI Confidence</CardTitle>
