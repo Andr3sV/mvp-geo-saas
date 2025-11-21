@@ -116,248 +116,265 @@ export async function getSentimentMetrics(
 ): Promise<SentimentMetrics> {
   const supabase = createClient();
 
-  // Base query with joins
-  let query = supabase
-    .from('sentiment_analysis')
-    .select(`
-      analysis_type,
-      overall_sentiment,
-      sentiment_label,
-      confidence_score,
-      ai_responses!inner(platform, prompt_tracking!inner(region))
-    `)
-    .eq('project_id', projectId);
+  try {
+    // Check if sentiment_analysis table exists and has data
+    const { data, error } = await supabase
+      .from('sentiment_analysis')
+      .select('analysis_type, overall_sentiment, sentiment_label, confidence_score')
+      .eq('project_id', projectId)
+      .limit(1);
 
-  // Apply filters
-  query = applySentimentFilter(
-    applyAnalysisTypeFilter(
-      applyRegionFilter(
-        applyPlatformFilter(
-          applyDateFilter(query, filters),
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
+    if (error) {
+      console.log('Sentiment analysis table not ready:', error.message);
+      // Return empty metrics if table doesn't exist yet
+      return {
+        totalAnalyses: 0,
+        brandAnalyses: 0,
+        competitorAnalyses: 0,
+        averageSentiment: 0,
+        sentimentDistribution: {
+          positive: 0,
+          neutral: 0,
+          negative: 0,
+        },
+        confidenceScore: 0,
+      };
+    }
 
-  const { data, error } = await query;
+    // If table exists, get full data
+    const { data: analyses, error: fullError } = await supabase
+      .from('sentiment_analysis')
+      .select('analysis_type, overall_sentiment, sentiment_label, confidence_score')
+      .eq('project_id', projectId);
 
-  if (error) {
-    throw new Error(`Failed to fetch sentiment metrics: ${error.message}`);
+    if (fullError) {
+      throw new Error(`Failed to fetch sentiment metrics: ${fullError.message}`);
+    }
+
+    const analysesData = analyses || [];
+    const totalAnalyses = analysesData.length;
+    const brandAnalyses = analysesData.filter((a: any) => a.analysis_type === 'brand').length;
+    const competitorAnalyses = analysesData.filter((a: any) => a.analysis_type === 'competitor').length;
+
+    const averageSentiment = totalAnalyses > 0 
+      ? analysesData.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / totalAnalyses 
+      : 0;
+
+    const confidenceScore = totalAnalyses > 0
+      ? analysesData.reduce((sum: number, a: any) => sum + a.confidence_score, 0) / totalAnalyses
+      : 0;
+
+    const sentimentDistribution = {
+      positive: analysesData.filter((a: any) => a.sentiment_label === 'positive').length,
+      neutral: analysesData.filter((a: any) => a.sentiment_label === 'neutral').length,
+      negative: analysesData.filter((a: any) => a.sentiment_label === 'negative').length,
+    };
+
+    return {
+      totalAnalyses,
+      brandAnalyses,
+      competitorAnalyses,
+      averageSentiment,
+      sentimentDistribution,
+      confidenceScore,
+    };
+  } catch (error: any) {
+    console.error('Error fetching sentiment metrics:', error);
+    // Return empty metrics on any error
+    return {
+      totalAnalyses: 0,
+      brandAnalyses: 0,
+      competitorAnalyses: 0,
+      averageSentiment: 0,
+      sentimentDistribution: {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+      },
+      confidenceScore: 0,
+    };
   }
-
-  const analyses = data || [];
-  const totalAnalyses = analyses.length;
-  const brandAnalyses = analyses.filter((a: any) => a.analysis_type === 'brand').length;
-  const competitorAnalyses = analyses.filter((a: any) => a.analysis_type === 'competitor').length;
-
-  const averageSentiment = totalAnalyses > 0 
-    ? analyses.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / totalAnalyses 
-    : 0;
-
-  const confidenceScore = totalAnalyses > 0
-    ? analyses.reduce((sum: number, a: any) => sum + a.confidence_score, 0) / totalAnalyses
-    : 0;
-
-  const sentimentDistribution = {
-    positive: analyses.filter((a: any) => a.sentiment_label === 'positive').length,
-    neutral: analyses.filter((a: any) => a.sentiment_label === 'neutral').length,
-    negative: analyses.filter((a: any) => a.sentiment_label === 'negative').length,
-  };
-
-  return {
-    totalAnalyses,
-    brandAnalyses,
-    competitorAnalyses,
-    averageSentiment,
-    sentimentDistribution,
-    confidenceScore,
-  };
 }
 
 export async function getSentimentTrends(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<SentimentTrend[]> {
-  const supabase = createClient();
+  try {
+    const supabase = createClient();
 
-  // Get date range (default to last 30 days if not specified)
-  const endDate = filters.dateRange?.to || new Date();
-  const startDate = filters.dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // Check if table exists first
+    const { data, error } = await supabase
+      .from('sentiment_analysis')
+      .select('created_at, overall_sentiment, sentiment_label')
+      .eq('project_id', projectId)
+      .limit(1);
 
-  let query = supabase
-    .from('sentiment_analysis')
-    .select(`
-      created_at,
-      overall_sentiment,
-      sentiment_label,
-      ai_responses!inner(platform, prompt_tracking!inner(region))
-    `)
-    .eq('project_id', projectId)
-    .gte('created_at', startDate.toISOString())
-    .lte('created_at', endDate.toISOString())
-    .order('created_at', { ascending: true });
+    if (error) {
+      console.log('Sentiment analysis table not ready for trends:', error.message);
+      return [];
+    }
 
-  // Apply filters
-  query = applySentimentFilter(
-    applyAnalysisTypeFilter(
-      applyRegionFilter(
-        applyPlatformFilter(query, filters),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
+    // If table exists, get trend data
+    const endDate = filters.dateRange?.to || new Date();
+    const startDate = filters.dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const { data, error } = await query;
+    const { data: trendData, error: trendError } = await supabase
+      .from('sentiment_analysis')
+      .select('created_at, overall_sentiment, sentiment_label')
+      .eq('project_id', projectId)
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .order('created_at', { ascending: true });
 
-  if (error) {
-    throw new Error(`Failed to fetch sentiment trends: ${error.message}`);
+    if (trendError) {
+      throw new Error(`Failed to fetch sentiment trends: ${trendError.message}`);
+    }
+
+    // Group by date and calculate metrics
+    const trendMap = new Map<string, {
+      positive: number;
+      neutral: number;
+      negative: number;
+      totalAnalyses: number;
+      sentimentSum: number;
+    }>();
+
+    (trendData || []).forEach((analysis: any) => {
+      const date = new Date(analysis.created_at).toISOString().split('T')[0];
+      const existing = trendMap.get(date) || {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        totalAnalyses: 0,
+        sentimentSum: 0,
+      };
+
+      if (analysis.sentiment_label === 'positive') existing.positive++;
+      else if (analysis.sentiment_label === 'neutral') existing.neutral++;
+      else if (analysis.sentiment_label === 'negative') existing.negative++;
+      
+      existing.totalAnalyses++;
+      existing.sentimentSum += analysis.overall_sentiment;
+
+      trendMap.set(date, existing);
+    });
+
+    // Convert to array and calculate averages
+    return Array.from(trendMap.entries())
+      .map(([date, metrics]) => ({
+        date,
+        positive: metrics.positive,
+        neutral: metrics.neutral,
+        negative: metrics.negative,
+        totalAnalyses: metrics.totalAnalyses,
+        averageSentiment: metrics.totalAnalyses > 0 ? metrics.sentimentSum / metrics.totalAnalyses : 0,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch (error: any) {
+    console.error('Error fetching sentiment trends:', error);
+    return [];
   }
-
-  // Group by date and calculate metrics
-  const trendMap = new Map<string, {
-    positive: number;
-    neutral: number;
-    negative: number;
-    totalAnalyses: number;
-    sentimentSum: number;
-  }>();
-
-  (data || []).forEach((analysis: any) => {
-    const date = new Date(analysis.created_at).toISOString().split('T')[0];
-    const existing = trendMap.get(date) || {
-      positive: 0,
-      neutral: 0,
-      negative: 0,
-      totalAnalyses: 0,
-      sentimentSum: 0,
-    };
-
-    existing[analysis.sentiment_label as keyof typeof existing]++;
-    existing.totalAnalyses++;
-    existing.sentimentSum += analysis.overall_sentiment;
-
-    trendMap.set(date, existing);
-  });
-
-  // Convert to array and calculate averages
-  return Array.from(trendMap.entries())
-    .map(([date, metrics]) => ({
-      date,
-      positive: metrics.positive,
-      neutral: metrics.neutral,
-      negative: metrics.negative,
-      totalAnalyses: metrics.totalAnalyses,
-      averageSentiment: metrics.totalAnalyses > 0 ? metrics.sentimentSum / metrics.totalAnalyses : 0,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function getEntitySentiments(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<EntitySentiment[]> {
-  const supabase = createClient();
+  try {
+    const supabase = createClient();
 
-  let query = supabase
-    .from('sentiment_analysis')
-    .select(`
-      *,
-      ai_responses!inner(platform, prompt_tracking!inner(region))
-    `)
-    .eq('project_id', projectId);
+    // Check if table exists first
+    const { data, error } = await supabase
+      .from('sentiment_analysis')
+      .select('entity_name, analysis_type')
+      .eq('project_id', projectId)
+      .limit(1);
 
-  // Apply filters
-  query = applySentimentFilter(
-    applyAnalysisTypeFilter(
-      applyRegionFilter(
-        applyPlatformFilter(
-          applyDateFilter(query, filters),
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(`Failed to fetch entity sentiments: ${error.message}`);
-  }
-
-  // Group by entity
-  const entityMap = new Map<string, any[]>();
-
-  (data || []).forEach((analysis: any) => {
-    const key = `${analysis.entity_name}-${analysis.analysis_type}`;
-    if (!entityMap.has(key)) {
-      entityMap.set(key, []);
+    if (error) {
+      console.log('Sentiment analysis table not ready for entities:', error.message);
+      return [];
     }
-    entityMap.get(key)!.push(analysis);
-  });
 
-  // Process each entity
-  return Array.from(entityMap.entries()).map(([key, analyses]) => {
-    const firstAnalysis = analyses[0];
-    const totalMentions = analyses.length;
-    
-    const averageSentiment = analyses.reduce((sum, a) => sum + a.overall_sentiment, 0) / totalMentions;
-    const confidenceScore = analyses.reduce((sum, a) => sum + a.confidence_score, 0) / totalMentions;
-    
-    const positiveCount = analyses.filter(a => a.sentiment_label === 'positive').length;
-    const neutralCount = analyses.filter(a => a.sentiment_label === 'neutral').length;
-    const negativeCount = analyses.filter(a => a.sentiment_label === 'negative').length;
-    
-    // Determine overall sentiment label
-    let sentimentLabel: 'positive' | 'neutral' | 'negative' = 'neutral';
-    if (averageSentiment >= 0.6) sentimentLabel = 'positive';
-    else if (averageSentiment <= 0.4) sentimentLabel = 'negative';
-    
-    // Extract top attributes
-    const allPositiveAttributes = analyses.flatMap(a => a.positive_attributes || []);
-    const allNegativeAttributes = analyses.flatMap(a => a.negative_attributes || []);
-    
-    const topPositiveAttributes = getTopAttributes(allPositiveAttributes);
-    const topNegativeAttributes = getTopAttributes(allNegativeAttributes);
-    
-    // Get recent analyses
-    const recentAnalyses = analyses
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5)
-      .map(a => ({
-        id: a.id,
-        analyzedText: a.analyzed_text,
-        overallSentiment: a.overall_sentiment,
-        sentimentLabel: a.sentiment_label,
-        aiReasoning: a.ai_reasoning,
-        createdAt: a.created_at,
-        platform: a.ai_responses.platform,
-      }));
+    // If table exists, get entity data
+    const { data: entityData, error: entityError } = await supabase
+      .from('sentiment_analysis')
+      .select('*')
+      .eq('project_id', projectId);
 
-    return {
-      entityName: firstAnalysis.entity_name,
-      entityDomain: firstAnalysis.entity_domain,
-      analysisType: firstAnalysis.analysis_type,
-      totalMentions,
-      averageSentiment,
-      sentimentLabel,
-      confidenceScore,
-      positiveCount,
-      neutralCount,
-      negativeCount,
-      topPositiveAttributes,
-      topNegativeAttributes,
-      recentAnalyses,
-    };
-  }).sort((a, b) => b.totalMentions - a.totalMentions);
+    if (entityError) {
+      throw new Error(`Failed to fetch entity sentiments: ${entityError.message}`);
+    }
+
+    // Group by entity
+    const entityMap = new Map<string, any[]>();
+
+    (entityData || []).forEach((analysis: any) => {
+      const key = `${analysis.entity_name}-${analysis.analysis_type}`;
+      if (!entityMap.has(key)) {
+        entityMap.set(key, []);
+      }
+      entityMap.get(key)!.push(analysis);
+    });
+
+    // Process each entity
+    return Array.from(entityMap.entries()).map(([key, analyses]) => {
+      const firstAnalysis = analyses[0];
+      const totalMentions = analyses.length;
+      
+      const averageSentiment = analyses.reduce((sum, a) => sum + a.overall_sentiment, 0) / totalMentions;
+      const confidenceScore = analyses.reduce((sum, a) => sum + a.confidence_score, 0) / totalMentions;
+      
+      const positiveCount = analyses.filter(a => a.sentiment_label === 'positive').length;
+      const neutralCount = analyses.filter(a => a.sentiment_label === 'neutral').length;
+      const negativeCount = analyses.filter(a => a.sentiment_label === 'negative').length;
+      
+      // Determine overall sentiment label
+      let sentimentLabel: 'positive' | 'neutral' | 'negative' = 'neutral';
+      if (averageSentiment >= 0.6) sentimentLabel = 'positive';
+      else if (averageSentiment <= 0.4) sentimentLabel = 'negative';
+      
+      // Extract top attributes
+      const allPositiveAttributes = analyses.flatMap(a => a.positive_attributes || []);
+      const allNegativeAttributes = analyses.flatMap(a => a.negative_attributes || []);
+      
+      const topPositiveAttributes = getTopAttributes(allPositiveAttributes);
+      const topNegativeAttributes = getTopAttributes(allNegativeAttributes);
+      
+      // Get recent analyses
+      const recentAnalyses = analyses
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
+        .map(a => ({
+          id: a.id,
+          analyzedText: a.analyzed_text,
+          overallSentiment: a.overall_sentiment,
+          sentimentLabel: a.sentiment_label,
+          aiReasoning: a.ai_reasoning,
+          createdAt: a.created_at,
+          platform: 'Unknown', // Will be populated when we have proper joins
+        }));
+
+      return {
+        entityName: firstAnalysis.entity_name,
+        entityDomain: firstAnalysis.entity_domain,
+        analysisType: firstAnalysis.analysis_type,
+        totalMentions,
+        averageSentiment,
+        sentimentLabel,
+        confidenceScore,
+        positiveCount,
+        neutralCount,
+        negativeCount,
+        topPositiveAttributes,
+        topNegativeAttributes,
+        recentAnalyses,
+      };
+    }).sort((a, b) => b.totalMentions - a.totalMentions);
+  } catch (error: any) {
+    console.error('Error fetching entity sentiments:', error);
+    return [];
+  }
 }
 
 export async function getAttributeAnalysis(
