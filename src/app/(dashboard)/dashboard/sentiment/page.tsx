@@ -56,6 +56,8 @@ export default function SentimentPage() {
   const [attributes, setAttributes] = useState<any>(null);
   const [totalResponses, setTotalResponses] = useState(0);
   const [competitors, setCompetitors] = useState<any[]>([]);
+  const [brandName, setBrandName] = useState("");
+  const [brandDomain, setBrandDomain] = useState("");
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -72,6 +74,18 @@ export default function SentimentPage() {
     try {
       // Get total AI responses count and analyzed count
       const supabase = (await import('@/lib/supabase/client')).createClient();
+      
+      // Get project details (brand name and domain)
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('brand_name, brand_domain')
+        .eq('id', selectedProjectId)
+        .single();
+      
+      if (projectData) {
+        setBrandName(projectData.brand_name || '');
+        setBrandDomain(projectData.brand_domain || '');
+      }
       
       // Total successful AI responses
       const { count: totalCount } = await supabase
@@ -264,6 +278,8 @@ export default function SentimentPage() {
         competitors={competitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={handleCompetitorChange}
+        brandName={brandName}
+        brandDomain={brandDomain}
         isLoading={isLoading}
       />
 

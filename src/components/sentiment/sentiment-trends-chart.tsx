@@ -28,6 +28,8 @@ interface SentimentTrendsChartProps {
   competitors: Competitor[];
   selectedCompetitorId: string | null;
   onCompetitorChange: (competitorId: string | null) => void;
+  brandName: string;
+  brandDomain: string;
   isLoading?: boolean;
 }
 
@@ -38,6 +40,8 @@ export function SentimentTrendsChart({
   competitors,
   selectedCompetitorId,
   onCompetitorChange,
+  brandName,
+  brandDomain,
   isLoading 
 }: SentimentTrendsChartProps) {
   // Get brand and selected competitor info
@@ -158,21 +162,19 @@ export function SentimentTrendsChart({
         {/* Brand and Competitor Selector */}
         <div className="flex flex-wrap gap-2">
           {/* Brand Button (always shown, always selected) */}
-          {brandEntity && (
-            <button
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-primary text-primary-foreground border-primary hover:border-primary/50"
-            >
-              <BrandLogo 
-                domain={brandEntity.entityDomain || ''} 
-                name={brandEntity.entityName}
-                size={16} 
-              />
-              <span>{brandEntity.entityName}</span>
-              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
+          <button
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-primary text-primary-foreground border-primary hover:border-primary/50"
+          >
+            <BrandLogo 
+              domain={brandDomain} 
+              name={brandName}
+              size={16} 
+            />
+            <span>{brandName}</span>
+            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
 
           {/* Competitor Buttons */}
           {competitors.map((competitor) => (
@@ -228,7 +230,7 @@ export function SentimentTrendsChart({
               strokeWidth={2.5}
               dot={{ fill: "rgb(34, 197, 94)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name={`${brandEntity?.entityName || 'Brand'} Positive`}
+              name={`${brandName} Positive`}
             />
             <Line
               type="monotone"
@@ -237,7 +239,7 @@ export function SentimentTrendsChart({
               strokeWidth={2.5}
               dot={{ fill: "rgb(234, 179, 8)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name={`${brandEntity?.entityName || 'Brand'} Neutral`}
+              name={`${brandName} Neutral`}
             />
             <Line
               type="monotone"
@@ -246,7 +248,7 @@ export function SentimentTrendsChart({
               strokeWidth={2.5}
               dot={{ fill: "rgb(239, 68, 68)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name={`${brandEntity?.entityName || 'Brand'} Negative`}
+              name={`${brandName} Negative`}
             />
 
             {/* Competitor Lines (Lighter colors) - Only show if competitor selected */}
