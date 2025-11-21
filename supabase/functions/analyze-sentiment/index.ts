@@ -62,10 +62,10 @@ serve(async (req) => {
       );
     }
 
-    // Get competitors from separate table
+    // Get competitors from separate table (include id for foreign key)
     const { data: competitors, error: competitorsError } = await supabase
       .from('competitors')
-      .select('name, domain')
+      .select('id, name, domain')
       .eq('project_id', project_id)
       .eq('is_active', true);
 
@@ -133,12 +133,22 @@ serve(async (req) => {
 
         // Save results to database
         for (const result of sentimentResults) {
+          // Find competitor_id if this is a competitor analysis
+          let competitorId = null;
+          if (result.analysis_type === 'competitor') {
+            const competitor = (competitors || []).find(
+              (c: any) => c.name.toLowerCase() === result.entity_name.toLowerCase()
+            );
+            competitorId = competitor?.id || null;
+          }
+
           const sentimentRecord = {
             project_id,
             ai_response_id: response.id,
             analysis_type: result.analysis_type,
-            entity_name: result.entity_name,
-            entity_domain: result.entity_domain,
+            competitor_id: competitorId, // NULL for brand, competitor ID for competitors
+            entity_name: result.entity_name, // Cached for performance
+            entity_domain: result.entity_domain, // Cached for performance
             overall_sentiment: result.overall_sentiment,
             sentiment_label: result.sentiment_label,
             confidence_score: result.confidence_score,
