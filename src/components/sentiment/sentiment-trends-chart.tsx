@@ -144,10 +144,14 @@ export function SentimentTrendsChart({
           {/* Brand Button (always shown, always selected) */}
           {brandEntity && (
             <button
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-primary text-primary-foreground border-primary"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-primary text-primary-foreground border-primary hover:border-primary/50"
             >
-              <BrandLogo domain={brandEntity.entityDomain || ''} size={16} />
-              <span className="text-xs font-medium">{brandEntity.entityName}</span>
+              <BrandLogo 
+                domain={brandEntity.entityDomain || ''} 
+                name={brandEntity.entityName}
+                size={16} 
+              />
+              <span>{brandEntity.entityName}</span>
               <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
@@ -159,14 +163,18 @@ export function SentimentTrendsChart({
             <button
               key={competitor.id}
               onClick={() => onCompetitorChange(competitor.id === selectedCompetitorId ? '' : competitor.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border hover:border-primary/50 ${
                 selectedCompetitorId === competitor.id
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background hover:bg-muted border-border"
+                  : "bg-background hover:bg-muted"
               }`}
             >
-              <BrandLogo domain={competitor.domain} size={16} />
-              <span className="text-xs font-medium">{competitor.name}</span>
+              <BrandLogo 
+                domain={competitor.domain} 
+                name={competitor.name}
+                size={16} 
+              />
+              <span>{competitor.name}</span>
               {selectedCompetitorId === competitor.id && (
                 <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
