@@ -68,127 +68,76 @@ export function SentimentAnalysisTrigger({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5" />
-          AI Sentiment Analysis
-        </CardTitle>
-        <CardDescription>
-          Analyze AI responses to extract sentiment insights for your brand and competitors
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Analysis Status */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Analysis Coverage</span>
-            <Badge variant={analysisPercentage === 100 ? "default" : "secondary"}>
-              {analysisPercentage.toFixed(0)}% Complete
-            </Badge>
+    <div className="flex flex-col gap-3">
+      {/* Analysis Progress (only when analyzing) */}
+      {isAnalyzing && (
+        <div className="space-y-2 p-3 border rounded-lg bg-muted/50">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span className="text-sm font-medium">Analyzing responses...</span>
           </div>
-          
-          <Progress value={analysisPercentage} className="h-2" />
-          
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{analyzedResponses} analyzed</span>
-            <span>{totalResponses} total responses</span>
+          <Progress value={analysisProgress} className="h-2" />
+          <div className="text-xs text-muted-foreground">
+            {analysisProgress.toFixed(0)}% complete
           </div>
         </div>
+      )}
 
-        {/* Status Cards */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium">Analyzed</span>
-            </div>
-            <div className="text-2xl font-bold">{analyzedResponses}</div>
-          </div>
-          
-          <div className="border rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-              <span className="text-sm font-medium">Pending</span>
-            </div>
-            <div className="text-2xl font-bold">{unanalyzedResponses}</div>
-          </div>
-        </div>
-
-        {/* Analysis Progress */}
-        {isAnalyzing && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              <span className="text-sm font-medium">Analyzing responses...</span>
-            </div>
-            <Progress value={analysisProgress} className="h-2" />
-            <div className="text-xs text-muted-foreground">
-              Processing with Gemini 2.0 Flash • {analysisProgress.toFixed(0)}% complete
-            </div>
-          </div>
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        {unanalyzedResponses > 0 && (
+          <Button
+            onClick={() => handleStartAnalysis(false)}
+            disabled={isAnalyzing}
+            size="lg"
+            className="flex-1"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            Analyze New Responses
+            {unanalyzedResponses > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-white/20">
+                {unanalyzedResponses}
+              </Badge>
+            )}
+          </Button>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex gap-2 pt-2">
-          {unanalyzedResponses > 0 && (
-            <Button
-              onClick={() => handleStartAnalysis(false)}
-              disabled={isAnalyzing}
-              className="flex-1"
-            >
-              <Play className="h-4 w-4 mr-2" />
-              Analyze New Responses
-              {unanalyzedResponses > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {unanalyzedResponses}
-                </Badge>
-              )}
-            </Button>
-          )}
-
-          {analyzedResponses > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={isAnalyzing}
-                  className={unanalyzedResponses === 0 ? "flex-1" : ""}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
+        {analyzedResponses > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={isAnalyzing}
+                className={unanalyzedResponses === 0 ? "flex-1" : ""}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Re-analyze All
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Re-analyze All Responses?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will re-process all {totalResponses} AI responses, including those already analyzed. 
+                  This may take several minutes and will overwrite existing sentiment data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleStartAnalysis(true)}>
                   Re-analyze All
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Re-analyze All Responses?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will re-process all {totalResponses} AI responses, including those already analyzed. 
-                    This may take several minutes and will overwrite existing sentiment data.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleStartAnalysis(true)}>
-                    Re-analyze All
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
 
-        {/* Info */}
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
-          <div className="font-medium mb-1">How it works:</div>
-          <ul className="space-y-1">
-            <li>• AI analyzes each response for brand and competitor mentions</li>
-            <li>• Extracts positive, neutral, and negative attributes</li>
-            <li>• Provides confidence scores and detailed reasoning</li>
-            <li>• Uses Gemini 2.0 Flash for fast, cost-effective analysis</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Status Info (compact) */}
+      <div className="text-xs text-muted-foreground text-center">
+        {analyzedResponses} of {totalResponses} responses analyzed ({analysisPercentage.toFixed(0)}%)
+      </div>
+    </div>
   );
 }

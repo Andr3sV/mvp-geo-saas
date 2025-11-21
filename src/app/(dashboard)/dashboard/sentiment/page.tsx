@@ -173,66 +173,28 @@ export default function SentimentPage() {
         description="AI-powered sentiment analysis of brand and competitor mentions across platforms"
       />
 
-      {/* Filters Toolbar */}
-      <FiltersToolbar
-        dateRange={dateRange}
-        platform={platform}
-        region={region}
-        onApply={handleFiltersChange}
-      />
-
-      {/* Analysis Trigger */}
-      <SentimentAnalysisTrigger
-        projectId={selectedProjectId!}
-        onAnalysisComplete={handleAnalysisComplete}
-        totalResponses={totalResponses}
-        analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
-      />
-
-      {/* Quick Look Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SentimentMetricCard
-          title="Responses Analyzed"
-          value={metrics.totalUniqueAnalyzedResponses.toLocaleString()}
-          description={`${metrics.totalSentimentRows} sentiment entries`}
-          icon={<BarChart3 className="h-5 w-5" />}
-        />
-        <SentimentMetricCard
-          title="Overall Sentiment"
-          value={`${(metrics.overallSentiment * 100).toFixed(0)}%`}
-          description="Average across all analyses"
-          icon={<Smile className="h-5 w-5" />}
-          trend={{ 
-            value: 5.2, 
-            direction: metrics.overallSentiment >= 0.6 ? "up" : metrics.overallSentiment <= 0.4 ? "down" : "neutral" 
-          }}
-        />
-        <SentimentMetricCard
-          title="AI Confidence"
-          value={`${(metrics.confidenceScore * 100).toFixed(1)}%`}
-          description="Analysis reliability"
-          icon={<Target className="h-5 w-5" />}
-        />
-        <SentimentMetricCard
-          title="Brand Sentiment"
-          value={`${(metrics.brandSentiment * 100).toFixed(0)}%`}
-          description={`${metrics.brandAnalyses} brand analyses`}
-          icon={<TrendingUp className="h-5 w-5" />}
-          trend={{ 
-            value: 3.8, 
-            direction: metrics.brandSentiment >= 0.6 ? "up" : metrics.brandSentiment <= 0.4 ? "down" : "neutral" 
-          }}
-        />
+      {/* Filters Toolbar with Analysis Trigger */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-end">
+        <div className="flex-1 w-full">
+          <FiltersToolbar
+            dateRange={dateRange}
+            platform={platform}
+            region={region}
+            onApply={handleFiltersChange}
+          />
+        </div>
+        <div className="w-full lg:w-auto">
+          <SentimentAnalysisTrigger
+            projectId={selectedProjectId!}
+            onAnalysisComplete={handleAnalysisComplete}
+            totalResponses={totalResponses}
+            analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
+          />
+        </div>
       </div>
 
-      {/* Sentiment Trends Chart - Full Width */}
-      <SentimentTrendsChart
-        trends={trends}
-        isLoading={isLoading}
-      />
-
-      {/* Sentiment Comparison and Attribute Breakdown - Side by Side */}
-      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+      {/* Sentiment Pulse and Key Attributes - Side by Side */}
+      <div className="grid gap-6 lg:grid-cols-2">
         <SentimentComparison
           entities={entities}
           isLoading={isLoading}
@@ -243,6 +205,12 @@ export default function SentimentPage() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Sentiment Trends Chart - Full Width */}
+      <SentimentTrendsChart
+        trends={trends}
+        isLoading={isLoading}
+      />
 
       {/* Tabs for detailed insights */}
       <Tabs defaultValue="entities" className="w-full">
