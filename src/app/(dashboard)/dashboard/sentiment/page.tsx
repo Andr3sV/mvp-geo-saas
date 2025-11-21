@@ -100,10 +100,16 @@ export default function SentimentPage() {
         getAttributeBreakdown(selectedProjectId, filtersPayload),
       ]);
 
-      // Override totalAnalyses with unique response count
+      // Override with correct unique response count
       if (metricsData) {
         metricsData.totalAnalyses = actualAnalyzedCount;
+        metricsData.totalUniqueAnalyzedResponses = actualAnalyzedCount;
       }
+
+      console.log('📊 Sentiment Metrics:', metricsData);
+      console.log('📈 Trends:', trendsData?.length, 'days');
+      console.log('👥 Entities:', entitiesData?.length);
+      console.log('🏷️ Attributes:', attributesData);
 
       setMetrics(metricsData);
       setTrends(trendsData);

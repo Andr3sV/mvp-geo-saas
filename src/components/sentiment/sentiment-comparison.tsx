@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Award, Smile, Meh, Frown } from "lucide-react";
+import { Sparkles, Award } from "lucide-react";
 import { EntitySentiment } from "@/lib/queries/sentiment-analysis";
 
 interface SentimentComparisonProps {
@@ -10,45 +10,15 @@ interface SentimentComparisonProps {
   isLoading?: boolean;
 }
 
-const SENTIMENT_TIERS = [
-  {
-    key: "positive" as const,
-    label: "Positive",
-    color: "bg-green-500",
-    gradient: "from-green-500 to-green-600",
-    bgColor: "bg-green-50 dark:bg-green-950/20",
-    textColor: "text-green-700 dark:text-green-300",
-    icon: Smile,
-  },
-  {
-    key: "neutral" as const,
-    label: "Neutral",
-    color: "bg-yellow-500",
-    gradient: "from-yellow-500 to-yellow-600",
-    bgColor: "bg-yellow-50 dark:bg-yellow-950/20",
-    textColor: "text-yellow-700 dark:text-yellow-300",
-    icon: Meh,
-  },
-  {
-    key: "negative" as const,
-    label: "Negative",
-    color: "bg-red-500",
-    gradient: "from-red-500 to-red-600",
-    bgColor: "bg-red-50 dark:bg-red-950/20",
-    textColor: "text-red-700 dark:text-red-300",
-    icon: Frown,
-  },
-];
-
 export function SentimentComparison({ entities, isLoading }: SentimentComparisonProps) {
   if (isLoading) {
     return (
-      <Card className="h-full flex flex-col">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Sentiment Breakdown</CardTitle>
+      <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg">
+        <CardHeader className="pb-4 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent">
+          <CardTitle className="text-lg">Sentiment Pulse</CardTitle>
         </CardHeader>
-        <CardContent className="flex-1">
-          <div className="h-[300px] animate-pulse bg-muted rounded"></div>
+        <CardContent className="flex-1 p-6">
+          <div className="h-[300px] animate-pulse bg-muted/30 rounded-2xl"></div>
         </CardContent>
       </Card>
     );
@@ -58,19 +28,20 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
 
   if (!brandEntity) {
     return (
-      <Card className="h-full flex flex-col">
-        <CardHeader className="pb-3">
+      <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg">
+        <CardHeader className="pb-4 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Sentiment Breakdown
+            <Sparkles className="h-5 w-5" />
+            Sentiment Pulse
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             Brand sentiment distribution
           </p>
         </CardHeader>
-        <CardContent className="flex-1 flex items-center justify-center">
+        <CardContent className="flex-1 flex items-center justify-center p-6">
           <div className="text-center py-8 text-muted-foreground">
-            No sentiment data available
+            <p className="text-sm">No sentiment data yet</p>
+            <p className="text-xs mt-2">Run analysis to see your sentiment pulse</p>
           </div>
         </CardContent>
       </Card>
@@ -78,125 +49,136 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
   }
 
   const total = brandEntity.positiveCount + brandEntity.neutralCount + brandEntity.negativeCount;
+  const positivePercentage = total > 0 ? (brandEntity.positiveCount / total) * 100 : 0;
+  const neutralPercentage = total > 0 ? (brandEntity.neutralCount / total) * 100 : 0;
+  const negativePercentage = total > 0 ? (brandEntity.negativeCount / total) * 100 : 0;
 
-  const breakdown = [
-    {
-      ...SENTIMENT_TIERS[0],
-      value: brandEntity.positiveCount,
-      percentage: total > 0 ? (brandEntity.positiveCount / total) * 100 : 0,
-    },
-    {
-      ...SENTIMENT_TIERS[1],
-      value: brandEntity.neutralCount,
-      percentage: total > 0 ? (brandEntity.neutralCount / total) * 100 : 0,
-    },
-    {
-      ...SENTIMENT_TIERS[2],
-      value: brandEntity.negativeCount,
-      percentage: total > 0 ? (brandEntity.negativeCount / total) * 100 : 0,
-    },
-  ].filter((item) => item.value > 0);
+  // Determine dominant sentiment
+  const dominantSentiment = 
+    positivePercentage >= neutralPercentage && positivePercentage >= negativePercentage ? 'positive' :
+    negativePercentage >= neutralPercentage ? 'negative' : 'neutral';
 
-  const maxPercentage = Math.max(...breakdown.map(b => b.percentage), 100);
+  const sentimentColor = {
+    positive: 'from-green-500 to-emerald-600',
+    neutral: 'from-amber-500 to-yellow-600',
+    negative: 'from-red-500 to-rose-600',
+  }[dominantSentiment];
+
+  const sentimentEmoji = {
+    positive: '😊',
+    neutral: '😐',
+    negative: '😞',
+  }[dominantSentiment];
 
   return (
-    <Card className="border-border/50 h-full flex flex-col">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Sentiment Breakdown
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {brandEntity.entityName} sentiment distribution
-        </p>
-      </CardHeader>
-      <CardContent className="flex-1 flex flex-col min-h-0">
-        {/* Brand Highlight */}
-        <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Badge variant="default" className="bg-primary">
-                <Award className="h-3 w-3 mr-1" />
-                Your Brand
-              </Badge>
-              <span className="font-semibold text-sm">{brandEntity.entityName}</span>
+    <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg bg-gradient-to-br from-background via-background to-primary/5">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <div className={`p-2 rounded-xl bg-gradient-to-br ${sentimentColor} shadow-lg`}>
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">
-                {(brandEntity.averageSentiment * 100).toFixed(0)}%
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {total} analyses
-              </div>
+            Sentiment Pulse
+          </CardTitle>
+          <Badge variant="secondary" className="font-mono text-xs">
+            {total} analyses
+          </Badge>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="flex-1 flex flex-col gap-6 p-6 pt-0">
+        {/* Central Score Display */}
+        <div className="relative">
+          <div className={`absolute inset-0 bg-gradient-to-br ${sentimentColor} opacity-10 blur-3xl rounded-full`}></div>
+          <div className="relative text-center py-6">
+            <div className="text-6xl mb-2">{sentimentEmoji}</div>
+            <div className="text-5xl font-black bg-gradient-to-br ${sentimentColor} bg-clip-text text-transparent mb-1">
+              {(brandEntity.averageSentiment * 100).toFixed(0)}%
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                <Award className="h-3 w-3 mr-1" />
+                {brandEntity.entityName}
+              </Badge>
             </div>
           </div>
         </div>
 
-        {/* Vertical Bar Chart */}
-        <div className="flex-1 flex items-end justify-between gap-3 min-h-[200px] pb-2">
-          {breakdown.map((tier) => {
-            const Icon = tier.icon;
-            const barHeight = (tier.percentage / maxPercentage) * 100;
-            
-            return (
+        {/* Horizontal Stacked Bar */}
+        <div className="space-y-3">
+          <div className="flex h-3 rounded-full overflow-hidden shadow-inner bg-muted/30">
+            {positivePercentage > 0 && (
               <div
-                key={tier.key}
-                className="flex-1 flex flex-col items-center justify-end gap-2 h-full group"
+                className="bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-1000 ease-out relative group"
+                style={{ width: `${positivePercentage}%` }}
               >
-                {/* Bar Container */}
-                <div className="relative w-full flex flex-col items-center justify-end h-full min-h-[150px]">
-                  {/* Bar */}
-                  <div
-                    className={`w-full rounded-t-lg bg-gradient-to-t ${tier.gradient} transition-all duration-700 ease-out relative overflow-hidden group-hover:opacity-90`}
-                    style={{ height: `${barHeight}%`, minHeight: tier.value > 0 ? "24px" : "0" }}
-                  >
-                    {/* Shine effect */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* Value inside bar (if tall enough) */}
-                    {barHeight > 25 && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-white font-bold text-sm drop-shadow-lg">
-                          {tier.percentage.toFixed(0)}%
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Value above bar (if bar is too short) */}
-                  {barHeight <= 25 && (
-                    <div className={`absolute -top-6 ${tier.textColor}`}>
-                      <span className="font-bold text-lg">
-                        {tier.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Label Section */}
-                <div className="w-full space-y-1.5 pt-1">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <Icon className={`h-3.5 w-3.5 ${tier.textColor}`} />
-                    <span className={`text-xs font-semibold ${tier.textColor} text-center`}>
-                      {tier.label}
-                    </span>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs font-medium text-foreground mt-0.5">
-                      {tier.value} {tier.value === 1 ? "mention" : "mentions"}
-                    </p>
-                  </div>
-                </div>
+                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
-            );
-          })}
-        </div>
+            )}
+            {neutralPercentage > 0 && (
+              <div
+                className="bg-gradient-to-r from-amber-500 to-yellow-500 transition-all duration-1000 ease-out relative group"
+                style={{ width: `${neutralPercentage}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              </div>
+            )}
+            {negativePercentage > 0 && (
+              <div
+                className="bg-gradient-to-r from-red-500 to-rose-500 transition-all duration-1000 ease-out relative group"
+                style={{ width: `${negativePercentage}%` }}
+              >
+                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              </div>
+            )}
+          </div>
 
-        {/* Total Summary */}
-        <div className="pt-4 mt-auto border-t">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Total Mentions</span>
-            <span className="text-lg font-bold">{total}</span>
+          {/* Legend */}
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="group cursor-default">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-sm"></div>
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-green-600 transition-colors">
+                  Positive
+                </span>
+              </div>
+              <div className="text-lg font-bold text-green-600">
+                {positivePercentage.toFixed(0)}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {brandEntity.positiveCount} mentions
+              </div>
+            </div>
+
+            <div className="group cursor-default">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-amber-500 to-yellow-500 shadow-sm"></div>
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-amber-600 transition-colors">
+                  Neutral
+                </span>
+              </div>
+              <div className="text-lg font-bold text-amber-600">
+                {neutralPercentage.toFixed(0)}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {brandEntity.neutralCount} mentions
+              </div>
+            </div>
+
+            <div className="group cursor-default">
+              <div className="flex items-center justify-center gap-1.5 mb-1">
+                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-red-500 to-rose-500 shadow-sm"></div>
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-red-600 transition-colors">
+                  Negative
+                </span>
+              </div>
+              <div className="text-lg font-bold text-red-600">
+                {negativePercentage.toFixed(0)}%
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {brandEntity.negativeCount} mentions
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
