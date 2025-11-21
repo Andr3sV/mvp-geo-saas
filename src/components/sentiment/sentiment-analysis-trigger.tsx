@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Brain, Play, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { triggerSentimentAnalysis } from "@/lib/queries/sentiment-analysis";
 import { toast } from "sonner";
 
@@ -34,15 +32,43 @@ export function SentimentAnalysisTrigger({
     setIsAnalyzing(true);
     setAnalysisProgress(0);
 
+    // Show loading toast with progress
+    const toastId = toast.loading(
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <span className="font-medium">Analyzing responses...</span>
+        </div>
+        <Progress value={0} className="h-1.5" />
+        <div className="text-xs text-muted-foreground">0% complete</div>
+      </div>,
+      {
+        duration: Infinity,
+      }
+    );
+
     try {
-      // Simulate progress updates (in real implementation, you might use WebSocket or polling)
+      // Simulate progress updates
       const progressInterval = setInterval(() => {
         setAnalysisProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + Math.random() * 10;
+          const newProgress = prev >= 90 ? prev : prev + Math.random() * 10;
+          
+          // Update toast with progress
+          toast.loading(
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span className="font-medium">Analyzing responses...</span>
+              </div>
+              <Progress value={newProgress} className="h-1.5" />
+              <div className="text-xs text-muted-foreground">
+                {newProgress.toFixed(0)}% complete
+              </div>
+            </div>,
+            { id: toastId, duration: Infinity }
+          );
+          
+          return newProgress;
         });
       }, 500);
 
@@ -51,15 +77,20 @@ export function SentimentAnalysisTrigger({
       clearInterval(progressInterval);
       setAnalysisProgress(100);
 
+      // Dismiss loading toast
+      toast.dismiss(toastId);
+
       if (result.success) {
         toast.success(
-          `Sentiment analysis completed! Processed ${result.processedCount || 0} responses.`
+          `✨ Analysis complete! Processed ${result.processedCount || 0} responses.`,
+          { duration: 5000 }
         );
         onAnalysisComplete?.();
       } else {
         toast.error(`Analysis failed: ${result.message}`);
       }
     } catch (error: any) {
+      toast.dismiss(toastId);
       toast.error(`Analysis failed: ${error.message}`);
     } finally {
       setIsAnalyzing(false);
@@ -68,21 +99,7 @@ export function SentimentAnalysisTrigger({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Analysis Progress (only when analyzing) */}
-      {isAnalyzing && (
-        <div className="space-y-2 p-3 border rounded-lg bg-muted/50">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <span className="text-sm font-medium">Analyzing responses...</span>
-          </div>
-          <Progress value={analysisProgress} className="h-2" />
-          <div className="text-xs text-muted-foreground">
-            {analysisProgress.toFixed(0)}% complete
-          </div>
-        </div>
-      )}
-
+    <>
       {/* Action Button */}
       {unanalyzedResponses > 0 && (
         <Button
@@ -98,6 +115,6 @@ export function SentimentAnalysisTrigger({
           )}
         </Button>
       )}
-    </div>
+    </>
   );
 }
