@@ -13,7 +13,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Legend,
 } from "recharts";
 
 interface Competitor {
@@ -203,10 +202,6 @@ export function SentimentTrendsChart({
               dx={-10}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: "20px" }}
-              iconType="circle"
-            />
             
             <Line
               type="monotone"
