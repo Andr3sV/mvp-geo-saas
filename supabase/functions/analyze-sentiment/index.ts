@@ -218,20 +218,37 @@ async function analyzeSentimentWithAI(
   }
 
   // Prepare entities to analyze (brand + competitors)
+  // Filter out competitors that match the brand name (case-insensitive)
+  const lowerBrandName = brandName.toLowerCase().trim();
+  const filteredCompetitors = competitors.filter((comp: any) => {
+    const compName = (comp.name || comp).toLowerCase().trim();
+    return compName !== lowerBrandName;
+  });
+
   const entities = [
     { name: brandName, type: 'brand' as const },
-    ...competitors.map((comp: any) => ({ 
+    ...filteredCompetitors.map((comp: any) => ({ 
       name: comp.name || comp, 
       type: 'competitor' as const,
       domain: comp.domain 
     }))
   ];
 
-  const prompt = `
-Analyze the sentiment for each mentioned entity in the following AI response text. For each entity found, provide detailed sentiment analysis.
+  console.log(`Analyzing sentiment for brand "${brandName}" and ${filteredCompetitors.length} competitors`);
 
-ENTITIES TO ANALYZE:
-${entities.map(e => `- ${e.name} (${e.type})`).join('\n')}
+  const prompt = `
+You are analyzing sentiment in AI-generated text. You will ONLY analyze the entities listed below. Each entity is pre-classified as either "brand" (the main company) or "competitor".
+
+CRITICAL INSTRUCTIONS:
+1. ONLY analyze entities from the list below
+2. You MUST use the exact "analysis_type" specified for each entity (do NOT change it)
+3. The entity "${brandName}" is the BRAND (analysis_type: "brand")
+4. All other entities are COMPETITORS (analysis_type: "competitor")
+5. If an entity is not in the list below, DO NOT analyze it
+
+ENTITIES TO ANALYZE (with pre-assigned types):
+- ${brandName} → TYPE: "brand" (this is the main brand, NOT a competitor)
+${entities.filter(e => e.type === 'competitor').map(e => `- ${e.name} → TYPE: "competitor"`).join('\n')}
 
 TEXT TO ANALYZE:
 """
@@ -259,13 +276,17 @@ For each entity mentioned in the text, provide analysis in this EXACT JSON forma
 }
 
 IMPORTANT RULES:
-1. Only analyze entities that are actually mentioned in the text
-2. Be precise with sentiment scores - consider context and tone
-3. Extract specific attributes/mentions, not generic descriptions
-4. Provide clear reasoning for sentiment assignment
-5. If an entity is not mentioned, don't include it in the response
-6. Sentiment labels: positive (0.6-1.0), neutral (0.4-0.6), negative (0.0-0.4)
-7. Return valid JSON only, no additional text
+1. ONLY analyze entities from the list above that are actually mentioned in the text
+2. You MUST use the exact "analysis_type" specified above - "${brandName}" is ALWAYS "brand", all others are ALWAYS "competitor"
+3. Do NOT change the analysis_type based on the text content
+4. Be precise with sentiment scores - consider context and tone
+5. Extract specific attributes/mentions, not generic descriptions
+6. Provide clear reasoning for sentiment assignment
+7. If an entity is not mentioned, don't include it in the response
+8. Sentiment labels: positive (0.6-1.0), neutral (0.4-0.6), negative (0.0-0.4)
+9. Return valid JSON only, no additional text
+
+REMINDER: "${brandName}" = brand (NOT competitor), all others = competitor
 `;
 
   try {
