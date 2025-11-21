@@ -131,6 +131,18 @@ serve(async (req) => {
 
         const processingTime = Date.now() - startTime;
 
+        // Skip if no results (parsing failed)
+        if (!sentimentResults || sentimentResults.length === 0) {
+          console.log(`No sentiment results for response ${response.id}, skipping...`);
+          results.push({
+            ai_response_id: response.id,
+            sentiment_count: 0,
+            processing_time_ms: processingTime,
+            skipped: true
+          });
+          continue;
+        }
+
         // Save results to database
         for (const result of sentimentResults) {
           // Find competitor_id if this is a competitor analysis
@@ -319,14 +331,38 @@ REMINDER: "${brandName}" = brand (NOT competitor), all others = competitor
     const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
+      console.error('No content received from Gemini. Response:', JSON.stringify(data));
       throw new Error('No content received from Gemini API');
     }
 
-    // Parse JSON response
-    const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-    const analysisResult = JSON.parse(cleanContent);
+    // Parse JSON response with better error handling
+    try {
+      // Remove markdown code blocks and trim
+      let cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      
+      // Sometimes Gemini adds extra text before/after JSON, try to extract just the JSON
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[0];
+      }
 
-    return analysisResult.analyses || [];
+      const analysisResult = JSON.parse(cleanContent);
+
+      if (!analysisResult.analyses || !Array.isArray(analysisResult.analyses)) {
+        console.error('Invalid analysis result structure:', analysisResult);
+        return []; // Return empty array instead of failing
+      }
+
+      return analysisResult.analyses;
+
+    } catch (parseError) {
+      console.error('Failed to parse Gemini response:', parseError);
+      console.error('Raw content:', content);
+      console.error('Cleaned content:', content.replace(/```json\n?|\n?```/g, '').trim());
+      
+      // Return empty array instead of throwing - allows other responses to continue processing
+      return [];
+    }
 
   } catch (error) {
     console.error('Gemini API error:', error);
