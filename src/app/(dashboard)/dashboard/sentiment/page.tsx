@@ -76,15 +76,18 @@ export default function SentimentPage() {
       const supabase = (await import('@/lib/supabase/client')).createClient();
       
       // Get project details (brand name and domain)
-      const { data: projectData } = await supabase
+      const { data: projectData, error: projectError } = await supabase
         .from('projects')
         .select('brand_name, brand_domain')
         .eq('id', selectedProjectId)
         .single();
       
+      console.log('🏢 Project Data:', projectData, 'Error:', projectError);
+      
       if (projectData) {
         setBrandName(projectData.brand_name || '');
         setBrandDomain(projectData.brand_domain || '');
+        console.log('✅ Brand set:', projectData.brand_name, projectData.brand_domain);
       }
       
       // Total successful AI responses
