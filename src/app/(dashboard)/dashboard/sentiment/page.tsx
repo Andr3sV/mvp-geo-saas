@@ -75,10 +75,10 @@ export default function SentimentPage() {
       // Get total AI responses count and analyzed count
       const supabase = (await import('@/lib/supabase/client')).createClient();
       
-      // Get project details (brand name and domain)
+      // Get project details (brand name and client_url as domain)
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
-        .select('brand_name, brand_domain')
+        .select('brand_name, client_url')
         .eq('id', selectedProjectId)
         .single();
       
@@ -86,8 +86,8 @@ export default function SentimentPage() {
       
       if (projectData) {
         setBrandName(projectData.brand_name || '');
-        setBrandDomain(projectData.brand_domain || '');
-        console.log('✅ Brand set:', projectData.brand_name, projectData.brand_domain);
+        setBrandDomain(projectData.client_url || '');
+        console.log('✅ Brand set:', projectData.brand_name, projectData.client_url);
       }
       
       // Total successful AI responses
