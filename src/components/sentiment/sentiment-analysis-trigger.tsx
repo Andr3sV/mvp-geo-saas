@@ -107,12 +107,7 @@ export function SentimentAnalysisTrigger({
           disabled={isAnalyzing}
           size="lg"
         >
-          Analyze New Responses
-          {unanalyzedResponses > 0 && (
-            <Badge variant="secondary" className="ml-2 bg-white/20">
-              {unanalyzedResponses}
-            </Badge>
-          )}
+          Update Analysis
         </Button>
       )}
     </>
