@@ -6,7 +6,7 @@ import { addDays } from "date-fns";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useProjectStore } from "@/lib/stores/project-store";
+import { useProject } from "@/contexts/project-context";
 import { toast } from "sonner";
 
 // Sentiment Analysis Components
@@ -27,7 +27,7 @@ import {
 } from "@/lib/queries/sentiment-analysis";
 
 export default function SentimentPage() {
-  const { selectedProjectId } = useProjectStore();
+  const { selectedProjectId } = useProject();
   
   // Filter states
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
