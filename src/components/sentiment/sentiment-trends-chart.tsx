@@ -237,25 +237,6 @@ export function SentimentTrendsChart({
             />
           </LineChart>
         </ResponsiveContainer>
-
-        {/* Legend with brand info */}
-        <div className="mt-6 flex items-center justify-center gap-6 text-sm">
-          {brandEntity && (
-            <div className="flex items-center gap-2">
-              <BrandLogo domain={brandEntity.entityDomain || ''} size={20} />
-              <span className="font-medium">{brandEntity.entityName}</span>
-            </div>
-          )}
-          {selectedCompetitor && (
-            <>
-              <span className="text-muted-foreground">vs</span>
-              <div className="flex items-center gap-2">
-                <BrandLogo domain={selectedCompetitor.domain} size={20} />
-                <span className="font-medium">{selectedCompetitor.name}</span>
-              </div>
-            </>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
