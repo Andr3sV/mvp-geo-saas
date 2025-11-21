@@ -83,61 +83,21 @@ export function SentimentAnalysisTrigger({
         </div>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-2">
-        {unanalyzedResponses > 0 && (
-          <Button
-            onClick={() => handleStartAnalysis(false)}
-            disabled={isAnalyzing}
-            size="lg"
-            className="flex-1"
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Analyze New Responses
-            {unanalyzedResponses > 0 && (
-              <Badge variant="secondary" className="ml-2 bg-white/20">
-                {unanalyzedResponses}
-              </Badge>
-            )}
-          </Button>
-        )}
-
-        {analyzedResponses > 0 && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="lg"
-                disabled={isAnalyzing}
-                className={unanalyzedResponses === 0 ? "flex-1" : ""}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Re-analyze All
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Re-analyze All Responses?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will re-process all {totalResponses} AI responses, including those already analyzed. 
-                  This may take several minutes and will overwrite existing sentiment data.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => handleStartAnalysis(true)}>
-                  Re-analyze All
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-      </div>
-
-      {/* Status Info (compact) */}
-      <div className="text-xs text-muted-foreground text-center">
-        {analyzedResponses} of {totalResponses} responses analyzed ({analysisPercentage.toFixed(0)}%)
-      </div>
+      {/* Action Button */}
+      {unanalyzedResponses > 0 && (
+        <Button
+          onClick={() => handleStartAnalysis(false)}
+          disabled={isAnalyzing}
+          size="lg"
+        >
+          Analyze New Responses
+          {unanalyzedResponses > 0 && (
+            <Badge variant="secondary" className="ml-2 bg-white/20">
+              {unanalyzedResponses}
+            </Badge>
+          )}
+        </Button>
+      )}
     </div>
   );
 }
