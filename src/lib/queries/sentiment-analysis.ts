@@ -256,12 +256,14 @@ export async function getSentimentTrends(
       .select(`
         overall_sentiment, 
         sentiment_label,
-        ai_responses!inner(created_at)
+        ai_response_id,
+        ai_responses!sentiment_analysis_ai_response_id_fkey(created_at)
       `)
       .eq('project_id', projectId)
-      .gte('ai_responses.created_at', startDate.toISOString())
-      .lte('ai_responses.created_at', endDate.toISOString())
-      .order('ai_responses.created_at', { ascending: true });
+      .order('created_at', { ascending: true });
+
+    console.log('📊 Sentiment Trends Raw Data:', trendData?.length, 'records');
+    console.log('📊 Sample:', trendData?.[0]);
 
     if (trendError) {
       throw new Error(`Failed to fetch sentiment trends: ${trendError.message}`);
@@ -278,7 +280,19 @@ export async function getSentimentTrends(
 
     (trendData || []).forEach((analysis: any) => {
       // Use ai_response creation date (when content was actually generated)
-      const date = new Date(analysis.ai_responses.created_at).toISOString().split('T')[0];
+      const responseDate = analysis.ai_responses?.created_at;
+      if (!responseDate) {
+        console.warn('⚠️ Missing ai_responses.created_at for analysis:', analysis);
+        return;
+      }
+      
+      const date = new Date(responseDate).toISOString().split('T')[0];
+      
+      // Apply date filter
+      const dateObj = new Date(date);
+      if (dateObj < startDate || dateObj > endDate) {
+        return;
+      }
       const existing = trendMap.get(date) || {
         positive: 0,
         neutral: 0,
