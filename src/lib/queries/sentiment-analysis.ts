@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/client';
 
 export interface SentimentFilterOptions {
   dateRange?: {
@@ -114,7 +114,7 @@ export async function getSentimentMetrics(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<SentimentMetrics> {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   // Base query with joins
   let query = supabase
@@ -182,7 +182,7 @@ export async function getSentimentTrends(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<SentimentTrend[]> {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   // Get date range (default to last 30 days if not specified)
   const endDate = filters.dateRange?.to || new Date();
@@ -262,7 +262,7 @@ export async function getEntitySentiments(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<EntitySentiment[]> {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   let query = supabase
     .from('sentiment_analysis')
@@ -364,7 +364,7 @@ export async function getAttributeAnalysis(
   projectId: string,
   filters: SentimentFilterOptions = {}
 ): Promise<AttributeAnalysis[]> {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   let query = supabase
     .from('sentiment_analysis')
@@ -470,7 +470,7 @@ export async function triggerSentimentAnalysis(
   aiResponseId?: string,
   forceReanalysis: boolean = false
 ): Promise<{ success: boolean; message: string; processedCount?: number }> {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   try {
     const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
