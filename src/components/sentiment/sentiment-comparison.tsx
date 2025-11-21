@@ -13,12 +13,12 @@ interface SentimentComparisonProps {
 export function SentimentComparison({ entities, isLoading }: SentimentComparisonProps) {
   if (isLoading) {
     return (
-      <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg">
-        <CardHeader className="pb-4 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent">
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-3">
           <CardTitle className="text-lg">Sentiment Pulse</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 p-6">
-          <div className="h-[300px] animate-pulse bg-muted/30 rounded-2xl"></div>
+          <div className="h-[300px] animate-pulse bg-muted rounded"></div>
         </CardContent>
       </Card>
     );
@@ -28,12 +28,9 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
 
   if (!brandEntity) {
     return (
-      <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg">
-        <CardHeader className="pb-4 bg-gradient-to-br from-primary/5 via-primary/3 to-transparent">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Sentiment Pulse
-          </CardTitle>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Sentiment Pulse</CardTitle>
           <p className="text-sm text-muted-foreground">
             Brand sentiment distribution
           </p>
@@ -71,22 +68,15 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
   }[dominantSentiment];
 
   return (
-    <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg bg-gradient-to-br from-background via-background to-primary/5">
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <div className={`p-2 rounded-xl bg-gradient-to-br ${sentimentColor} shadow-lg`}>
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            Sentiment Pulse
-          </CardTitle>
-          <Badge variant="secondary" className="font-mono text-xs">
-            {total} analyses
-          </Badge>
-        </div>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">Sentiment Pulse</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {brandEntity.entityName} sentiment distribution
+        </p>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col gap-6 p-6 pt-0">
+      <CardContent className="flex-1 flex flex-col gap-6">
         {/* Central Score Display */}
         <div className="relative">
           <div className={`absolute inset-0 bg-gradient-to-br ${sentimentColor} opacity-10 blur-3xl rounded-full`}></div>
@@ -95,10 +85,9 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
             <div className="text-5xl font-black bg-gradient-to-br ${sentimentColor} bg-clip-text text-transparent mb-1">
               {(brandEntity.averageSentiment * 100).toFixed(0)}%
             </div>
-            <div className="flex items-center justify-center gap-2">
-              <Badge variant="outline" className="text-xs">
-                <Award className="h-3 w-3 mr-1" />
-                {brandEntity.entityName}
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge variant="secondary" className="text-xs">
+                {total} analyses
               </Badge>
             </div>
           </div>

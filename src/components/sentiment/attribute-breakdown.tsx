@@ -115,22 +115,15 @@ export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLo
     const topNegative = brandAttributes.negative.slice(0, 3);
     
     return (
-      <Card className="h-full flex flex-col overflow-hidden border-0 shadow-lg bg-gradient-to-br from-background via-background to-purple/5">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              Key Attributes
-            </CardTitle>
-            <Badge variant="secondary" className="font-mono text-xs">
-              AI Insights
-            </Badge>
-          </div>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Key Attributes</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Most mentioned brand attributes
+          </p>
         </CardHeader>
         
-        <CardContent className="flex-1 flex flex-col gap-5 p-6 pt-0 overflow-auto">
+        <CardContent className="flex-1 flex flex-col gap-5 overflow-auto">
           {/* Positive Attributes */}
           {topPositive.length > 0 && (
             <div className="space-y-3">
