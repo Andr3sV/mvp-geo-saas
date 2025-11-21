@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { DateRange } from "react-day-picker";
 import { addDays } from "date-fns";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProject } from "@/contexts/project-context";
@@ -118,7 +118,7 @@ export default function SentimentPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end">
             <div className="flex-1">
               <label className="text-sm font-medium mb-2 block">Date Range</label>
-              <DatePickerWithRange
+              <DateRangePicker
                 date={dateRange}
                 onDateChange={setDateRange}
                 className="w-full"
