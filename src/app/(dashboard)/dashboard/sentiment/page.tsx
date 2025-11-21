@@ -42,6 +42,7 @@ export default function SentimentPage() {
   const [trends, setTrends] = useState<SentimentTrend[]>([]);
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [totalResponses, setTotalResponses] = useState(0);
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -56,6 +57,16 @@ export default function SentimentPage() {
 
     setIsLoading(true);
     try {
+      // Get total AI responses count
+      const supabase = (await import('@/lib/supabase/client')).createClient();
+      const { count } = await supabase
+        .from('ai_responses')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', selectedProjectId)
+        .eq('status', 'success');
+      
+      setTotalResponses(count || 0);
+
       const [metricsData, trendsData, entitiesData] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
         getSentimentTrends(selectedProjectId, filtersPayload),
@@ -167,7 +178,7 @@ export default function SentimentPage() {
       <SentimentAnalysisTrigger
         projectId={selectedProjectId}
         onAnalysisComplete={handleAnalysisComplete}
-        totalResponses={metrics?.totalAnalyses || 0}
+        totalResponses={totalResponses}
         analyzedResponses={metrics?.totalAnalyses || 0}
       />
 
