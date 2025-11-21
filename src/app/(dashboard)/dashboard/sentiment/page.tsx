@@ -46,6 +46,7 @@ export default function SentimentPage() {
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
+  const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
 
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
@@ -53,6 +54,7 @@ export default function SentimentPage() {
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
   const [attributes, setAttributes] = useState<any>(null);
   const [totalResponses, setTotalResponses] = useState(0);
+  const [competitors, setCompetitors] = useState<any[]>([]);
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -127,9 +129,30 @@ export default function SentimentPage() {
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadSentimentData();
+      loadCompetitors();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+
+  // Load competitors
+  const loadCompetitors = async () => {
+    if (!selectedProjectId) return;
+    
+    try {
+      const { getCompetitorsByRegion } = await import("@/lib/actions/competitors");
+      const result = await getCompetitorsByRegion(selectedProjectId, region);
+      if (result.data) {
+        const competitorsForSelector = result.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          domain: c.domain || c.name,
+        }));
+        setCompetitors(competitorsForSelector);
+      }
+    } catch (error) {
+      console.error("Error loading competitors:", error);
+    }
+  };
 
   // Handle filters change
   const handleFiltersChange = (filters: {
@@ -207,6 +230,10 @@ export default function SentimentPage() {
       {/* Sentiment Trends Chart - Full Width */}
       <SentimentTrendsChart
         trends={trends}
+        entities={entities}
+        competitors={competitors}
+        selectedCompetitorId={selectedCompetitorId}
+        onCompetitorChange={setSelectedCompetitorId}
         isLoading={isLoading}
       />
 
