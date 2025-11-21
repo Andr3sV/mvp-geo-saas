@@ -9,6 +9,8 @@ export interface SentimentFilterOptions {
   region?: string;
   analysisType?: 'brand' | 'competitor' | 'all';
   sentimentLabel?: 'positive' | 'neutral' | 'negative' | 'all';
+  entityName?: string; // Filter by specific entity name
+  competitorId?: string; // Filter by specific competitor ID
 }
 
 export interface SentimentMetrics {
@@ -250,20 +252,38 @@ export async function getSentimentTrends(
     const endDate = filters.dateRange?.to || new Date();
     const startDate = filters.dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    // Join with ai_responses to get the actual response creation date
-    const { data: trendData, error: trendError } = await supabase
+    // Build query with entity filters
+    let query = supabase
       .from('sentiment_analysis')
       .select(`
         overall_sentiment, 
         sentiment_label,
         ai_response_id,
+        entity_name,
+        analysis_type,
+        competitor_id,
         ai_responses!sentiment_analysis_ai_response_id_fkey(created_at)
       `)
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: true });
+      .eq('project_id', projectId);
 
-    console.log('📊 Sentiment Trends Raw Data:', trendData?.length, 'records');
-    console.log('📊 Sample:', trendData?.[0]);
+    // Apply entity-specific filters
+    if (filters.analysisType && filters.analysisType !== 'all') {
+      query = query.eq('analysis_type', filters.analysisType);
+    }
+    
+    if (filters.entityName) {
+      query = query.eq('entity_name', filters.entityName);
+    }
+    
+    if (filters.competitorId) {
+      query = query.eq('competitor_id', filters.competitorId);
+    }
+
+    query = query.order('created_at', { ascending: true });
+
+    const { data: trendData, error: trendError } = await query;
+
+    console.log('📊 Sentiment Trends Raw Data:', trendData?.length, 'records', 'Filters:', filters);
 
     if (trendError) {
       throw new Error(`Failed to fetch sentiment trends: ${trendError.message}`);

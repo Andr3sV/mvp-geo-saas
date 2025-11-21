@@ -51,6 +51,7 @@ export default function SentimentPage() {
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
   const [trends, setTrends] = useState<SentimentTrend[]>([]);
+  const [competitorTrends, setCompetitorTrends] = useState<SentimentTrend[]>([]);
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
   const [attributes, setAttributes] = useState<any>(null);
   const [totalResponses, setTotalResponses] = useState(0);
@@ -97,7 +98,7 @@ export default function SentimentPage() {
 
       const [metricsData, trendsData, entitiesData, attributesData] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
-        getSentimentTrends(selectedProjectId, filtersPayload),
+        getSentimentTrends(selectedProjectId, { ...filtersPayload, analysisType: 'brand' }),
         getEntitySentiments(selectedProjectId, filtersPayload),
         getAttributeBreakdown(selectedProjectId, filtersPayload),
       ]);
@@ -172,6 +173,34 @@ export default function SentimentPage() {
     loadSentimentData();
   };
 
+  // Load competitor trends when competitor is selected
+  const loadCompetitorTrends = async (competitorId: string | null) => {
+    if (!selectedProjectId || !competitorId) {
+      setCompetitorTrends([]);
+      return;
+    }
+
+    try {
+      const competitorTrendsData = await getSentimentTrends(selectedProjectId, {
+        ...filtersPayload,
+        competitorId: competitorId,
+        analysisType: 'competitor',
+      });
+      
+      console.log('📊 Competitor Trends:', competitorTrendsData?.length, 'days for competitor', competitorId);
+      setCompetitorTrends(competitorTrendsData);
+    } catch (error) {
+      console.error('Failed to load competitor trends:', error);
+      setCompetitorTrends([]);
+    }
+  };
+
+  // Handle competitor selection change
+  const handleCompetitorChange = (competitorId: string | null) => {
+    setSelectedCompetitorId(competitorId);
+    loadCompetitorTrends(competitorId);
+  };
+
   if (isLoading || !metrics) {
     return (
       <div className="space-y-6">
@@ -230,10 +259,11 @@ export default function SentimentPage() {
       {/* Sentiment Trends Chart - Full Width */}
       <SentimentTrendsChart
         trends={trends}
+        competitorTrends={competitorTrends}
         entities={entities}
         competitors={competitors}
         selectedCompetitorId={selectedCompetitorId}
-        onCompetitorChange={setSelectedCompetitorId}
+        onCompetitorChange={handleCompetitorChange}
         isLoading={isLoading}
       />
 

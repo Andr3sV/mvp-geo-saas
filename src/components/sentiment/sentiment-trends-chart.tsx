@@ -23,15 +23,17 @@ interface Competitor {
 
 interface SentimentTrendsChartProps {
   trends: SentimentTrend[];
+  competitorTrends: SentimentTrend[];
   entities: EntitySentiment[];
   competitors: Competitor[];
   selectedCompetitorId: string | null;
-  onCompetitorChange: (competitorId: string) => void;
+  onCompetitorChange: (competitorId: string | null) => void;
   isLoading?: boolean;
 }
 
 export function SentimentTrendsChart({ 
   trends, 
+  competitorTrends,
   entities,
   competitors,
   selectedCompetitorId,
@@ -43,36 +45,29 @@ export function SentimentTrendsChart({
   const selectedCompetitor = selectedCompetitorId 
     ? competitors.find(c => c.id === selectedCompetitorId)
     : null;
-  
-  const selectedCompetitorEntity = selectedCompetitorId
-    ? entities.find(e => e.analysisType === 'competitor' && e.entityName === selectedCompetitor?.name)
-    : null;
 
-  // Transform sentiment trends data - need to separate by entity
-  // Group by date and entity
-  const trendsByDate = new Map<string, {
-    date: string;
-    brandPositive: number;
-    brandNeutral: number;
-    brandNegative: number;
-    competitorPositive: number;
-    competitorNeutral: number;
-    competitorNegative: number;
-  }>();
+  // Merge brand trends with competitor trends by date
+  const allDates = new Set([
+    ...trends.map(t => t.date),
+    ...competitorTrends.map(t => t.date)
+  ]);
 
-  // For now, use the aggregate trends for brand (all entities combined)
-  // In a real implementation, you'd need to query sentiment_analysis grouped by entity
-  const chartData = trends.map(trend => ({
-    date: format(new Date(trend.date), 'MMM dd'),
-    brandPositive: trend.positive,
-    brandNeutral: trend.neutral,
-    brandNegative: trend.negative,
-    // For competitor, we'll use a fraction of the values as placeholder
-    // TODO: Implement proper entity-specific trend queries
-    competitorPositive: selectedCompetitorId ? Math.floor(trend.positive * 0.7) : 0,
-    competitorNeutral: selectedCompetitorId ? Math.floor(trend.neutral * 0.7) : 0,
-    competitorNegative: selectedCompetitorId ? Math.floor(trend.negative * 0.7) : 0,
-  }));
+  const chartData = Array.from(allDates)
+    .sort()
+    .map(date => {
+      const brandData = trends.find(t => t.date === date);
+      const compData = competitorTrends.find(t => t.date === date);
+
+      return {
+        date: format(new Date(date), 'MMM dd'),
+        brandPositive: brandData?.positive || 0,
+        brandNeutral: brandData?.neutral || 0,
+        brandNegative: brandData?.negative || 0,
+        competitorPositive: compData?.positive || 0,
+        competitorNeutral: compData?.neutral || 0,
+        competitorNegative: compData?.negative || 0,
+      };
+    });
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
