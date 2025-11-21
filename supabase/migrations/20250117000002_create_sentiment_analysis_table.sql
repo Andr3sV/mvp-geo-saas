@@ -50,21 +50,21 @@ ALTER TABLE sentiment_analysis ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view sentiment analysis for their projects" ON sentiment_analysis
   FOR SELECT USING (
     project_id IN (
-      SELECT id FROM projects WHERE user_id = auth.uid()
+      SELECT id FROM projects WHERE owner_id = auth.uid()
     )
   );
 
 CREATE POLICY "Users can insert sentiment analysis for their projects" ON sentiment_analysis
   FOR INSERT WITH CHECK (
     project_id IN (
-      SELECT id FROM projects WHERE user_id = auth.uid()
+      SELECT id FROM projects WHERE owner_id = auth.uid()
     )
   );
 
 CREATE POLICY "Users can update sentiment analysis for their projects" ON sentiment_analysis
   FOR UPDATE USING (
     project_id IN (
-      SELECT id FROM projects WHERE user_id = auth.uid()
+      SELECT id FROM projects WHERE owner_id = auth.uid()
     )
   );
 
