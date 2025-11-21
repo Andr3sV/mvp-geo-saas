@@ -24,18 +24,18 @@ interface AttributeBreakdownProps {
     negative: AttributeData[];
   };
   isLoading?: boolean;
+  detailed?: boolean;
 }
 
-export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLoading }: AttributeBreakdownProps) {
+export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLoading, detailed = false }: AttributeBreakdownProps) {
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Attribute Analysis</CardTitle>
-          <CardDescription>Loading attribute breakdown...</CardDescription>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Top Attributes</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="h-[400px] animate-pulse bg-muted rounded"></div>
+        <CardContent className="flex-1">
+          <div className="h-[300px] animate-pulse bg-muted rounded"></div>
         </CardContent>
       </Card>
     );
@@ -50,6 +50,8 @@ export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLo
     type: 'positive' | 'neutral' | 'negative';
     title: string;
   }) => {
+    const displayLimit = detailed ? 10 : 3;
+    
     if (attributes.length === 0) {
       return (
         <div className="text-sm text-muted-foreground italic">
@@ -89,7 +91,7 @@ export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLo
           <h4 className="font-semibold text-sm">{title}</h4>
         </div>
         <div className="space-y-2">
-          {attributes.slice(0, 5).map((attr, i) => (
+          {attributes.slice(0, displayLimit).map((attr, i) => (
             <div key={i} className="space-y-1">
               <div className="flex items-center justify-between">
                 <Badge variant="outline" className={getBadgeClass()}>
@@ -108,81 +110,72 @@ export function AttributeBreakdown({ brandAttributes, competitorAttributes, isLo
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <Card className={detailed ? "" : "h-full flex flex-col"}>
+      <CardHeader className="pb-3">
+        <CardTitle className={`flex items-center gap-2 ${detailed ? "text-xl" : "text-lg"}`}>
           <Sparkles className="h-5 w-5" />
-          Attribute Analysis
+          {detailed ? "Attribute Analysis" : "Top Attributes"}
         </CardTitle>
         <CardDescription>
-          Key attributes mentioned about your brand vs competitors
+          {detailed 
+            ? "Key attributes mentioned about your brand vs competitors"
+            : "Most mentioned brand attributes"
+          }
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <CardContent className={detailed ? "" : "flex-1 flex flex-col min-h-0"}>
+        <div className={`grid grid-cols-1 ${detailed ? "lg:grid-cols-2" : ""} gap-${detailed ? "8" : "6"}`}>
           {/* Brand Attributes */}
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                Your Brand
-                <Badge variant="secondary">Brand</Badge>
-              </h3>
-            </div>
+          <div className="space-y-4">
+            {detailed && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  Your Brand
+                  <Badge variant="secondary">Brand</Badge>
+                </h3>
+              </div>
+            )}
             
             <AttributeList 
               attributes={brandAttributes.positive} 
               type="positive"
-              title="Strengths"
+              title={detailed ? "Strengths" : "Positive"}
             />
             
-            {brandAttributes.negative.length > 0 && (
+            {(detailed || brandAttributes.negative.length > 0) && brandAttributes.negative.length > 0 && (
               <AttributeList 
                 attributes={brandAttributes.negative} 
                 type="negative"
-                title="Areas for Improvement"
-              />
-            )}
-            
-            {brandAttributes.neutral.length > 0 && (
-              <AttributeList 
-                attributes={brandAttributes.neutral} 
-                type="neutral"
-                title="Neutral Mentions"
+                title={detailed ? "Areas for Improvement" : "Negative"}
               />
             )}
           </div>
 
-          {/* Competitor Attributes */}
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                Competitors
-                <Badge variant="outline">Competitive Intel</Badge>
-              </h3>
+          {/* Competitor Attributes (only in detailed view) */}
+          {detailed && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  Competitors
+                  <Badge variant="outline">Competitive Intel</Badge>
+                </h3>
+              </div>
+              
+              <AttributeList 
+                attributes={competitorAttributes.positive} 
+                type="positive"
+                title="Competitor Strengths"
+              />
+              
+              {competitorAttributes.negative.length > 0 && (
+                <AttributeList 
+                  attributes={competitorAttributes.negative} 
+                  type="negative"
+                  title="Competitor Weaknesses"
+                />
+              )}
             </div>
-            
-            <AttributeList 
-              attributes={competitorAttributes.positive} 
-              type="positive"
-              title="Competitor Strengths"
-            />
-            
-            {competitorAttributes.negative.length > 0 && (
-              <AttributeList 
-                attributes={competitorAttributes.negative} 
-                type="negative"
-                title="Competitor Weaknesses"
-              />
-            )}
-            
-            {competitorAttributes.neutral.length > 0 && (
-              <AttributeList 
-                attributes={competitorAttributes.neutral} 
-                type="neutral"
-                title="Neutral Mentions"
-              />
-            )}
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>

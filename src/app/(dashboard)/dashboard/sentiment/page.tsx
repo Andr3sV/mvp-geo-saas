@@ -1,16 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DateRange } from "react-day-picker";
-import { addDays } from "date-fns";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProject } from "@/contexts/project-context";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
+import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { subDays } from "date-fns";
 import { toast } from "sonner";
+import {
+  Smile,
+  TrendingUp,
+  Target,
+  BarChart3,
+} from "lucide-react";
 
 // Sentiment Analysis Components
-import { SentimentOverviewCards } from "@/components/sentiment/sentiment-overview-cards";
+import { SentimentMetricCard } from "@/components/sentiment/sentiment-metric-card";
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { EntitySentimentTable } from "@/components/sentiment/entity-sentiment-table";
 import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
@@ -31,28 +37,28 @@ import {
 
 export default function SentimentPage() {
   const { selectedProjectId } = useProject();
+  const [isLoading, setIsLoading] = useState(true);
   
   // Filter states
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: addDays(new Date(), -30),
+  const [dateRange, setDateRange] = useState<DateRangeValue>({
+    from: subDays(new Date(), 29),
     to: new Date(),
   });
   const [platform, setPlatform] = useState<string>("all");
-  const [region, setRegion] = useState<string>("all");
+  const [region, setRegion] = useState<string>("GLOBAL");
 
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
   const [trends, setTrends] = useState<SentimentTrend[]>([]);
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
   const [attributes, setAttributes] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [totalResponses, setTotalResponses] = useState(0);
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
-    dateRange: dateRange ? { from: dateRange.from!, to: dateRange.to! } : undefined,
+    dateRange: dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : undefined,
     platform: platform !== "all" ? platform : undefined,
-    region: region !== "all" ? region : undefined,
+    region: region !== "GLOBAL" ? region : undefined,
   };
 
   // Load sentiment data
@@ -113,20 +119,42 @@ export default function SentimentPage() {
 
   // Load data when project or filters change
   useEffect(() => {
-    loadSentimentData();
-  }, [selectedProjectId, dateRange, platform, region]);
+    if (selectedProjectId && dateRange.from && dateRange.to) {
+      loadSentimentData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+
+  // Handle filters change
+  const handleFiltersChange = (filters: {
+    region: string;
+    dateRange: DateRangeValue;
+    platform: string;
+  }) => {
+    if (filters.dateRange.from && filters.dateRange.to) {
+      setDateRange(filters.dateRange);
+    }
+    setPlatform(filters.platform);
+    setRegion(filters.region);
+  };
 
   // Handle analysis completion
   const handleAnalysisComplete = () => {
     loadSentimentData();
   };
 
-  if (!selectedProjectId) {
+  if (isLoading || !metrics) {
     return (
-      <div className="flex items-center justify-center h-[400px]">
-        <div className="text-center">
-          <h3 className="text-lg font-medium">No Project Selected</h3>
-          <p className="text-muted-foreground">Please select a project to view sentiment analysis</p>
+      <div className="space-y-6">
+        <PageHeader
+          title="Sentiment Analysis"
+          description="AI-powered sentiment analysis of brand and competitor mentions"
+        />
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+            <p className="mt-4 text-muted-foreground">Loading sentiment data...</p>
+          </div>
         </div>
       </div>
     );
@@ -134,115 +162,105 @@ export default function SentimentPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sentiment Analysis</h1>
-          <p className="text-muted-foreground">
-            AI-powered sentiment analysis of brand and competitor mentions
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Sentiment Analysis"
+        description="AI-powered sentiment analysis of brand and competitor mentions across platforms"
+      />
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-          <CardDescription>
-            Filter sentiment data by date range, platform, and region
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 md:flex-row md:items-end">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Date Range</label>
-              <DateRangePicker
-                value={dateRange}
-                onChange={setDateRange}
-                className="w-full"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Platform</label>
-              <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Platforms</SelectItem>
-                  <SelectItem value="gemini">Gemini</SelectItem>
-                  <SelectItem value="perplexity">Perplexity</SelectItem>
-                  <SelectItem value="chatgpt">ChatGPT</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block">Region</label>
-              <Select value={region} onValueChange={setRegion}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select region" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Regions</SelectItem>
-                  <SelectItem value="US">United States</SelectItem>
-                  <SelectItem value="ES">Spain</SelectItem>
-                  <SelectItem value="GB">United Kingdom</SelectItem>
-                  <SelectItem value="FR">France</SelectItem>
-                  <SelectItem value="DE">Germany</SelectItem>
-                  <SelectItem value="IT">Italy</SelectItem>
-                  <SelectItem value="CA">Canada</SelectItem>
-                  <SelectItem value="AU">Australia</SelectItem>
-                  <SelectItem value="JP">Japan</SelectItem>
-                  <SelectItem value="BR">Brazil</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filters Toolbar */}
+      <FiltersToolbar
+        dateRange={dateRange}
+        platform={platform}
+        region={region}
+        onApply={handleFiltersChange}
+      />
 
       {/* Analysis Trigger */}
       <SentimentAnalysisTrigger
-        projectId={selectedProjectId}
+        projectId={selectedProjectId!}
         onAnalysisComplete={handleAnalysisComplete}
         totalResponses={totalResponses}
-        analyzedResponses={metrics?.totalAnalyses || 0}
+        analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
       />
 
-      {/* Overview Cards */}
-      {metrics && (
-        <SentimentOverviewCards
-          metrics={metrics}
-          isLoading={isLoading}
+      {/* Quick Look Metrics */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <SentimentMetricCard
+          title="Responses Analyzed"
+          value={metrics.totalUniqueAnalyzedResponses.toLocaleString()}
+          description={`${metrics.totalSentimentRows} sentiment entries`}
+          icon={<BarChart3 className="h-5 w-5" />}
         />
-      )}
+        <SentimentMetricCard
+          title="Overall Sentiment"
+          value={`${(metrics.overallSentiment * 100).toFixed(0)}%`}
+          description="Average across all analyses"
+          icon={<Smile className="h-5 w-5" />}
+          trend={{ 
+            value: 5.2, 
+            direction: metrics.overallSentiment >= 0.6 ? "up" : metrics.overallSentiment <= 0.4 ? "down" : "neutral" 
+          }}
+        />
+        <SentimentMetricCard
+          title="AI Confidence"
+          value={`${(metrics.confidenceScore * 100).toFixed(1)}%`}
+          description="Analysis reliability"
+          icon={<Target className="h-5 w-5" />}
+        />
+        <SentimentMetricCard
+          title="Brand Sentiment"
+          value={`${(metrics.brandSentiment * 100).toFixed(0)}%`}
+          description={`${metrics.brandAnalyses} brand analyses`}
+          icon={<TrendingUp className="h-5 w-5" />}
+          trend={{ 
+            value: 3.8, 
+            direction: metrics.brandSentiment >= 0.6 ? "up" : metrics.brandSentiment <= 0.4 ? "down" : "neutral" 
+          }}
+        />
+      </div>
 
-      {/* Sentiment Trends Chart */}
+      {/* Sentiment Trends Chart - Full Width */}
       <SentimentTrendsChart
         trends={trends}
         isLoading={isLoading}
       />
 
-      {/* Brand vs Competitors Comparison */}
-      <SentimentComparison
-        entities={entities}
-        isLoading={isLoading}
-      />
-
-      {/* Attribute Breakdown */}
-      {attributes && (
-        <AttributeBreakdown
-          brandAttributes={attributes.brandAttributes}
-          competitorAttributes={attributes.competitorAttributes}
+      {/* Sentiment Comparison and Attribute Breakdown - Side by Side */}
+      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+        <SentimentComparison
+          entities={entities}
           isLoading={isLoading}
         />
-      )}
+        <AttributeBreakdown
+          brandAttributes={attributes?.brandAttributes || []}
+          competitorAttributes={attributes?.competitorAttributes || []}
+          isLoading={isLoading}
+        />
+      </div>
 
-      {/* Entity Sentiment Analysis (Detailed) */}
-      <EntitySentimentTable
-        entities={entities}
-        isLoading={isLoading}
-      />
+      {/* Tabs for detailed insights */}
+      <Tabs defaultValue="entities" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="entities">Entity Analysis</TabsTrigger>
+          <TabsTrigger value="attributes">Attribute Details</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="entities" className="mt-6">
+          <EntitySentimentTable
+            entities={entities}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+        
+        <TabsContent value="attributes" className="mt-6">
+          <AttributeBreakdown
+            brandAttributes={attributes?.brandAttributes || []}
+            competitorAttributes={attributes?.competitorAttributes || []}
+            isLoading={isLoading}
+            detailed={true}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

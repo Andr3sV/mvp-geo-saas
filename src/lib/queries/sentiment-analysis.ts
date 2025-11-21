@@ -12,11 +12,14 @@ export interface SentimentFilterOptions {
 }
 
 export interface SentimentMetrics {
-  totalAnalyses: number; // Unique responses analyzed
+  totalAnalyses: number; // Deprecated: use totalUniqueAnalyzedResponses
+  totalUniqueAnalyzedResponses: number; // Unique responses analyzed
   totalSentimentRows: number; // Total rows in sentiment_analysis table
   brandAnalyses: number;
   competitorAnalyses: number;
-  averageSentiment: number;
+  averageSentiment: number; // Overall average sentiment
+  overallSentiment: number; // Alias for averageSentiment
+  brandSentiment: number; // Brand-specific sentiment
   sentimentDistribution: {
     positive: number;
     neutral: number;
@@ -130,10 +133,13 @@ export async function getSentimentMetrics(
       // Return empty metrics if table doesn't exist yet
       return {
         totalAnalyses: 0,
+        totalUniqueAnalyzedResponses: 0,
         totalSentimentRows: 0,
         brandAnalyses: 0,
         competitorAnalyses: 0,
         averageSentiment: 0,
+        overallSentiment: 0,
+        brandSentiment: 0,
         sentimentDistribution: {
           positive: 0,
           neutral: 0,
@@ -176,12 +182,21 @@ export async function getSentimentMetrics(
       negative: analysesData.filter((a: any) => a.sentiment_label === 'negative').length,
     };
 
+    // Calculate brand-specific sentiment
+    const brandData = analysesData.filter((a: any) => a.analysis_type === 'brand');
+    const brandSentiment = brandData.length > 0
+      ? brandData.reduce((sum: number, a: any) => sum + a.overall_sentiment, 0) / brandData.length
+      : 0;
+
     return {
       totalAnalyses, // Will be overridden with unique count
+      totalUniqueAnalyzedResponses: uniqueAnalyzedIds.size,
       totalSentimentRows, // Actual DB rows
       brandAnalyses,
       competitorAnalyses,
       averageSentiment,
+      overallSentiment: averageSentiment, // Alias
+      brandSentiment,
       sentimentDistribution,
       confidenceScore,
     };
@@ -190,10 +205,13 @@ export async function getSentimentMetrics(
     // Return empty metrics on any error
     return {
       totalAnalyses: 0,
+      totalUniqueAnalyzedResponses: 0,
       totalSentimentRows: 0,
       brandAnalyses: 0,
       competitorAnalyses: 0,
       averageSentiment: 0,
+      overallSentiment: 0,
+      brandSentiment: 0,
       sentimentDistribution: {
         positive: 0,
         neutral: 0,
