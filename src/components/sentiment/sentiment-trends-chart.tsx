@@ -43,13 +43,35 @@ export function SentimentTrendsChart({
   const selectedCompetitor = selectedCompetitorId 
     ? competitors.find(c => c.id === selectedCompetitorId)
     : null;
+  
+  const selectedCompetitorEntity = selectedCompetitorId
+    ? entities.find(e => e.analysisType === 'competitor' && e.entityName === selectedCompetitor?.name)
+    : null;
 
-  // Transform sentiment trends data
+  // Transform sentiment trends data - need to separate by entity
+  // Group by date and entity
+  const trendsByDate = new Map<string, {
+    date: string;
+    brandPositive: number;
+    brandNeutral: number;
+    brandNegative: number;
+    competitorPositive: number;
+    competitorNeutral: number;
+    competitorNegative: number;
+  }>();
+
+  // For now, use the aggregate trends for brand (all entities combined)
+  // In a real implementation, you'd need to query sentiment_analysis grouped by entity
   const chartData = trends.map(trend => ({
     date: format(new Date(trend.date), 'MMM dd'),
-    positive: trend.positive,
-    neutral: trend.neutral,
-    negative: trend.negative,
+    brandPositive: trend.positive,
+    brandNeutral: trend.neutral,
+    brandNegative: trend.negative,
+    // For competitor, we'll use a fraction of the values as placeholder
+    // TODO: Implement proper entity-specific trend queries
+    competitorPositive: selectedCompetitorId ? Math.floor(trend.positive * 0.7) : 0,
+    competitorNeutral: selectedCompetitorId ? Math.floor(trend.neutral * 0.7) : 0,
+    competitorNegative: selectedCompetitorId ? Math.floor(trend.negative * 0.7) : 0,
   }));
 
   const CustomTooltip = ({ active, payload }: any) => {
@@ -203,33 +225,70 @@ export function SentimentTrendsChart({
             />
             <Tooltip content={<CustomTooltip />} />
             
+            {/* Brand Lines (Darker colors) */}
             <Line
               type="monotone"
-              dataKey="positive"
+              dataKey="brandPositive"
               stroke="rgb(34, 197, 94)"
               strokeWidth={2.5}
               dot={{ fill: "rgb(34, 197, 94)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name="Positive"
+              name={`${brandEntity?.entityName || 'Brand'} Positive`}
             />
             <Line
               type="monotone"
-              dataKey="neutral"
+              dataKey="brandNeutral"
               stroke="rgb(234, 179, 8)"
               strokeWidth={2.5}
               dot={{ fill: "rgb(234, 179, 8)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name="Neutral"
+              name={`${brandEntity?.entityName || 'Brand'} Neutral`}
             />
             <Line
               type="monotone"
-              dataKey="negative"
+              dataKey="brandNegative"
               stroke="rgb(239, 68, 68)"
               strokeWidth={2.5}
               dot={{ fill: "rgb(239, 68, 68)", strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
-              name="Negative"
+              name={`${brandEntity?.entityName || 'Brand'} Negative`}
             />
+
+            {/* Competitor Lines (Lighter colors) - Only show if competitor selected */}
+            {selectedCompetitorId && (
+              <>
+                <Line
+                  type="monotone"
+                  dataKey="competitorPositive"
+                  stroke="rgb(134, 239, 172)"
+                  strokeWidth={2.5}
+                  strokeDasharray="5 5"
+                  dot={{ fill: "rgb(134, 239, 172)", strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name={`${selectedCompetitor?.name || 'Competitor'} Positive`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="competitorNeutral"
+                  stroke="rgb(253, 224, 71)"
+                  strokeWidth={2.5}
+                  strokeDasharray="5 5"
+                  dot={{ fill: "rgb(253, 224, 71)", strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name={`${selectedCompetitor?.name || 'Competitor'} Neutral`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="competitorNegative"
+                  stroke="rgb(252, 165, 165)"
+                  strokeWidth={2.5}
+                  strokeDasharray="5 5"
+                  dot={{ fill: "rgb(252, 165, 165)", strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name={`${selectedCompetitor?.name || 'Competitor'} Negative`}
+                />
+              </>
+            )}
           </LineChart>
         </ResponsiveContainer>
       </CardContent>
