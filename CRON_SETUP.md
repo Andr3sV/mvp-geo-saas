@@ -3,6 +3,7 @@
 ## 📋 Pasos para configurar en Supabase Dashboard
 
 ### 1. Acceder a Cron Jobs
+
 1. Ve a tu proyecto en Supabase Dashboard: https://supabase.com/dashboard/project/sqvhxqbjxetibedzzkyo
 2. En el menú lateral, ve a **Database** → **Cron Jobs**
 3. Haz clic en **"Create a new cron job"**
@@ -10,22 +11,27 @@
 ### 2. Configurar el Cron Job
 
 **Nombre del Job:**
+
 ```
 daily-sentiment-analysis
 ```
 
 **Descripción:**
+
 ```
 Ejecuta análisis de sentimientos automático diariamente a las 2 AM para todas las respuestas nuevas de AI
 ```
 
 **Schedule (Cron Expression):**
+
 ```
 0 2 * * *
 ```
+
 Esto significa: A las 2:00 AM todos los días
 
 **SQL Command:**
+
 ```sql
 SELECT
   net.http_post(
@@ -38,18 +44,28 @@ SELECT
   ) as request_id;
 ```
 
-### 3. Configuración Alternativa (usando pg_cron directamente)
+### 3. Configuración usando Migración SQL (RECOMENDADO)
 
-Si prefieres usar SQL directamente, ejecuta esto en el SQL Editor:
+La forma más fácil es ejecutar la migración que ya creamos:
+
+1. Ve a **Database** → **Migrations** en Supabase Dashboard
+2. Busca la migración `20250117000004_enable_pg_cron.sql`
+3. Haz clic en **"Run migration"**
+
+O ejecuta manualmente en el SQL Editor:
 
 ```sql
--- Crear extensión pg_cron si no existe
-CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- Habilitar extensión pg_cron
+CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+
+-- Dar permisos
+GRANT USAGE ON SCHEMA cron TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
 
 -- Crear el cron job
 SELECT cron.schedule(
-  'daily-sentiment-analysis',           -- nombre del job
-  '0 2 * * *',                          -- a las 2 AM todos los días
+  'daily-sentiment-analysis',
+  '0 2 * * *',
   $$
   SELECT
     net.http_post(
@@ -64,6 +80,8 @@ SELECT cron.schedule(
 );
 ```
 
+**IMPORTANTE**: Si estás en Supabase Cloud, es posible que `pg_cron` no esté disponible en todos los planes. En ese caso, usa la Opción 1 (Database → Cron Jobs en el Dashboard).
+
 ### 4. Verificar que el Cron Job está activo
 
 ```sql
@@ -71,9 +89,9 @@ SELECT cron.schedule(
 SELECT * FROM cron.job;
 
 -- Ver el historial de ejecuciones
-SELECT * FROM cron.job_run_details 
+SELECT * FROM cron.job_run_details
 WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'daily-sentiment-analysis')
-ORDER BY start_time DESC 
+ORDER BY start_time DESC
 LIMIT 10;
 ```
 
@@ -88,6 +106,7 @@ curl -X POST 'https://sqvhxqbjxetibedzzkyo.supabase.co/functions/v1/daily-sentim
 ```
 
 O desde el Supabase Dashboard:
+
 1. Ve a **Edge Functions** → **daily-sentiment-analysis**
 2. Haz clic en **"Invoke function"**
 3. Deja el body vacío `{}`
@@ -96,6 +115,7 @@ O desde el Supabase Dashboard:
 ## 🎯 Cómo Funciona
 
 ### Proceso Automático:
+
 1. **2:00 AM cada día**: El cron job se ejecuta automáticamente
 2. **Busca proyectos**: Obtiene todos los proyectos activos
 3. **Identifica pendientes**: Para cada proyecto, encuentra respuestas sin analizar
@@ -104,6 +124,7 @@ O desde el Supabase Dashboard:
 6. **Registra resultados**: Guarda logs de éxito/fallo por proyecto
 
 ### Análisis Manual:
+
 - El usuario puede hacer clic en "Analyze New Responses" cuando quiera
 - Usa la misma lógica: solo analiza respuestas pendientes
 - No interfiere con el análisis automático
@@ -112,8 +133,9 @@ O desde el Supabase Dashboard:
 ## 📊 Monitoreo
 
 ### Ver logs de ejecución:
+
 ```sql
-SELECT 
+SELECT
   jobname,
   start_time,
   end_time,
@@ -126,6 +148,7 @@ LIMIT 20;
 ```
 
 ### Ver logs de la Edge Function:
+
 1. Ve a **Edge Functions** → **daily-sentiment-analysis**
 2. Haz clic en **"Logs"**
 3. Verás detalles de cada ejecución
@@ -133,14 +156,17 @@ LIMIT 20;
 ## 🔧 Mantenimiento
 
 ### Pausar el cron job:
+
 ```sql
 SELECT cron.unschedule('daily-sentiment-analysis');
 ```
 
 ### Reactivar el cron job:
+
 Vuelve a ejecutar el comando `cron.schedule` del paso 3
 
 ### Cambiar horario:
+
 ```sql
 -- Primero eliminar el job existente
 SELECT cron.unschedule('daily-sentiment-analysis');
@@ -163,8 +189,8 @@ SELECT cron.schedule(
 ## 🎉 Resultado Esperado
 
 Cada día a las 2 AM:
+
 - ✅ Se analizan automáticamente todas las respuestas nuevas
 - ✅ No se duplican análisis
 - ✅ Los usuarios ven datos actualizados sin intervención manual
 - ✅ El botón manual sigue disponible para análisis inmediatos
-
