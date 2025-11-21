@@ -26,8 +26,9 @@ export function SentimentAnalysisTrigger({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
-  const unanalyzedResponses = totalResponses - analyzedResponses;
-  const analysisPercentage = totalResponses > 0 ? (analyzedResponses / totalResponses) * 100 : 0;
+  // Ensure we don't show negative numbers
+  const unanalyzedResponses = Math.max(0, totalResponses - analyzedResponses);
+  const analysisPercentage = totalResponses > 0 ? Math.min(100, (analyzedResponses / totalResponses) * 100) : 0;
 
   const handleStartAnalysis = async (forceReanalysis: boolean = false) => {
     setIsAnalyzing(true);

@@ -61,15 +61,31 @@ export default function SentimentPage() {
 
     setIsLoading(true);
     try {
-      // Get total AI responses count
+      // Get total AI responses count and analyzed count
       const supabase = (await import('@/lib/supabase/client')).createClient();
-      const { count } = await supabase
+      
+      // Total successful AI responses
+      const { count: totalCount } = await supabase
         .from('ai_responses')
         .select('*', { count: 'exact', head: true })
         .eq('project_id', selectedProjectId)
         .eq('status', 'success');
       
-      setTotalResponses(count || 0);
+      // Count unique ai_response_ids that have been analyzed
+      const { data: analyzedResponses } = await supabase
+        .from('sentiment_analysis')
+        .select('ai_response_id')
+        .eq('project_id', selectedProjectId);
+      
+      // Get unique response IDs (a response can have multiple sentiment analyses)
+      const uniqueAnalyzedIds = new Set(
+        (analyzedResponses || []).map((r: any) => r.ai_response_id)
+      );
+      
+      setTotalResponses(totalCount || 0);
+      
+      // Update metrics to show correct analyzed count
+      const actualAnalyzedCount = uniqueAnalyzedIds.size;
 
       const [metricsData, trendsData, entitiesData, attributesData] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
@@ -77,6 +93,11 @@ export default function SentimentPage() {
         getEntitySentiments(selectedProjectId, filtersPayload),
         getAttributeBreakdown(selectedProjectId, filtersPayload),
       ]);
+
+      // Override totalAnalyses with unique response count
+      if (metricsData) {
+        metricsData.totalAnalyses = actualAnalyzedCount;
+      }
 
       setMetrics(metricsData);
       setTrends(trendsData);
