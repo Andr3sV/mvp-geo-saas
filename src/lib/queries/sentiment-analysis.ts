@@ -250,13 +250,18 @@ export async function getSentimentTrends(
     const endDate = filters.dateRange?.to || new Date();
     const startDate = filters.dateRange?.from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
+    // Join with ai_responses to get the actual response creation date
     const { data: trendData, error: trendError } = await supabase
       .from('sentiment_analysis')
-      .select('created_at, overall_sentiment, sentiment_label')
+      .select(`
+        overall_sentiment, 
+        sentiment_label,
+        ai_responses!inner(created_at)
+      `)
       .eq('project_id', projectId)
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString())
-      .order('created_at', { ascending: true });
+      .gte('ai_responses.created_at', startDate.toISOString())
+      .lte('ai_responses.created_at', endDate.toISOString())
+      .order('ai_responses.created_at', { ascending: true });
 
     if (trendError) {
       throw new Error(`Failed to fetch sentiment trends: ${trendError.message}`);
@@ -272,7 +277,8 @@ export async function getSentimentTrends(
     }>();
 
     (trendData || []).forEach((analysis: any) => {
-      const date = new Date(analysis.created_at).toISOString().split('T')[0];
+      // Use ai_response creation date (when content was actually generated)
+      const date = new Date(analysis.ai_responses.created_at).toISOString().split('T')[0];
       const existing = trendMap.get(date) || {
         positive: 0,
         neutral: 0,
