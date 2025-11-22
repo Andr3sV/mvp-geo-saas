@@ -141,7 +141,7 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
       {/* Logo */}
       <Link href="/dashboard" className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden">
         <Image
-          src="/ateneaiicon.png"
+          src="/ateneaiicon.svg"
           alt="Ateneai"
           width={32}
           height={32}

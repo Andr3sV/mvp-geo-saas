@@ -18,10 +18,10 @@ export const metadata: Metadata = {
   description: "Track and optimize your brand presence in AI-generated responses",
   icons: {
     icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/ateneaiicon.svg", type: "image/svg+xml" },
     ],
     apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/ateneaiicon.png", sizes: "180x180", type: "image/png" },
     ],
   },
 };
