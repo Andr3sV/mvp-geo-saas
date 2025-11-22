@@ -27,7 +27,7 @@ export default function Home() {
           <Link href="/" className="flex items-center space-x-2">
             <div className="relative h-8 w-8">
               <Image
-                src="/ateneaiicon.svg"
+                src="/ateneaiiconblack.png"
                 alt="Ateneai"
                 fill
                 className="object-contain"
