@@ -85,8 +85,34 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar collapsible="icon" className="top-14">
-      <SidebarContent>
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
+        [data-sidebar="sidebar"] button:hover:not(:disabled),
+        [data-sidebar="sidebar"] a:hover {
+          background-color: rgba(194, 194, 225, 0.2) !important;
+        }
+        [data-sidebar="sidebar"] button[data-active="true"],
+        [data-sidebar="sidebar"] a[data-active="true"] {
+          background-color: rgba(194, 194, 225, 0.3) !important;
+          font-weight: 500 !important;
+        }
+        [data-sidebar="sidebar"] .peer\\/menu-button:hover,
+        [data-sidebar="sidebar"] [class*="hover:bg-sidebar-accent"]:hover {
+          background-color: rgba(194, 194, 225, 0.2) !important;
+        }
+        [data-sidebar="sidebar"] [class*="bg-sidebar-accent"][data-active="true"],
+        [data-sidebar="sidebar"] [data-active="true"][class*="bg-sidebar-accent"] {
+          background-color: rgba(194, 194, 225, 0.3) !important;
+        }
+      `}} />
+      <Sidebar 
+        collapsible="icon" 
+        className="top-14 [&_[data-sidebar=sidebar]]:bg-gradient-to-b [&_[data-sidebar=sidebar]]:from-[#C2C2E1]/10 [&_[data-sidebar=sidebar]]:via-background [&_[data-sidebar=sidebar]]:to-background [&_[data-sidebar=sidebar]]:relative [&_[data-sidebar=sidebar]]:overflow-hidden"
+      >
+        {/* Background gradients similar to hero */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(194,194,225,0.15),transparent_50%)] pointer-events-none z-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
+        <SidebarContent className="relative z-10">
         <SidebarGroup>
           <SidebarGroupLabel>Analytics</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -156,6 +182,7 @@ export function AppSidebar() {
         </div>
       </SidebarFooter>
     </Sidebar>
+    </>
   );
 }
 
