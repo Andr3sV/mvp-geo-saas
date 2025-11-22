@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,77 @@ import {
   Globe
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import LogoLoop from "@/components/LogoLoop";
+
+// Client logos data
+const clientLogos = [
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          AI
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">Acme Inc</span>
+      </div>
+    ),
+    title: "Acme Inc",
+  },
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          TC
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">TechCorp</span>
+      </div>
+    ),
+    title: "TechCorp",
+  },
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          BC
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">BrandCo</span>
+      </div>
+    ),
+    title: "BrandCo",
+  },
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          SX
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">StartupXYZ</span>
+      </div>
+    ),
+    title: "StartupXYZ",
+  },
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          IL
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">InnovateLabs</span>
+      </div>
+    ),
+    title: "InnovateLabs",
+  },
+  {
+    node: (
+      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
+          GH
+        </div>
+        <span className="text-sm font-medium text-muted-foreground">GrowthHub</span>
+      </div>
+    ),
+    title: "GrowthHub",
+  },
+];
 
 export default function Home() {
   return (
@@ -118,6 +191,36 @@ export default function Home() {
                 <span>Cancel anytime</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Clients Section */}
+      <section className="border-b bg-gradient-to-b from-background via-[#C2C2E1]/5 to-background py-16 md:py-24">
+        <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-2xl text-center mb-12">
+            <p className="text-sm font-medium text-muted-foreground mb-2">
+              Trusted by leading brands
+            </p>
+            <p className="text-xs text-muted-foreground/80">
+              Join companies optimizing their presence in AI responses
+            </p>
+          </div>
+          
+          {/* Logos Marquee with LogoLoop */}
+          <div style={{ height: '120px', position: 'relative', overflow: 'hidden' }}>
+            <LogoLoop
+              logos={clientLogos}
+              speed={60}
+              direction="left"
+              logoHeight={64}
+              gap={48}
+              hoverSpeed={20}
+              scaleOnHover
+              fadeOut
+              fadeOutColor="hsl(var(--background))"
+              ariaLabel="Trusted by leading brands"
+            />
           </div>
         </div>
       </section>
