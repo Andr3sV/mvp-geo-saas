@@ -13,7 +13,6 @@ import {
   Activity,
   ArrowRight,
   Sparkles,
-  CheckCircle2,
   Zap,
   Shield,
   Globe
@@ -176,51 +175,49 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Trust Indicators */}
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>No credit card required</span>
+            {/* Logos Marquee with LogoLoop - Just below CTAs like Supabase */}
+            <div className="mt-16 md:mt-20">
+              <div style={{ minHeight: '100px', position: 'relative', overflow: 'visible', paddingTop: '10px', paddingBottom: '10px' }} className="flex items-center justify-center mb-4">
+                {/* Overflow container to clip only horizontally, not vertically */}
+                <div style={{ position: 'relative', overflowX: 'hidden', overflowY: 'visible', width: '70%', minHeight: '80px' }}>
+                  {/* Smooth gradient overlays for gradual fade effect - wider and smoother */}
+                  <div 
+                    className="absolute inset-y-0 left-0 z-20 pointer-events-none"
+                    style={{
+                      width: '150px',
+                      background: 'linear-gradient(to right, hsl(var(--background)) 0%, hsl(var(--background)) 15%, hsl(var(--background)) / 0.98 25%, hsl(var(--background)) / 0.95 35%, hsl(var(--background)) / 0.9 45%, hsl(var(--background)) / 0.8 55%, hsl(var(--background)) / 0.65 65%, hsl(var(--background)) / 0.5 75%, hsl(var(--background)) / 0.3 85%, hsl(var(--background)) / 0.15 92%, transparent 100%)',
+                    }}
+                  />
+                  <div 
+                    className="absolute inset-y-0 right-0 z-20 pointer-events-none"
+                    style={{
+                      width: '150px',
+                      background: 'linear-gradient(to left, hsl(var(--background)) 0%, hsl(var(--background)) 15%, hsl(var(--background)) / 0.98 25%, hsl(var(--background)) / 0.95 35%, hsl(var(--background)) / 0.9 45%, hsl(var(--background)) / 0.8 55%, hsl(var(--background)) / 0.65 65%, hsl(var(--background)) / 0.5 75%, hsl(var(--background)) / 0.3 85%, hsl(var(--background)) / 0.15 92%, transparent 100%)',
+                    }}
+                  />
+                  
+                  <LogoLoop
+                    logos={clientLogos}
+                    speed={60}
+                    direction="left"
+                    logoHeight={64}
+                    gap={48}
+                    hoverSpeed={20}
+                    scaleOnHover
+                    fadeOut={false}
+                    ariaLabel="Trusted by fast-growing companies worldwide"
+                    width="100%"
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>14-day free trial</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Cancel anytime</span>
+              
+              {/* Text below logos */}
+              <div className="text-center">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Trusted by fast-growing companies worldwide
+                </p>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Clients Section */}
-      <section className="bg-gradient-to-b from-background via-[#C2C2E1]/5 to-background py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center mb-12">
-            <p className="text-sm font-medium text-muted-foreground mb-2">
-              Trusted by leading brands
-            </p>
-            <p className="text-xs text-muted-foreground/80">
-              Join companies optimizing their presence in AI responses
-            </p>
-          </div>
-          
-          {/* Logos Marquee with LogoLoop */}
-          <div style={{ height: '120px', position: 'relative', overflow: 'hidden' }}>
-            <LogoLoop
-              logos={clientLogos}
-              speed={60}
-              direction="left"
-              logoHeight={64}
-              gap={48}
-              hoverSpeed={20}
-              scaleOnHover
-              fadeOut
-              fadeOutColor="hsl(var(--background))"
-              ariaLabel="Trusted by leading brands"
-            />
           </div>
         </div>
       </section>
