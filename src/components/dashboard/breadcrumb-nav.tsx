@@ -2,6 +2,8 @@
 
 import { ChevronDown, Building2, FolderKanban, Plus } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -137,9 +139,15 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
   return (
     <div className="flex items-center gap-2 text-sm">
       {/* Logo */}
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-lg">
-        A
-      </div>
+      <Link href="/dashboard" className="flex h-8 w-8 items-center justify-center rounded-md overflow-hidden">
+        <Image
+          src="/ateneaiicon.png"
+          alt="Ateneai"
+          width={32}
+          height={32}
+          className="object-contain"
+        />
+      </Link>
       <Separator orientation="vertical" className="h-6" />
 
       {/* Workspace Selector */}
