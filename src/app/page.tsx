@@ -11,7 +11,7 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center">
             <Image
-              src="/ateneai-logo.png"
+              src="/ateneai-log.png"
               alt="Ateneai"
               width={128}
               height={34}
