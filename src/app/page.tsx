@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import LogoLoop from "@/components/LogoLoop";
+import GradualBlur from "@/components/GradualBlur";
 
 // Client logos data
 const clientLogos = [
@@ -334,14 +335,26 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12">
-        <div className="container mx-auto px-4">
+      <footer className="relative py-12" style={{ overflow: 'visible' }}>
+        {/* Gradual Blur at bottom of page */}
+        <GradualBlur
+          position="bottom"
+          height="8rem"
+          strength={2.5}
+          divCount={6}
+          curve="bezier"
+          exponential={true}
+          opacity={1}
+          target="page"
+        />
+        
+        <div className="container mx-auto px-4 relative z-10">
           <div className="grid gap-8 md:grid-cols-4">
             <div className="space-y-3">
               <div className="flex items-center space-x-2">
                 <div className="relative h-6 w-6">
                   <Image
-                    src="/ateneaiicon.svg"
+                    src="/ateneaiiconblack.png"
                     alt="Ateneai"
                     fill
                     className="object-contain"
