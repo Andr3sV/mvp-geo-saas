@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -34,6 +36,13 @@ export default function LoginPage() {
       }
 
       if (data.user) {
+        // If there's a redirect parameter, use it
+        if (redirect) {
+          router.push(redirect);
+          router.refresh();
+          return;
+        }
+
         // Check if user has a workspace, if not redirect to onboarding
         const { data: workspaces } = await supabase
           .from("workspace_members")

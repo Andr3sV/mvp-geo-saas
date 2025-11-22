@@ -41,9 +41,21 @@ export default function RegisterPage() {
       }
 
       if (data.user) {
-        // Redirect to onboarding to create workspace
-        router.push("/onboarding");
-        router.refresh();
+        // Check if email confirmation is required
+        const { data: sessionData } = await supabase.auth.getSession();
+        
+        if (sessionData.session) {
+          // User is authenticated, redirect to onboarding
+          router.push("/onboarding");
+          router.refresh();
+        } else {
+          // Email confirmation is required
+          setError(
+            "Please check your email to confirm your account. Click the confirmation link to continue."
+          );
+          // Optionally, show a different UI state
+          setLoading(false);
+        }
       }
     } catch (err) {
       setError("An unexpected error occurred");
