@@ -95,7 +95,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center space-x-2">
             <div className="relative h-8 w-8">
@@ -134,7 +134,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b">
+      <section className="relative overflow-hidden">
         {/* Background with gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#C2C2E1]/20 via-background to-background" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.3),transparent_50%)]" />
@@ -196,7 +196,7 @@ export default function Home() {
       </section>
 
       {/* Clients Section */}
-      <section className="border-b bg-gradient-to-b from-background via-[#C2C2E1]/5 to-background py-16 md:py-24">
+      <section className="bg-gradient-to-b from-background via-[#C2C2E1]/5 to-background py-16 md:py-24">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center mb-12">
             <p className="text-sm font-medium text-muted-foreground mb-2">
@@ -283,7 +283,7 @@ export default function Home() {
       </section>
 
       {/* Benefits Section */}
-      <section className="border-y bg-gradient-to-b from-[#C2C2E1]/10 to-transparent py-24 md:py-32">
+      <section className="bg-gradient-to-b from-[#C2C2E1]/10 to-transparent py-24 md:py-32">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
             <div className="grid gap-12 md:grid-cols-3">
@@ -337,7 +337,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-12">
+      <footer className="py-12">
         <div className="container mx-auto px-4">
           <div className="grid gap-8 md:grid-cols-4">
             <div className="space-y-3">
