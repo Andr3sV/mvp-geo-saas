@@ -944,7 +944,7 @@ export default function OnboardingPage() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        onSubmit={handleStep3Submit}
+                        onSubmit={handleStep4Submit}
                         className="space-y-8"
                       >
                         <motion.div
