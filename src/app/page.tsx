@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -92,6 +94,17 @@ const clientLogos = [
 ];
 
 export default function Home() {
+  const brands = ["Gemini", "OpenAI", "Claude", "Perplexity"];
+  const [currentBrandIndex, setCurrentBrandIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBrandIndex((prevIndex) => (prevIndex + 1) % brands.length);
+    }, 1800); // Change every 1.8 seconds (faster)
+
+    return () => clearInterval(interval);
+  }, [brands.length]);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -150,15 +163,39 @@ export default function Home() {
 
             {/* Main Heading */}
             <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-              Dominate AI-Generated
-              <span className="block bg-gradient-to-r from-[#C2C2E1] to-[#8B8BC4] bg-clip-text text-transparent">
-                Responses
+              Become the brand everyone is talking about on
+              <br />
+              <span className="inline-block relative overflow-hidden h-[1.2em] align-middle">
+                {" "}
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={brands[currentBrandIndex]}
+                    initial={{ 
+                      opacity: 0, 
+                      filter: "blur(8px)"
+                    }}
+                    animate={{ 
+                      opacity: 1, 
+                      filter: "blur(0px)"
+                    }}
+                    exit={{ 
+                      opacity: 0, 
+                      filter: "blur(8px)"
+                    }}
+                    transition={{ 
+                      duration: 0.5,
+                      ease: "easeInOut"
+                    }}
+                    className="inline-block bg-gradient-to-r from-[#C2C2E1] via-[#A5A5D6] to-[#8B8BC4] bg-clip-text text-transparent"
+                  >
+                    {brands[currentBrandIndex]}
+                  </motion.span>
+                </AnimatePresence>
               </span>
             </h1>
 
             <p className="mb-8 text-lg text-muted-foreground sm:text-xl md:mx-auto md:max-w-2xl">
-              Track citations, analyze sentiment, and optimize your brand presence across 
-              ChatGPT, Gemini, Claude, and Perplexity.
+              Put your products in front of the millions who rely on AI to decide what to buy next
             </p>
 
             {/* CTA Buttons */}
