@@ -408,20 +408,39 @@ export default function OnboardingPage() {
         <motion.div
           className="absolute top-0 left-0 z-50 px-6 lg:px-8 pt-8"
           variants={itemVariants}
-          whileHover={{ scale: 1.05 }}
-          transition={{ type: "spring", stiffness: 400, damping: 17 }}
         >
-          <Link href="/" className="inline-flex items-center space-x-2">
-            <div className="relative h-8 w-8">
-              <Image
-                src="/ateneaiiconblack.png"
-                alt="Ateneai"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <span className="text-xl font-semibold">Ateneai</span>
-          </Link>
+          <div className="flex items-center gap-4">
+            <motion.div whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
+              <Link href="/" className="inline-flex items-center space-x-2">
+                <div className="relative h-8 w-8">
+                  <Image
+                    src="/ateneaiiconblack.png"
+                    alt="Ateneai"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <span className="text-xl font-semibold">Ateneai</span>
+              </Link>
+            </motion.div>
+            <button
+              type="button"
+              onClick={() => {
+                if (currentStep > 1) {
+                  setDirection(-1);
+                  setCurrentStep(currentStep - 1);
+                }
+              }}
+              disabled={currentStep === 1 || loading}
+              className={cn(
+                "inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors",
+                (currentStep === 1 || loading) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>boton temporal</span>
+            </button>
+          </div>
         </motion.div>
 
         {/* Step Indicators - Scrollable */}
@@ -438,10 +457,7 @@ export default function OnboardingPage() {
               return (
                 <div key={step.id} className="flex items-center">
                   <motion.div
-                    className="flex flex-col items-center cursor-pointer"
-                    onClick={() => goToStep(step.id)}
-                    whileHover={!isCurrent ? { scale: 1.1 } : {}}
-                    whileTap={!isCurrent ? { scale: 0.95 } : {}}
+                    className="flex flex-col items-center"
                   >
                     <motion.div
                       className={cn(
@@ -894,43 +910,23 @@ export default function OnboardingPage() {
                           </motion.div>
                         </motion.div>
                         <motion.div
-                          className="flex gap-3"
                           variants={itemVariants}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                         >
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setDirection(-1);
-                                setCurrentStep(2);
-                              }}
-                              disabled={loading}
-                              className="h-12"
-                            >
-                              <ArrowLeft className="mr-2 h-4 w-4" />
-                              Back
-                            </Button>
-                          </motion.div>
-                          <motion.div
-                            className="flex-1"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                          >
-                            <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
-                              {loading ? (
-                                <>
-                                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                  Creating project...
-                                </>
-                              ) : (
-                                <>
-                                  Continue
-                                  <ArrowRight className="ml-2 h-5 w-5" />
-                                </>
-                              )}
-                            </Button>
-                          </motion.div>
+                          <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Creating project...
+                              </>
+                            ) : (
+                              <>
+                                Continue
+                                <ArrowRight className="ml-2 h-5 w-5" />
+                              </>
+                            )}
+                          </Button>
                         </motion.div>
                       </motion.form>
                     )}
@@ -1271,35 +1267,16 @@ export default function OnboardingPage() {
                         </motion.div>
 
                         <motion.div
-                          className="flex gap-3"
                           variants={itemVariants}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                         >
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setDirection(-1);
-                                setCurrentStep(3);
-                              }}
-                              disabled={loading}
-                              className="h-12"
-                            >
-                              <ArrowLeft className="mr-2 h-4 w-4" />
-                              Back
-                            </Button>
-                          </motion.div>
-                          <motion.div
-                            className="flex-1"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
+                          <Button
+                            type="submit"
+                            className="w-full h-12 text-base"
+                            size="lg"
+                            disabled={loading || selectedPrompts.length === 0}
                           >
-                            <Button
-                              type="submit"
-                              className="w-full h-12 text-base"
-                              size="lg"
-                              disabled={loading || selectedPrompts.length === 0}
-                            >
                               {loading ? (
                                 <>
                                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -1311,8 +1288,7 @@ export default function OnboardingPage() {
                                   <ArrowRight className="ml-2 h-5 w-5" />
                                 </>
                               )}
-                            </Button>
-                          </motion.div>
+                          </Button>
                         </motion.div>
                       </motion.form>
                     )}
@@ -1489,34 +1465,14 @@ export default function OnboardingPage() {
                         </motion.div>
 
                         <motion.div
-                          className="flex gap-3"
                           variants={itemVariants}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                         >
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setDirection(-1);
-                                setCurrentStep(4);
-                              }}
-                              disabled={loading}
-                              className="h-12"
-                            >
-                              <ArrowLeft className="mr-2 h-4 w-4" />
-                              Back
-                            </Button>
-                          </motion.div>
-                          <motion.div
-                            className="flex-1"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                          >
-                            <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
-                              Continue
-                              <ArrowRight className="ml-2 h-5 w-5" />
-                            </Button>
-                          </motion.div>
+                          <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                            Continue
+                            <ArrowRight className="ml-2 h-5 w-5" />
+                          </Button>
                         </motion.div>
                       </motion.form>
                     )}
@@ -1524,13 +1480,13 @@ export default function OnboardingPage() {
                     {/* Step 6: Plan Selection */}
                     {currentStep === 6 && (
                       <motion.form
-                        key="step5"
+                        key="step6"
                         custom={direction}
                         variants={stepVariants}
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        onSubmit={handleStep5Submit}
+                        onSubmit={handleStep6Submit}
                         className="space-y-8"
                       >
                         <motion.div
@@ -1582,6 +1538,7 @@ export default function OnboardingPage() {
                                     <span className="text-3xl font-bold">€200</span>
                                     <span className="text-sm text-muted-foreground">/month per brand</span>
                                   </div>
+                                  <p className="text-sm text-muted-foreground">7 days free trial</p>
                                   <ul className="space-y-2.5 pt-2">
                                     <li className="flex items-center gap-2.5">
                                       <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
@@ -1612,10 +1569,10 @@ export default function OnboardingPage() {
                                 <div className="flex items-end">
                                   <Button
                                     type="submit"
-                                    className="h-10 px-6 bg-[#C2C2E1] hover:bg-[#C2C2E1]/90 text-white"
+                                    className="h-10 px-6 bg-[#C2C2E1] hover:bg-[#C2C2E1]/90 text-black"
                                     size="lg"
                                   >
-                                    Get Started
+                                    Start free trial
                                   </Button>
                                 </div>
                               </div>
@@ -1681,26 +1638,6 @@ export default function OnboardingPage() {
                           </motion.div>
                         </motion.div>
 
-                        <motion.div
-                          className="flex gap-3"
-                          variants={itemVariants}
-                        >
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => {
-                                setDirection(-1);
-                                setCurrentStep(4);
-                              }}
-                              disabled={loading}
-                              className="h-12"
-                            >
-                              <ArrowLeft className="mr-2 h-4 w-4" />
-                              Back
-                            </Button>
-                          </motion.div>
-                        </motion.div>
                       </motion.form>
                     )}
                   </AnimatePresence>

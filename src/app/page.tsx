@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import LogoLoop from "@/components/LogoLoop";
 import GradualBlur from "@/components/GradualBlur";
+import MagicBento from "@/components/MagicBento";
 
 // Client logos data
 const clientLogos = [
@@ -260,10 +261,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-24 md:py-32">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center">
+      {/* Magic Bento Section */}
+      <section className="py-24 md:py-32 bg-gradient-to-b from-background to-[#C2C2E1]/5">
+        <div className="container mx-auto px-4 max-w-[70rem]">
+          <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="outline" className="mb-4">
               Features
             </Badge>
@@ -275,43 +276,18 @@ export default function Home() {
               Comprehensive tools to track, analyze, and improve your presence in AI responses
             </p>
           </div>
-
-          <div className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <FeatureCard
-              title="Citation Tracking"
-              description="Monitor how often your brand appears in AI responses across all major platforms"
-              icon={BarChart3}
-              gradient="from-blue-500/10 to-purple-500/10"
-            />
-            <FeatureCard
-              title="Share of Voice"
-              description="Compare your mentions against competitors to understand market position"
-              icon={TrendingUp}
-              gradient="from-purple-500/10 to-pink-500/10"
-            />
-            <FeatureCard
-              title="Platform Breakdown"
-              description="Track performance metrics across ChatGPT, Gemini, Claude, and Perplexity"
-              icon={Layers}
-              gradient="from-pink-500/10 to-orange-500/10"
-            />
-            <FeatureCard
-              title="Sentiment Analysis"
-              description="AI-powered sentiment analysis to understand brand perception and context"
-              icon={Heart}
-              gradient="from-orange-500/10 to-red-500/10"
-            />
-            <FeatureCard
-              title="Query Patterns"
-              description="Discover what questions generate citations and optimize your content strategy"
-              icon={Search}
-              gradient="from-red-500/10 to-rose-500/10"
-            />
-            <FeatureCard
-              title="Trending Queries"
-              description="Stay ahead with real-time query trends and emerging opportunities"
-              icon={Activity}
-              gradient="from-rose-500/10 to-pink-500/10"
+          <div className="flex flex-col items-center justify-center w-full">
+            <MagicBento 
+              textAutoHide={true}
+              enableStars={true}
+              enableSpotlight={true}
+              enableBorderGlow={true}
+              enableTilt={true}
+              enableMagnetism={true}
+              clickEffect={true}
+              spotlightRadius={300}
+              particleCount={12}
+              glowColor="194, 194, 225"
             />
           </div>
         </div>
