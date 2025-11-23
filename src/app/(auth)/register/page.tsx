@@ -25,6 +25,9 @@ export default function RegisterPage() {
     setError(null);
 
     try {
+      // Get the redirect URL - ensure it's properly formatted
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -32,12 +35,22 @@ export default function RegisterPage() {
           data: {
             name,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: redirectUrl,
         },
       });
 
       if (error) {
-        setError(error.message);
+        // Provide more specific error messages
+        if (error.message?.includes('email') || error.message?.includes('Email')) {
+          setError(error.message);
+        } else if (error.message?.includes('500') || error.message?.includes('server')) {
+          setError(
+            "Error sending confirmation email. Please check that the redirect URL is configured in Supabase Dashboard → Authentication → URL Configuration. The URL should be: " + redirectUrl
+          );
+        } else {
+          setError(error.message || "An error occurred during registration");
+        }
+        setLoading(false);
         return;
       }
 
@@ -46,20 +59,55 @@ export default function RegisterPage() {
         const { data: sessionData } = await supabase.auth.getSession();
         
         if (sessionData.session) {
-          // User is authenticated, redirect to onboarding
+          // User is authenticated (email confirmation disabled), redirect to onboarding
           router.push("/onboarding");
           router.refresh();
         } else {
           // Email confirmation is required
+          // Check if email was sent
+          console.log("User created:", data.user.id);
+          console.log("Email:", data.user.email);
+          console.log("Email confirmed:", data.user.email_confirmed_at);
+          console.log("Redirect URL:", redirectUrl);
+          
+          // Show success message
+          setError(null); // Clear any previous errors
+          // Show success message with more details
           setError(
-            "Please check your email to confirm your account. Click the confirmation link to continue."
+            `Account created successfully! A confirmation email has been sent to ${email}. Please check your inbox (and spam folder) and click the confirmation link to continue.`
           );
           setLoading(false);
         }
+      } else {
+        setError("Failed to create account. Please try again.");
+        setLoading(false);
       }
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      setError(err?.message || "An unexpected error occurred. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      }
+      // Note: User will be redirected to Google, so we don't need to handle success here
     } catch (err) {
       setError("An unexpected error occurred");
-    } finally {
       setLoading(false);
     }
   };
@@ -162,13 +210,18 @@ export default function RegisterPage() {
                   </div>
                 </div>
 
-                {/* Social Auth Buttons (Placeholder for future implementation) */}
+                {/* Social Auth Buttons */}
                 <div className="grid grid-cols-2 gap-4">
                   <Button variant="outline" className="h-11" disabled>
                     <Github className="mr-2 h-4 w-4" />
                     GitHub
                   </Button>
-                  <Button variant="outline" className="h-11" disabled>
+                  <Button
+                    variant="outline"
+                    className="h-11"
+                    onClick={handleGoogleSignup}
+                    disabled={loading}
+                  >
                     <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                       <path
                         fill="currentColor"
