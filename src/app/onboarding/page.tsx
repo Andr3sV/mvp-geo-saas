@@ -1,17 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWorkspace, createProject, savePrompts } from "@/lib/actions/workspace";
 import { generatePromptSuggestions } from "@/lib/prompts-suggestions";
-import { Loader2, Check, Building2, FolderKanban, Globe, Sparkles, ArrowRight, ArrowLeft, Plus } from "lucide-react";
+import { Loader2, Check, Building2, FolderKanban, Globe, Sparkles, ArrowRight, ArrowLeft, Plus, X, Tag, Trophy, CreditCard, Mail, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CountrySelect } from "@/components/ui/country-select";
+import { countries, getCountryByCode } from "@/lib/countries";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const STEPS = [
   { 
@@ -28,31 +33,115 @@ const STEPS = [
   },
   { 
     id: 3, 
-    name: "Website", 
-    description: "Add your client's website",
-    icon: Globe,
-  },
-  { 
-    id: 4, 
     name: "Prompts", 
     description: "Select prompts to track",
     icon: Sparkles,
   },
+  { 
+    id: 4, 
+    name: "Results", 
+    description: "View your ranking",
+    icon: Trophy,
+  },
+  { 
+    id: 5, 
+    name: "Plan", 
+    description: "Choose your plan",
+    icon: CreditCard,
+  },
 ];
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.4,
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const stepVariants = {
+  hidden: { opacity: 0, scale: 0.8, x: -20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    x: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    x: 20,
+    transition: {
+      duration: 0.3,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const promptItemVariants = {
+  hidden: { opacity: 0, y: 10, scale: 0.95 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      delay: i * 0.05,
+      duration: 0.3,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+  selected: {
+    scale: 1.02,
+    transition: {
+      duration: 0.2,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
 
   // Form data
   const [workspaceName, setWorkspaceName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [clientUrl, setClientUrl] = useState("");
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
-  const [selectedPrompts, setSelectedPrompts] = useState<string[]>([]);
+  
+  // Prompt structure with region and category
+  interface PromptWithConfig {
+    id: string;
+    text: string;
+    region: string;
+    category: string;
+  }
+  const [selectedPrompts, setSelectedPrompts] = useState<PromptWithConfig[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [editingTagPromptId, setEditingTagPromptId] = useState<string | null>(null);
+  const [tagInputValue, setTagInputValue] = useState("");
 
   // IDs for created resources
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -78,6 +167,7 @@ export default function OnboardingPage() {
 
     setWorkspaceId(result.data!.id);
     setLoading(false);
+    setDirection(1);
     setCurrentStep(2);
   };
 
@@ -88,12 +178,27 @@ export default function OnboardingPage() {
       return;
     }
 
+    // URL is now required
+    if (!clientUrl.trim()) {
+      setError("Please enter a valid website URL");
+      return;
+    }
+
+    // Validate URL format
+    try {
+      new URL(clientUrl);
+    } catch {
+      setError("Please enter a valid URL (e.g., https://example.com)");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const result = await createProject({
       name: projectName,
       workspace_id: workspaceId!,
+      client_url: clientUrl,
     });
 
     if (result.error) {
@@ -103,57 +208,29 @@ export default function OnboardingPage() {
     }
 
     setProjectId(result.data!.id);
+
+    // Generate prompt suggestions
+    const prompts = generatePromptSuggestions(
+      clientUrl,
+      projectName
+    );
+    setSuggestedPrompts(prompts);
+    // Initialize ALL suggested prompts as selected by default
+    setSelectedPrompts(
+      prompts.map((prompt, index) => ({
+        id: `prompt-${Date.now()}-${index}`,
+        text: prompt,
+        region: "GLOBAL",
+        category: "general",
+      }))
+    );
+
     setLoading(false);
+    setDirection(1);
     setCurrentStep(3);
   };
 
   const handleStep3Submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // URL is optional, but if provided, validate it
-    if (clientUrl.trim()) {
-      try {
-        new URL(clientUrl);
-      } catch {
-        setError("Please enter a valid URL (e.g., https://example.com)");
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError(null);
-
-    // Generate prompt suggestions
-    const prompts = generatePromptSuggestions(
-      clientUrl || "https://example.com",
-      projectName
-    );
-    setSuggestedPrompts(prompts);
-
-    // Pre-select first 5 prompts
-    setSelectedPrompts(prompts.slice(0, 5));
-
-    setLoading(false);
-    setCurrentStep(4);
-  };
-
-  const togglePrompt = (prompt: string) => {
-    setSelectedPrompts((prev) =>
-      prev.includes(prompt)
-        ? prev.filter((p) => p !== prompt)
-        : [...prev, prompt]
-    );
-  };
-
-  const addCustomPrompt = () => {
-    if (customPrompt.trim() && !selectedPrompts.includes(customPrompt.trim())) {
-      setSelectedPrompts([...selectedPrompts, customPrompt.trim()]);
-      setSuggestedPrompts([...suggestedPrompts, customPrompt.trim()]);
-      setCustomPrompt("");
-    }
-  };
-
-  const handleStep4Submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (selectedPrompts.length === 0) {
@@ -166,7 +243,11 @@ export default function OnboardingPage() {
 
     const result = await savePrompts({
       project_id: projectId!,
-      prompts: selectedPrompts,
+      prompts: selectedPrompts.map((p) => ({
+        prompt: p.text,
+        region: p.region,
+        category: p.category,
+      })),
     });
 
     if (result.error) {
@@ -175,416 +256,1220 @@ export default function OnboardingPage() {
       return;
     }
 
-    // Success! Redirect to dashboard
+    setLoading(false);
+    setDirection(1);
+    setCurrentStep(4);
+  };
+
+  const handleStep4Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Results step - just continue to plan
+    setDirection(1);
+    setCurrentStep(5);
+  };
+
+  const handleStep5Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Plan step - redirect to dashboard
     router.push(`/dashboard`);
   };
 
-  const completedSteps = currentStep - 1;
-  const progress = (completedSteps / STEPS.length) * 100;
+  const togglePrompt = (promptText: string) => {
+    const existingPrompt = selectedPrompts.find((p) => p.text === promptText);
+    if (existingPrompt) {
+      // Remove prompt
+      setSelectedPrompts((prev) => prev.filter((p) => p.id !== existingPrompt.id));
+    } else {
+      // Add prompt
+      setSelectedPrompts((prev) => [
+        ...prev,
+        {
+          id: `prompt-${Date.now()}-${prev.length}`,
+          text: promptText,
+          region: "GLOBAL",
+          category: "general",
+        },
+      ]);
+    }
+  };
+
+  const removePrompt = (promptId: string) => {
+    setSelectedPrompts((prev) => prev.filter((p) => p.id !== promptId));
+  };
+
+  const updatePromptRegion = (promptId: string, region: string) => {
+    setSelectedPrompts((prev) =>
+      prev.map((p) => (p.id === promptId ? { ...p, region } : p))
+    );
+  };
+
+  const updatePromptCategory = (promptId: string, category: string) => {
+    setSelectedPrompts((prev) =>
+      prev.map((p) => (p.id === promptId ? { ...p, category } : p))
+    );
+  };
+
+  const addCustomPrompt = () => {
+    if (customPrompt.trim() && !selectedPrompts.some((p) => p.text === customPrompt.trim())) {
+      setSelectedPrompts((prev) => [
+        ...prev,
+        {
+          id: `prompt-${Date.now()}-${prev.length}`,
+          text: customPrompt.trim(),
+          region: "GLOBAL",
+          category: "general",
+        },
+      ]);
+      setSuggestedPrompts((prev) => [...prev, customPrompt.trim()]);
+      setCustomPrompt("");
+    }
+  };
+
+
+  const goToStep = (step: number) => {
+    if (step < currentStep) {
+      setDirection(-1);
+      setCurrentStep(step);
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col relative overflow-hidden bg-gradient-to-b from-[#C2C2E1]/10 via-background to-background">
       {/* Background gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.15),transparent_50%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(194,194,225,0.1),transparent_50%)]" />
+      <motion.div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.15),transparent_50%)]"
+        animate={{
+          opacity: [0.15, 0.2, 0.15],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      <motion.div
+        className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(194,194,225,0.1),transparent_50%)]"
+        animate={{
+          opacity: [0.1, 0.15, 0.1],
+        }}
+        transition={{
+          duration: 10,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
       
       {/* Main Content Container */}
-      <div className="relative z-10 flex min-h-screen flex-col">
-        {/* Logo and Progress Bar */}
-        <div className="container mx-auto w-full px-6 lg:px-8 pt-8 pb-6">
-          <div className="mx-auto max-w-3xl">
-            {/* Logo */}
-            <div className="mb-6">
-              <Link href="/" className="inline-flex items-center space-x-2">
-                <div className="relative h-8 w-8">
-                  <Image
-                    src="/ateneaiiconblack.png"
-                    alt="Ateneai"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-                <span className="text-xl font-semibold">Ateneai</span>
-              </Link>
+      <motion.div
+        className="relative z-10 flex min-h-screen flex-col"
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        {/* Logo - Fixed top left */}
+        <motion.div
+          className="absolute top-0 left-0 z-50 px-6 lg:px-8 pt-8"
+          variants={itemVariants}
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+        >
+          <Link href="/" className="inline-flex items-center space-x-2">
+            <div className="relative h-8 w-8">
+              <Image
+                src="/ateneaiiconblack.png"
+                alt="Ateneai"
+                fill
+                className="object-contain"
+              />
             </div>
+            <span className="text-xl font-semibold">Ateneai</span>
+          </Link>
+        </motion.div>
 
-            {/* Progress Bar */}
-            <div>
-              <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Step {currentStep} of {STEPS.length}</span>
-                <span>{Math.round(progress)}% complete</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted/50">
-                <div
-                  className="h-full bg-gradient-to-r from-[#C2C2E1] to-[#8B8BC4] transition-all duration-500 ease-out"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
+        {/* Step Indicators - Fixed top center */}
+        <motion.div
+          className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center pt-24 pb-8"
+          variants={itemVariants}
+        >
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
+            {STEPS.map((step, index) => {
+              const Icon = step.icon;
+              const isCompleted = step.id < currentStep;
+              const isCurrent = step.id === currentStep;
+              
+              return (
+                <div key={step.id} className="flex items-center">
+                  <motion.div
+                    className="flex flex-col items-center cursor-pointer"
+                    onClick={() => goToStep(step.id)}
+                    whileHover={!isCurrent ? { scale: 1.1 } : {}}
+                    whileTap={!isCurrent ? { scale: 0.95 } : {}}
+                  >
+                    <motion.div
+                      className={cn(
+                        "flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors",
+                        isCompleted
+                          ? "border-[#C2C2E1] bg-[#C2C2E1] text-white"
+                          : isCurrent
+                          ? "border-[#C2C2E1] bg-[#C2C2E1]/10 text-[#C2C2E1]"
+                          : "border-muted-foreground/30 bg-background text-muted-foreground"
+                      )}
+                      animate={{
+                        scale: isCurrent ? [1, 1.1, 1] : 1,
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: isCurrent ? Infinity : 0,
+                        ease: "easeInOut",
+                      }}
+                    >
+                      <AnimatePresence mode="wait">
+                        {isCompleted ? (
+                          <motion.div
+                            key="check"
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            exit={{ scale: 0, rotate: 180 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <Check className="h-5 w-5" />
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="icon"
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <Icon className="h-5 w-5" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                    <div className="mt-2 text-center">
+                      <p
+                        className={cn(
+                          "text-xs font-medium transition-colors",
+                          isCurrent || isCompleted
+                            ? "text-foreground"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {step.name}
+                      </p>
+                    </div>
+                  </motion.div>
+                  {index < STEPS.length - 1 && (
+                    <motion.div
+                      className={cn(
+                        "mx-4 h-0.5 w-16",
+                        isCompleted
+                          ? "bg-[#C2C2E1]"
+                          : "bg-muted"
+                      )}
+                      initial={{ scaleX: 0 }}
+                      animate={{
+                        scaleX: isCompleted ? 1 : 0.3,
+                      }}
+                      transition={{
+                        duration: 0.5,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </motion.div>
 
         {/* Content Area */}
-        <div className="flex flex-1 items-center justify-center pb-12">
+        <div className="flex flex-1 items-center justify-center pb-12 pt-40">
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-2xl">
-              {/* Step Indicators */}
-              <div className="mb-12 hidden md:flex items-center justify-between relative z-10">
-                {STEPS.map((step, index) => {
-                  const Icon = step.icon;
-                  const isCompleted = step.id < currentStep;
-                  const isCurrent = step.id === currentStep;
-                  
-                  return (
-                    <div key={step.id} className="flex flex-1 items-center">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={cn(
-                            "flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all duration-300",
-                            isCompleted
-                              ? "border-[#C2C2E1] bg-[#C2C2E1] text-white"
-                              : isCurrent
-                              ? "border-[#C2C2E1] bg-[#C2C2E1]/10 text-[#C2C2E1] scale-110"
-                              : "border-muted-foreground/30 bg-background text-muted-foreground"
-                          )}
-                        >
-                          {isCompleted ? (
-                            <Check className="h-5 w-5" />
-                          ) : (
-                            <Icon className="h-5 w-5" />
-                          )}
-                        </div>
-                        <div className="mt-2 text-center">
-                          <p
-                            className={cn(
-                              "text-xs font-medium",
-                              isCurrent || isCompleted
-                                ? "text-foreground"
-                                : "text-muted-foreground"
-                            )}
-                          >
-                            {step.name}
-                          </p>
-                        </div>
-                      </div>
-                      {index < STEPS.length - 1 && (
-                        <div
-                          className={cn(
-                            "mx-2 h-0.5 flex-1 transition-colors duration-300",
-                            isCompleted
-                              ? "bg-[#C2C2E1]"
-                              : "bg-muted"
-                          )}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* Main Card */}
-              <div className="relative overflow-hidden rounded-2xl border bg-card/50 backdrop-blur-sm shadow-xl">
+              <motion.div
+                className="relative overflow-hidden rounded-2xl border bg-card/50 backdrop-blur-sm shadow-xl"
+                variants={itemVariants}
+                whileHover={{ boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+                transition={{ duration: 0.3 }}
+              >
                 {/* Card gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-[#C2C2E1]/5 via-transparent to-transparent pointer-events-none" />
                 
                 <div className="relative p-8 md:p-12">
-                  {error && (
-                    <div className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-                      {error}
-                    </div>
-                  )}
+                  <AnimatePresence mode="wait" custom={direction}>
+                    {error && (
+                      <motion.div
+                        key="error"
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        className="mb-6 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive"
+                      >
+                        {error}
+                      </motion.div>
+                    )}
 
-                  {/* Step 1: Create Workspace */}
-                  {currentStep === 1 && (
-                    <form onSubmit={handleStep1Submit} className="space-y-8">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20">
-                            <Building2 className="h-5 w-5 text-[#C2C2E1]" />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Create your workspace</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              A workspace is where you'll manage all your projects
-                            </p>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="workspaceName" className="text-base">Workspace Name</Label>
-                          <Input
-                            id="workspaceName"
-                            placeholder="e.g., My Agency, Acme Corp"
-                            value={workspaceName}
-                            onChange={(e) => setWorkspaceName(e.target.value)}
-                            required
-                            disabled={loading}
-                            autoFocus
-                            className="h-12 text-base"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            If you're an agency, this could be your agency name. You can change this later.
-                          </p>
-                        </div>
-                      </div>
-                      <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
-                        {loading ? (
-                          <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Creating workspace...
-                          </>
-                        ) : (
-                          <>
-                            Continue
-                            <ArrowRight className="ml-2 h-5 w-5" />
-                          </>
-                        )}
-                      </Button>
-                    </form>
-                  )}
-
-                  {/* Step 2: Create Project */}
-                  {currentStep === 2 && (
-                    <form onSubmit={handleStep2Submit} className="space-y-8">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20">
-                            <FolderKanban className="h-5 w-5 text-[#C2C2E1]" />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Create your first project</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              A project represents a brand or client you want to track
-                            </p>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="projectName" className="text-base">Project Name</Label>
-                          <Input
-                            id="projectName"
-                            placeholder="e.g., Acme Inc, Nike Campaign"
-                            value={projectName}
-                            onChange={(e) => setProjectName(e.target.value)}
-                            required
-                            disabled={loading}
-                            autoFocus
-                            className="h-12 text-base"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            You can create more projects later from your dashboard.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setCurrentStep(1)}
-                          disabled={loading}
-                          className="h-12"
+                    {/* Step 1: Create Workspace */}
+                    {currentStep === 1 && (
+                      <motion.form
+                        key="step1"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep1Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-4"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
                         >
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          Back
-                        </Button>
-                        <Button type="submit" className="flex-1 h-12 text-base" size="lg" disabled={loading}>
-                          {loading ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Creating project...
-                            </>
-                          ) : (
-                            <>
-                              Continue
-                              <ArrowRight className="ml-2 h-5 w-5" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-
-                  {/* Step 3: Client URL */}
-                  {currentStep === 3 && (
-                    <form onSubmit={handleStep3Submit} className="space-y-8">
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20">
-                            <Globe className="h-5 w-5 text-[#C2C2E1]" />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Add your client's website</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              This helps us suggest relevant prompts to track
-                            </p>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="clientUrl" className="text-base">
-                            Client Website URL <span className="text-muted-foreground font-normal">(Optional)</span>
-                          </Label>
-                          <Input
-                            id="clientUrl"
-                            type="url"
-                            placeholder="https://example.com"
-                            value={clientUrl}
-                            onChange={(e) => setClientUrl(e.target.value)}
-                            disabled={loading}
-                            autoFocus
-                            className="h-12 text-base"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            You can skip this step if you don't have a URL yet. We'll use it to generate better prompt suggestions.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setCurrentStep(2)}
-                          disabled={loading}
-                          className="h-12"
-                        >
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          Back
-                        </Button>
-                        <Button type="submit" className="flex-1 h-12 text-base" size="lg" disabled={loading}>
-                          {loading ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Generating suggestions...
-                            </>
-                          ) : (
-                            <>
-                              Continue
-                              <ArrowRight className="ml-2 h-5 w-5" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-
-                  {/* Step 4: Select Prompts */}
-                  {currentStep === 4 && (
-                    <form onSubmit={handleStep4Submit} className="space-y-8">
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20">
-                            <Sparkles className="h-5 w-5 text-[#C2C2E1]" />
-                          </div>
-                          <div>
-                            <h2 className="text-2xl font-bold tracking-tight">Select prompts to track</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Choose the prompts you want to monitor for brand mentions
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <Label className="text-base">Suggested Prompts</Label>
-                          <div className="grid gap-3">
-                            {suggestedPrompts.map((prompt, index) => {
-                              const isSelected = selectedPrompts.includes(prompt);
-                              return (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  onClick={() => togglePrompt(prompt)}
-                                  className={cn(
-                                    "group flex items-start gap-4 rounded-lg border p-4 text-left transition-all hover:border-[#C2C2E1]/50",
-                                    isSelected
-                                      ? "border-[#C2C2E1] bg-[#C2C2E1]/5 shadow-sm"
-                                      : "border-border bg-card/50 hover:bg-card"
-                                  )}
-                                >
-                                  <div
-                                    className={cn(
-                                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all",
-                                      isSelected
-                                        ? "border-[#C2C2E1] bg-[#C2C2E1] text-white"
-                                        : "border-muted-foreground/30 group-hover:border-[#C2C2E1]/50"
-                                    )}
-                                  >
-                                    {isSelected && <Check className="h-3.5 w-3.5" />}
-                                  </div>
-                                  <span className="flex-1 text-sm leading-relaxed">{prompt}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
-                          <Label htmlFor="customPrompt" className="text-base">Add Custom Prompt</Label>
-                          <div className="flex gap-2">
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Building2 className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Create your workspace</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                A workspace is where you'll manage all your projects
+                              </p>
+                            </div>
+                          </motion.div>
+                          <motion.div
+                            className="space-y-2"
+                            variants={itemVariants}
+                          >
+                            <Label htmlFor="workspaceName" className="text-base">Workspace Name</Label>
                             <Input
-                              id="customPrompt"
-                              placeholder="Type your custom prompt..."
-                              value={customPrompt}
-                              onChange={(e) => setCustomPrompt(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  addCustomPrompt();
-                                }
-                              }}
-                              className="h-11"
+                              id="workspaceName"
+                              placeholder="e.g., My Agency, Acme Corp"
+                              value={workspaceName}
+                              onChange={(e) => setWorkspaceName(e.target.value)}
+                              required
+                              disabled={loading}
+                              autoFocus
+                              className="h-12 text-base"
                             />
+                            <p className="text-xs text-muted-foreground">
+                              If you're an agency, this could be your agency name. You can change this later.
+                            </p>
+                          </motion.div>
+                        </motion.div>
+                        <motion.div
+                          variants={itemVariants}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Creating workspace...
+                              </>
+                            ) : (
+                              <>
+                                Continue
+                                <ArrowRight className="ml-2 h-5 w-5" />
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </motion.form>
+                    )}
+
+                    {/* Step 2: Create Project */}
+                    {currentStep === 2 && (
+                      <motion.form
+                        key="step2"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep2Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-4"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <FolderKanban className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Create your first project</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                A project represents a brand or client you want to track
+                              </p>
+                            </div>
+                          </motion.div>
+                          <motion.div
+                            className="space-y-4"
+                            variants={itemVariants}
+                          >
+                            <div className="space-y-2">
+                              <Label htmlFor="projectName" className="text-base">Project Name</Label>
+                              <Input
+                                id="projectName"
+                                placeholder="e.g., Acme Inc, Nike Campaign"
+                                value={projectName}
+                                onChange={(e) => setProjectName(e.target.value)}
+                                required
+                                disabled={loading}
+                                autoFocus
+                                className="h-12 text-base"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                You can create more projects later from your dashboard.
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="clientUrl" className="text-base">
+                                Client Website URL
+                              </Label>
+                              <Input
+                                id="clientUrl"
+                                type="url"
+                                placeholder="https://example.com"
+                                value={clientUrl}
+                                onChange={(e) => setClientUrl(e.target.value)}
+                                required
+                                disabled={loading}
+                                className="h-12 text-base"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                We'll use this URL to generate better prompt suggestions for your project.
+                              </p>
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                        <motion.div
+                          className="flex gap-3"
+                          variants={itemVariants}
+                        >
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                             <Button
                               type="button"
                               variant="outline"
-                              onClick={addCustomPrompt}
-                              className="h-11"
+                              onClick={() => {
+                                setDirection(-1);
+                                setCurrentStep(1);
+                              }}
+                              disabled={loading}
+                              className="h-12"
                             >
-                              <Plus className="h-4 w-4 mr-2" />
-                              Add
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Back
                             </Button>
-                          </div>
-                        </div>
+                          </motion.div>
+                          <motion.div
+                            className="flex-1"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                              {loading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                  Creating project...
+                                </>
+                              ) : (
+                                <>
+                                  Continue
+                                  <ArrowRight className="ml-2 h-5 w-5" />
+                                </>
+                              )}
+                            </Button>
+                          </motion.div>
+                        </motion.div>
+                      </motion.form>
+                    )}
 
-                        <div className="flex items-center gap-2 rounded-lg bg-[#C2C2E1]/10 px-4 py-3">
-                          <Badge variant="secondary" className="bg-[#C2C2E1]/20 text-[#C2C2E1]">
-                            {selectedPrompts.length}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {selectedPrompts.length === 1 ? "prompt" : "prompts"} selected
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setCurrentStep(3)}
-                          disabled={loading}
-                          className="h-12"
+                    {/* Step 3: Select Prompts */}
+                    {currentStep === 3 && (
+                      <motion.form
+                        key="step4"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep3Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-6"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
                         >
-                          <ArrowLeft className="mr-2 h-4 w-4" />
-                          Back
-                        </Button>
-                        <Button type="submit" className="flex-1 h-12 text-base" size="lg" disabled={loading || selectedPrompts.length === 0}>
-                          {loading ? (
-                            <>
-                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                              Completing setup...
-                            </>
-                          ) : (
-                            <>
-                              Complete Setup
-                              <Check className="ml-2 h-5 w-5" />
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Sparkles className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Select prompts to track</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Choose the prompts you want to monitor for brand mentions
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Unified Prompts List */}
+                          <motion.div
+                            className="space-y-4"
+                            variants={itemVariants}
+                          >
+                            <Label className="text-base">Suggested Prompts</Label>
+                            <div className="space-y-3">
+                              <AnimatePresence>
+                                {suggestedPrompts.map((promptText, index) => {
+                                  const prompt = selectedPrompts.find((p) => p.text === promptText);
+                                  const isSelected = !!prompt;
+                                  
+                                  // Get tag color
+                                  const getTagColor = (tag: string) => {
+                                    const colors = [
+                                      "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                                      "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+                                      "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+                                      "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                                      "bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300",
+                                      "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+                                      "bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300",
+                                    ];
+                                    let hash = 0;
+                                    for (let i = 0; i < tag.length; i++) {
+                                      hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+                                    }
+                                    return colors[Math.abs(hash) % colors.length];
+                                  };
+
+                                  // Get existing tags from selected prompts
+                                  const existingTags = Array.from(
+                                    new Set(selectedPrompts.map(p => p.category).filter(c => c !== "general"))
+                                  );
+
+                                  // If prompt is not selected, create it with default values when toggling
+                                  // But for display, we'll show it as unselected
+                                  if (!prompt) {
+                                    // If prompt is not selected, show simple selection button
+                                    return (
+                                      <motion.button
+                                        key={index}
+                                        type="button"
+                                        onClick={() => togglePrompt(promptText)}
+                                        custom={index}
+                                        variants={promptItemVariants}
+                                        initial="hidden"
+                                        animate="visible"
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        className="group flex items-start gap-4 rounded-lg border p-4 text-left transition-all border-border bg-card/50 hover:bg-card hover:border-[#C2C2E1]/50"
+                                      >
+                                        <motion.div
+                                          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all border-muted-foreground/30 group-hover:border-[#C2C2E1]/50"
+                                        >
+                                        </motion.div>
+                                        <span className="flex-1 text-sm leading-relaxed">{promptText}</span>
+                                      </motion.button>
+                                    );
+                                  }
+
+                                  const country = getCountryByCode(prompt.region);
+                                  const displayTag = prompt.category === "general" ? "General" : prompt.category;
+
+                                  return (
+                                    <motion.div
+                                      key={prompt.id}
+                                      custom={index}
+                                      variants={promptItemVariants}
+                                      initial="hidden"
+                                      animate="visible"
+                                      exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                                      className="flex items-center gap-3 rounded-lg border bg-card p-4 hover:bg-muted/30 transition-colors"
+                                    >
+                                      {/* Checkbox */}
+                                      <motion.button
+                                        type="button"
+                                        onClick={() => togglePrompt(promptText)}
+                                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all border-[#C2C2E1] bg-[#C2C2E1] text-white"
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                      </motion.button>
+
+                                      {/* Prompt Text */}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium leading-relaxed">{prompt.text}</p>
+                                      </div>
+
+                                      {/* Tag Badge (Editable) */}
+                                      <Popover 
+                                        open={editingTagPromptId === prompt.id}
+                                        onOpenChange={(open) => {
+                                          if (!open) {
+                                            setEditingTagPromptId(null);
+                                            setTagInputValue("");
+                                          } else {
+                                            setEditingTagPromptId(prompt.id);
+                                            setTagInputValue(prompt.category === "general" ? "" : prompt.category);
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <Badge
+                                            variant="secondary"
+                                            className={cn(
+                                              "cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1",
+                                              getTagColor(displayTag)
+                                            )}
+                                          >
+                                            <Tag className="h-3 w-3" />
+                                            {displayTag}
+                                          </Badge>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[250px] p-0" align="end">
+                                          <Command shouldFilter={false}>
+                                            <CommandInput
+                                              placeholder="Type to search or create..."
+                                              value={tagInputValue}
+                                              onValueChange={setTagInputValue}
+                                            />
+                                            <CommandList>
+                                              {tagInputValue.trim() && 
+                                               !existingTags.some(t => t.toLowerCase() === tagInputValue.trim().toLowerCase()) && (
+                                                <CommandGroup heading="Create new">
+                                                  <CommandItem
+                                                    value={`create-${tagInputValue.trim().replace(/\s+/g, '-')}`}
+                                                    onSelect={() => {
+                                                      updatePromptCategory(prompt.id, tagInputValue.trim());
+                                                      setEditingTagPromptId(null);
+                                                      setTagInputValue("");
+                                                    }}
+                                                    className="cursor-pointer"
+                                                  >
+                                                    <Tag className="mr-2 h-4 w-4" />
+                                                    Create "{tagInputValue.trim()}"
+                                                  </CommandItem>
+                                                </CommandGroup>
+                                              )}
+                                              {existingTags.filter(tag =>
+                                                tag.toLowerCase().includes(tagInputValue.toLowerCase())
+                                              ).length > 0 && (
+                                                <CommandGroup heading="Existing tags">
+                                                  {existingTags
+                                                    .filter(tag => tag.toLowerCase().includes(tagInputValue.toLowerCase()))
+                                                    .map((tag) => (
+                                                      <CommandItem
+                                                        key={tag}
+                                                        value={tag}
+                                                        onSelect={() => {
+                                                          updatePromptCategory(prompt.id, tag);
+                                                          setEditingTagPromptId(null);
+                                                          setTagInputValue("");
+                                                        }}
+                                                        className="cursor-pointer"
+                                                      >
+                                                        <Check
+                                                          className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            prompt.category === tag ? "opacity-100" : "opacity-0"
+                                                          )}
+                                                        />
+                                                        {tag}
+                                                      </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                              )}
+                                              <CommandGroup>
+                                                <CommandItem
+                                                  onSelect={() => {
+                                                    updatePromptCategory(prompt.id, "general");
+                                                    setEditingTagPromptId(null);
+                                                    setTagInputValue("");
+                                                  }}
+                                                  className="cursor-pointer"
+                                                >
+                                                  <Check
+                                                    className={cn(
+                                                      "mr-2 h-4 w-4",
+                                                      prompt.category === "general" ? "opacity-100" : "opacity-0"
+                                                    )}
+                                                  />
+                                                  General
+                                                </CommandItem>
+                                              </CommandGroup>
+                                              {existingTags.length === 0 && !tagInputValue.trim() && (
+                                                <CommandEmpty>No tags yet. Type to create one.</CommandEmpty>
+                                              )}
+                                            </CommandList>
+                                          </Command>
+                                        </PopoverContent>
+                                      </Popover>
+
+                                      {/* Country Badge (Editable) */}
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <Badge variant="outline" className="text-xs flex items-center gap-1 cursor-pointer hover:bg-muted shrink-0">
+                                            <span>{country?.flag || "🌍"}</span>
+                                            <span>{country?.name || "Global"}</span>
+                                          </Badge>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[300px] p-0" align="end">
+                                          <Command>
+                                            <CommandInput placeholder="Search country..." />
+                                            <CommandList>
+                                              <CommandEmpty>No country found.</CommandEmpty>
+                                              <CommandGroup>
+                                                {countries.map((c) => (
+                                                  <CommandItem
+                                                    key={c.code}
+                                                    value={c.code}
+                                                    onSelect={() => {
+                                                      updatePromptRegion(prompt.id, c.code);
+                                                    }}
+                                                    className="cursor-pointer"
+                                                  >
+                                                    <Check
+                                                      className={cn(
+                                                        "mr-2 h-4 w-4",
+                                                        prompt.region === c.code ? "opacity-100" : "opacity-0"
+                                                      )}
+                                                    />
+                                                    <span className="mr-2 text-lg">{c.flag}</span>
+                                                    <span>{c.name}</span>
+                                                  </CommandItem>
+                                                ))}
+                                              </CommandGroup>
+                                            </CommandList>
+                                          </Command>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </motion.div>
+                                  );
+                                })}
+                              </AnimatePresence>
+                            </div>
+                          </motion.div>
+
+                          <motion.div
+                            className="space-y-2 rounded-lg border bg-muted/30 p-4"
+                            variants={itemVariants}
+                          >
+                            <Label htmlFor="customPrompt" className="text-base">Add your own prompts here or add more later</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="customPrompt"
+                                placeholder="Type your custom prompt..."
+                                value={customPrompt}
+                                onChange={(e) => setCustomPrompt(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    addCustomPrompt();
+                                  }
+                                }}
+                                className="h-11"
+                              />
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={addCustomPrompt}
+                                  className="h-11"
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add
+                                </Button>
+                              </motion.div>
+                            </div>
+                          </motion.div>
+
+                          <motion.div
+                            className="flex items-center gap-2 rounded-lg bg-[#C2C2E1]/10 px-4 py-3"
+                            variants={itemVariants}
+                            animate={{
+                              scale: selectedPrompts.length > 0 ? [1, 1.02, 1] : 1,
+                            }}
+                            transition={{
+                              duration: 0.3,
+                            }}
+                          >
+                            <motion.div
+                              key={selectedPrompts.length}
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Badge variant="secondary" className="bg-[#C2C2E1]/20 text-[#C2C2E1]">
+                                {selectedPrompts.length}
+                              </Badge>
+                            </motion.div>
+                            <span className="text-sm text-muted-foreground">
+                              {selectedPrompts.length === 1 ? "prompt" : "prompts"} selected
+                            </span>
+                          </motion.div>
+                        </motion.div>
+
+                        <motion.div
+                          className="flex gap-3"
+                          variants={itemVariants}
+                        >
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setDirection(-1);
+                                setCurrentStep(3);
+                              }}
+                              disabled={loading}
+                              className="h-12"
+                            >
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Back
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            className="flex-1"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button
+                              type="submit"
+                              className="w-full h-12 text-base"
+                              size="lg"
+                              disabled={loading || selectedPrompts.length === 0}
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                  Completing setup...
+                                </>
+                              ) : (
+                                <>
+                                  Continue
+                                  <ArrowRight className="ml-2 h-5 w-5" />
+                                </>
+                              )}
+                            </Button>
+                          </motion.div>
+                        </motion.div>
+                      </motion.form>
+                    )}
+
+                    {/* Step 4: Results */}
+                    {currentStep === 4 && (
+                      <motion.form
+                        key="step4"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep4Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-6"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Trophy className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Your Brand Ranking</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                See how your brand performs against competitors
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Results Display */}
+                          <motion.div
+                            className="space-y-8"
+                            variants={itemVariants}
+                          >
+                            {/* Main Stats - Minimalist */}
+                            <motion.div
+                              className="space-y-3"
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.2 }}
+                            >
+                              <div className="flex items-baseline gap-3">
+                                <h3 className="text-3xl font-bold tracking-tight">
+                                  {projectName} has{" "}
+                                  <span className="text-[#C2C2E1]">30%</span> visibility
+                                </h3>
+                                <motion.div
+                                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1] text-white text-sm font-semibold"
+                                  animate={{ scale: [1, 1.05, 1] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                >
+                                  #1
+                                </motion.div>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                across AI platforms and ranks <span className="font-medium text-foreground">#1</span> among competitors
+                              </p>
+                            </motion.div>
+
+                            {/* Competitor Ranking - Clean List */}
+                            <motion.div
+                              className="space-y-4"
+                              variants={itemVariants}
+                            >
+                              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                                Industry Ranking
+                              </h3>
+                              <div className="space-y-1.5">
+                                {/* Your Brand - Rank 1 */}
+                                <motion.div
+                                  className="group relative overflow-hidden rounded-lg border border-[#C2C2E1]/30 bg-[#C2C2E1]/5 px-4 py-3 transition-all hover:border-[#C2C2E1]/50 hover:bg-[#C2C2E1]/10"
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: 0.3 }}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-sm font-medium text-muted-foreground w-6">1</span>
+                                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 border border-[#C2C2E1]/30">
+                                        <span className="text-xs font-semibold text-[#C2C2E1]">
+                                          {projectName.charAt(0).toUpperCase()}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{projectName}</span>
+                                        <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5 bg-[#C2C2E1]/20 text-[#C2C2E1] border-[#C2C2E1]/30">
+                                          Your brand
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <span className="text-lg font-semibold text-[#C2C2E1]">30%</span>
+                                      <div className="h-1.5 w-20 rounded-full bg-[#C2C2E1]/10 overflow-hidden">
+                                        <motion.div
+                                          className="h-full bg-[#C2C2E1] rounded-full"
+                                          initial={{ width: 0 }}
+                                          animate={{ width: "30%" }}
+                                          transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </motion.div>
+
+                                {/* Competitors */}
+                                {[
+                                  { rank: 2, name: "TechVentures", visibility: 25 },
+                                  { rank: 3, name: "InnovateLab", visibility: 22 },
+                                  { rank: 4, name: "StartupHub", visibility: 18 },
+                                  { rank: 5, name: "ScaleUp", visibility: 15 },
+                                ].map((competitor, index) => (
+                                  <motion.div
+                                    key={competitor.rank}
+                                    className="group relative overflow-hidden rounded-lg border border-border bg-card/30 px-4 py-3 transition-all hover:border-[#C2C2E1]/30 hover:bg-card/50"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.35 + index * 0.05 }}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-muted-foreground w-6">
+                                          {competitor.rank}
+                                        </span>
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border border-border">
+                                          <span className="text-xs font-medium text-muted-foreground">
+                                            {competitor.name.charAt(0)}
+                                          </span>
+                                        </div>
+                                        <span className="font-medium text-sm">{competitor.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                          {competitor.visibility}%
+                                        </span>
+                                        <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
+                                          <motion.div
+                                            className="h-full bg-muted-foreground/30 rounded-full"
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${competitor.visibility}%` }}
+                                            transition={{ delay: 0.6 + index * 0.05, duration: 0.8, ease: "easeOut" }}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          </motion.div>
+                        </motion.div>
+
+                        <motion.div
+                          className="flex gap-3"
+                          variants={itemVariants}
+                        >
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setDirection(-1);
+                                setCurrentStep(3);
+                              }}
+                              disabled={loading}
+                              className="h-12"
+                            >
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Back
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            className="flex-1"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                          >
+                            <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                              Continue
+                              <ArrowRight className="ml-2 h-5 w-5" />
+                            </Button>
+                          </motion.div>
+                        </motion.div>
+                      </motion.form>
+                    )}
+
+                    {/* Step 5: Plan Selection */}
+                    {currentStep === 5 && (
+                      <motion.form
+                        key="step5"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep5Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-6"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <CreditCard className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Choose your plan</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Select the plan that best fits your needs
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* Plans - Minimalist Design */}
+                          <motion.div
+                            className="space-y-4"
+                            variants={itemVariants}
+                          >
+                            {/* Business Plan */}
+                            <motion.div
+                              className="group relative overflow-hidden rounded-lg border border-[#C2C2E1]/30 bg-[#C2C2E1]/5 px-6 py-5 transition-all hover:border-[#C2C2E1]/50 hover:bg-[#C2C2E1]/10"
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.2 }}
+                            >
+                              <div className="flex items-start justify-between gap-6">
+                                <div className="flex-1 space-y-4">
+                                  <div className="flex items-center gap-3">
+                                    <h3 className="text-xl font-semibold">Business</h3>
+                                    <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-[#C2C2E1]/20 text-[#C2C2E1] border-[#C2C2E1]/30">
+                                      Popular
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-bold">€200</span>
+                                    <span className="text-sm text-muted-foreground">/month per brand</span>
+                                  </div>
+                                  <ul className="space-y-2.5 pt-2">
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm"><strong>100 prompts</strong> per month</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Real-time citation tracking</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Sentiment analysis</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Competitor tracking</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Email support</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Check className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Advanced analytics dashboard</span>
+                                    </li>
+                                  </ul>
+                                </div>
+                                <div className="flex items-end">
+                                  <Button
+                                    type="submit"
+                                    className="h-10 px-6 bg-[#C2C2E1] hover:bg-[#C2C2E1]/90 text-white"
+                                    size="lg"
+                                  >
+                                    Get Started
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+
+                            {/* Enterprise Plan */}
+                            <motion.div
+                              className="group relative overflow-hidden rounded-lg border border-border bg-card/30 px-6 py-5 transition-all hover:border-[#C2C2E1]/30 hover:bg-card/50"
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.3 }}
+                            >
+                              <div className="flex items-start justify-between gap-6">
+                                <div className="flex-1 space-y-4">
+                                  <div>
+                                    <h3 className="text-xl font-semibold">Enterprise</h3>
+                                  </div>
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-bold">Custom</span>
+                                    <span className="text-sm text-muted-foreground">pricing</span>
+                                  </div>
+                                  <ul className="space-y-2.5 pt-2">
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm"><strong>Unlimited</strong> prompts</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Everything in Business</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Multiple brands & workspaces</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Priority support</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Custom integrations</span>
+                                    </li>
+                                    <li className="flex items-center gap-2.5">
+                                      <Star className="h-4 w-4 text-[#C2C2E1] shrink-0" />
+                                      <span className="text-sm">Dedicated account manager</span>
+                                    </li>
+                                  </ul>
+                                </div>
+                                <div className="flex items-end">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-10 px-6 border"
+                                    size="lg"
+                                    onClick={() => window.open("mailto:support@ateneai.com?subject=Enterprise Plan Inquiry", "_blank")}
+                                  >
+                                    <Mail className="mr-2 h-4 w-4" />
+                                    Contact Sales
+                                  </Button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          </motion.div>
+                        </motion.div>
+
+                        <motion.div
+                          className="flex gap-3"
+                          variants={itemVariants}
+                        >
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setDirection(-1);
+                                setCurrentStep(4);
+                              }}
+                              disabled={loading}
+                              className="h-12"
+                            >
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Back
+                            </Button>
+                          </motion.div>
+                        </motion.div>
+                      </motion.form>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

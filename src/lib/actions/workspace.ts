@@ -115,7 +115,11 @@ export async function createProject(data: {
 
 export async function savePrompts(data: {
   project_id: string;
-  prompts: string[];
+  prompts: Array<{
+    prompt: string;
+    region?: string;
+    category?: string;
+  }>;
 }) {
   const supabase = await createClient();
   const {
@@ -126,10 +130,12 @@ export async function savePrompts(data: {
     return { error: "Not authenticated", success: false };
   }
 
-  // Insert prompts
+  // Insert prompts with region and category
   const promptsData = data.prompts.map((prompt) => ({
     project_id: data.project_id,
-    prompt,
+    prompt: prompt.prompt,
+    region: prompt.region || "GLOBAL",
+    category: prompt.category || "general",
     is_active: true,
   }));
 
