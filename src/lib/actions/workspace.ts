@@ -113,6 +113,37 @@ export async function createProject(data: {
   return { error: null, data: project };
 }
 
+export async function saveOnboardingData(data: {
+  user_type: "agency" | "company";
+  referral_source: string;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated", success: false };
+  }
+
+  // Update user profile with onboarding data
+  const { error } = await supabase
+    .from("users")
+    .update({
+      user_type: data.user_type,
+      referral_source: data.referral_source,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    return { error: error.message, success: false };
+  }
+
+  revalidatePath("/", "layout");
+  return { error: null, success: true };
+}
+
 export async function savePrompts(data: {
   project_id: string;
   prompts: Array<{

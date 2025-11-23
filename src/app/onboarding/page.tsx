@@ -8,9 +8,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createWorkspace, createProject, savePrompts } from "@/lib/actions/workspace";
+import { createWorkspace, createProject, savePrompts, saveOnboardingData } from "@/lib/actions/workspace";
 import { generatePromptSuggestions } from "@/lib/prompts-suggestions";
-import { Loader2, Check, Building2, FolderKanban, Globe, Sparkles, ArrowRight, ArrowLeft, Plus, X, Tag, Trophy, CreditCard, Mail, Star } from "lucide-react";
+import { Loader2, Check, Building2, FolderKanban, Globe, Sparkles, ArrowRight, ArrowLeft, Plus, X, Tag, Trophy, CreditCard, Mail, Star, Users, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CountrySelect } from "@/components/ui/country-select";
@@ -21,30 +21,36 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 const STEPS = [
   { 
     id: 1, 
+    name: "Welcome", 
+    description: "Tell us about yourself",
+    icon: Users,
+  },
+  { 
+    id: 2, 
     name: "Workspace", 
     description: "Name your workspace",
     icon: Building2,
   },
   { 
-    id: 2, 
+    id: 3, 
     name: "Project", 
     description: "Create your first project",
     icon: FolderKanban,
   },
   { 
-    id: 3, 
+    id: 4, 
     name: "Prompts", 
     description: "Select prompts to track",
     icon: Sparkles,
   },
   { 
-    id: 4, 
+    id: 5, 
     name: "Results", 
     description: "View your ranking",
     icon: Trophy,
   },
   { 
-    id: 5, 
+    id: 6, 
     name: "Plan", 
     description: "Choose your plan",
     icon: CreditCard,
@@ -126,6 +132,8 @@ export default function OnboardingPage() {
   const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
 
   // Form data
+  const [userType, setUserType] = useState<"agency" | "company" | "">("");
+  const [referralSource, setReferralSource] = useState<string>("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [clientUrl, setClientUrl] = useState("");
@@ -149,6 +157,36 @@ export default function OnboardingPage() {
 
   const handleStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userType) {
+      setError("Please select if you're an agency or a company");
+      return;
+    }
+    if (!referralSource) {
+      setError("Please select how you heard about us");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const result = await saveOnboardingData({
+      user_type: userType,
+      referral_source: referralSource,
+    });
+
+    if (result.error) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(false);
+    setDirection(1);
+    setCurrentStep(2);
+  };
+
+  const handleStep2Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!workspaceName.trim()) {
       setError("Please enter a workspace name");
       return;
@@ -168,10 +206,10 @@ export default function OnboardingPage() {
     setWorkspaceId(result.data!.id);
     setLoading(false);
     setDirection(1);
-    setCurrentStep(2);
+    setCurrentStep(3);
   };
 
-  const handleStep2Submit = async (e: React.FormEvent) => {
+  const handleStep3Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectName.trim()) {
       setError("Please enter a project name");
@@ -227,10 +265,10 @@ export default function OnboardingPage() {
 
     setLoading(false);
     setDirection(1);
-    setCurrentStep(3);
+    setCurrentStep(4);
   };
 
-  const handleStep3Submit = async (e: React.FormEvent) => {
+  const handleStep4Submit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (selectedPrompts.length === 0) {
@@ -258,17 +296,17 @@ export default function OnboardingPage() {
 
     setLoading(false);
     setDirection(1);
-    setCurrentStep(4);
-  };
-
-  const handleStep4Submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Results step - just continue to plan
-    setDirection(1);
     setCurrentStep(5);
   };
 
   const handleStep5Submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Results step - just continue to plan
+    setDirection(1);
+    setCurrentStep(6);
+  };
+
+  const handleStep6Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Plan step - redirect to dashboard
     router.push(`/dashboard`);
@@ -386,12 +424,12 @@ export default function OnboardingPage() {
           </Link>
         </motion.div>
 
-        {/* Step Indicators - Fixed top center */}
+        {/* Step Indicators - Scrollable */}
         <motion.div
-          className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center pt-24 pb-8"
+          className="flex items-center justify-center pt-20 pb-6"
           variants={itemVariants}
         >
-          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
+          <div className="flex items-center">
             {STEPS.map((step, index) => {
               const Icon = step.icon;
               const isCompleted = step.id < currentStep;
@@ -484,7 +522,7 @@ export default function OnboardingPage() {
         </motion.div>
 
         {/* Content Area */}
-        <div className="flex flex-1 items-center justify-center pb-12 pt-40">
+        <div className="flex flex-1 items-center justify-center pb-12 pt-8">
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-2xl">
               {/* Main Card */}
@@ -511,7 +549,7 @@ export default function OnboardingPage() {
                       </motion.div>
                     )}
 
-                    {/* Step 1: Create Workspace */}
+                    {/* Step 1: Welcome */}
                     {currentStep === 1 && (
                       <motion.form
                         key="step1"
@@ -521,6 +559,196 @@ export default function OnboardingPage() {
                         animate="visible"
                         exit="exit"
                         onSubmit={handleStep1Submit}
+                        className="space-y-8"
+                      >
+                        <motion.div
+                          className="space-y-6"
+                          variants={containerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <motion.div
+                            className="flex items-center gap-3"
+                            variants={itemVariants}
+                          >
+                            <motion.div
+                              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C2C2E1]/20"
+                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
+                              <Users className="h-5 w-5 text-[#C2C2E1]" />
+                            </motion.div>
+                            <div>
+                              <h2 className="text-2xl font-bold tracking-tight">Welcome to Ateneai</h2>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Help us personalize your experience
+                              </p>
+                            </div>
+                          </motion.div>
+
+                          {/* User Type Selection */}
+                          <motion.div
+                            className="space-y-3"
+                            variants={itemVariants}
+                          >
+                            <Label className="text-base">Are you an agency or a company?</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <motion.button
+                                type="button"
+                                onClick={() => setUserType("agency")}
+                                className={cn(
+                                  "relative overflow-hidden rounded-lg border-2 p-4 text-left transition-all",
+                                  userType === "agency"
+                                    ? "border-[#C2C2E1] bg-[#C2C2E1]/10"
+                                    : "border-border bg-card/50 hover:border-[#C2C2E1]/50 hover:bg-card"
+                                )}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={cn(
+                                    "flex h-10 w-10 items-center justify-center rounded-full",
+                                    userType === "agency"
+                                      ? "bg-[#C2C2E1] text-white"
+                                      : "bg-muted text-muted-foreground"
+                                  )}>
+                                    <Briefcase className="h-5 w-5" />
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold">Agency</div>
+                                    <div className="text-xs text-muted-foreground">Manage multiple clients</div>
+                                  </div>
+                                </div>
+                                {userType === "agency" && (
+                                  <motion.div
+                                    className="absolute top-2 right-2"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                  >
+                                    <Check className="h-5 w-5 text-[#C2C2E1]" />
+                                  </motion.div>
+                                )}
+                              </motion.button>
+
+                              <motion.button
+                                type="button"
+                                onClick={() => setUserType("company")}
+                                className={cn(
+                                  "relative overflow-hidden rounded-lg border-2 p-4 text-left transition-all",
+                                  userType === "company"
+                                    ? "border-[#C2C2E1] bg-[#C2C2E1]/10"
+                                    : "border-border bg-card/50 hover:border-[#C2C2E1]/50 hover:bg-card"
+                                )}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={cn(
+                                    "flex h-10 w-10 items-center justify-center rounded-full",
+                                    userType === "company"
+                                      ? "bg-[#C2C2E1] text-white"
+                                      : "bg-muted text-muted-foreground"
+                                  )}>
+                                    <Building2 className="h-5 w-5" />
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold">Company</div>
+                                    <div className="text-xs text-muted-foreground">Track your own brand</div>
+                                  </div>
+                                </div>
+                                {userType === "company" && (
+                                  <motion.div
+                                    className="absolute top-2 right-2"
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                  >
+                                    <Check className="h-5 w-5 text-[#C2C2E1]" />
+                                  </motion.div>
+                                )}
+                              </motion.button>
+                            </div>
+                          </motion.div>
+
+                          {/* Referral Source Selection */}
+                          <motion.div
+                            className="space-y-3"
+                            variants={itemVariants}
+                          >
+                            <Label className="text-base">How did you hear about us?</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              {[
+                                { value: "social", label: "Social Media", icon: "📱" },
+                                { value: "friends", label: "Friends or colleagues", icon: "👥" },
+                                { value: "google", label: "Google search", icon: "🔍" },
+                                { value: "press", label: "Press", icon: "📰" },
+                                { value: "other", label: "Other", icon: "✨" },
+                              ].map((source) => (
+                                <motion.button
+                                  key={source.value}
+                                  type="button"
+                                  onClick={() => setReferralSource(source.value)}
+                                  className={cn(
+                                    "relative overflow-hidden rounded-lg border-2 p-3 text-left transition-all",
+                                    referralSource === source.value
+                                      ? "border-[#C2C2E1] bg-[#C2C2E1]/10"
+                                      : "border-border bg-card/50 hover:border-[#C2C2E1]/50 hover:bg-card"
+                                  )}
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-lg">{source.icon}</span>
+                                    <span className="text-sm font-medium">{source.label}</span>
+                                  </div>
+                                  {referralSource === source.value && (
+                                    <motion.div
+                                      className="absolute top-2 right-2"
+                                      initial={{ scale: 0 }}
+                                      animate={{ scale: 1 }}
+                                      transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                    >
+                                      <Check className="h-4 w-4 text-[#C2C2E1]" />
+                                    </motion.div>
+                                  )}
+                                </motion.button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        </motion.div>
+                        <motion.div
+                          variants={itemVariants}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <Button type="submit" className="w-full h-12 text-base" size="lg" disabled={loading}>
+                            {loading ? (
+                              <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                Continue
+                                <ArrowRight className="ml-2 h-5 w-5" />
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </motion.form>
+                    )}
+
+                    {/* Step 2: Create Workspace */}
+                    {currentStep === 2 && (
+                      <motion.form
+                        key="step2"
+                        custom={direction}
+                        variants={stepVariants}
+                        initial="hidden"
+                        animate="visible"
+                        exit="exit"
+                        onSubmit={handleStep2Submit}
                         className="space-y-8"
                       >
                         <motion.div
@@ -589,8 +817,8 @@ export default function OnboardingPage() {
                       </motion.form>
                     )}
 
-                    {/* Step 2: Create Project */}
-                    {currentStep === 2 && (
+                    {/* Step 3: Create Project */}
+                    {currentStep === 3 && (
                       <motion.form
                         key="step2"
                         custom={direction}
@@ -598,7 +826,7 @@ export default function OnboardingPage() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        onSubmit={handleStep2Submit}
+                        onSubmit={handleStep3Submit}
                         className="space-y-8"
                       >
                         <motion.div
@@ -675,7 +903,7 @@ export default function OnboardingPage() {
                               variant="outline"
                               onClick={() => {
                                 setDirection(-1);
-                                setCurrentStep(1);
+                                setCurrentStep(2);
                               }}
                               disabled={loading}
                               className="h-12"
@@ -707,8 +935,8 @@ export default function OnboardingPage() {
                       </motion.form>
                     )}
 
-                    {/* Step 3: Select Prompts */}
-                    {currentStep === 3 && (
+                    {/* Step 4: Select Prompts */}
+                    {currentStep === 4 && (
                       <motion.form
                         key="step4"
                         custom={direction}
@@ -1089,8 +1317,8 @@ export default function OnboardingPage() {
                       </motion.form>
                     )}
 
-                    {/* Step 4: Results */}
-                    {currentStep === 4 && (
+                    {/* Step 5: Results */}
+                    {currentStep === 5 && (
                       <motion.form
                         key="step4"
                         custom={direction}
@@ -1098,7 +1326,7 @@ export default function OnboardingPage() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        onSubmit={handleStep4Submit}
+                        onSubmit={handleStep5Submit}
                         className="space-y-8"
                       >
                         <motion.div
@@ -1129,24 +1357,30 @@ export default function OnboardingPage() {
                           {/* Results Display */}
                           <motion.div
                             className="space-y-8"
-                            variants={itemVariants}
+                            key="results-content"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3 }}
                           >
                             {/* Main Stats - Minimalist */}
                             <motion.div
                               className="space-y-3"
+                              key="main-stats"
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: 0.2 }}
+                              transition={{ delay: 0.1, duration: 0.4 }}
                             >
                               <div className="flex items-baseline gap-3">
                                 <h3 className="text-3xl font-bold tracking-tight">
-                                  {projectName} has{" "}
+                                  {projectName || "Your Brand"} has{" "}
                                   <span className="text-[#C2C2E1]">30%</span> visibility
                                 </h3>
                                 <motion.div
                                   className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1] text-white text-sm font-semibold"
-                                  animate={{ scale: [1, 1.05, 1] }}
-                                  transition={{ duration: 2, repeat: Infinity }}
+                                  key="rank-badge"
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
                                 >
                                   #1
                                 </motion.div>
@@ -1159,7 +1393,10 @@ export default function OnboardingPage() {
                             {/* Competitor Ranking - Clean List */}
                             <motion.div
                               className="space-y-4"
-                              variants={itemVariants}
+                              key="competitor-ranking"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: 0.2, duration: 0.4 }}
                             >
                               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
                                 Industry Ranking
@@ -1168,20 +1405,21 @@ export default function OnboardingPage() {
                                 {/* Your Brand - Rank 1 */}
                                 <motion.div
                                   className="group relative overflow-hidden rounded-lg border border-[#C2C2E1]/30 bg-[#C2C2E1]/5 px-4 py-3 transition-all hover:border-[#C2C2E1]/50 hover:bg-[#C2C2E1]/10"
+                                  key="your-brand"
                                   initial={{ opacity: 0, x: -20 }}
                                   animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: 0.3 }}
+                                  transition={{ delay: 0.3, duration: 0.4 }}
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                       <span className="text-sm font-medium text-muted-foreground w-6">1</span>
                                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 border border-[#C2C2E1]/30">
                                         <span className="text-xs font-semibold text-[#C2C2E1]">
-                                          {projectName.charAt(0).toUpperCase()}
+                                          {(projectName || "B").charAt(0).toUpperCase()}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <span className="font-medium">{projectName}</span>
+                                        <span className="font-medium">{projectName || "Your Brand"}</span>
                                         <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5 bg-[#C2C2E1]/20 text-[#C2C2E1] border-[#C2C2E1]/30">
                                           Your brand
                                         </Badge>
@@ -1192,6 +1430,7 @@ export default function OnboardingPage() {
                                       <div className="h-1.5 w-20 rounded-full bg-[#C2C2E1]/10 overflow-hidden">
                                         <motion.div
                                           className="h-full bg-[#C2C2E1] rounded-full"
+                                          key="progress-bar-1"
                                           initial={{ width: 0 }}
                                           animate={{ width: "30%" }}
                                           transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
@@ -1209,11 +1448,11 @@ export default function OnboardingPage() {
                                   { rank: 5, name: "ScaleUp", visibility: 15 },
                                 ].map((competitor, index) => (
                                   <motion.div
-                                    key={competitor.rank}
+                                    key={`competitor-${competitor.rank}`}
                                     className="group relative overflow-hidden rounded-lg border border-border bg-card/30 px-4 py-3 transition-all hover:border-[#C2C2E1]/30 hover:bg-card/50"
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.35 + index * 0.05 }}
+                                    transition={{ delay: 0.35 + index * 0.05, duration: 0.4 }}
                                   >
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-3">
@@ -1234,6 +1473,7 @@ export default function OnboardingPage() {
                                         <div className="h-1.5 w-20 rounded-full bg-muted overflow-hidden">
                                           <motion.div
                                             className="h-full bg-muted-foreground/30 rounded-full"
+                                            key={`progress-bar-${competitor.rank}`}
                                             initial={{ width: 0 }}
                                             animate={{ width: `${competitor.visibility}%` }}
                                             transition={{ delay: 0.6 + index * 0.05, duration: 0.8, ease: "easeOut" }}
@@ -1258,7 +1498,7 @@ export default function OnboardingPage() {
                               variant="outline"
                               onClick={() => {
                                 setDirection(-1);
-                                setCurrentStep(3);
+                                setCurrentStep(4);
                               }}
                               disabled={loading}
                               className="h-12"
@@ -1281,8 +1521,8 @@ export default function OnboardingPage() {
                       </motion.form>
                     )}
 
-                    {/* Step 5: Plan Selection */}
-                    {currentStep === 5 && (
+                    {/* Step 6: Plan Selection */}
+                    {currentStep === 6 && (
                       <motion.form
                         key="step5"
                         custom={direction}
