@@ -8,6 +8,7 @@ export interface BentoCardProps {
   label?: string;
   textAutoHide?: boolean;
   disableAnimations?: boolean;
+  icon?: React.FC<{ className?: string }>;
 }
 
 export interface BentoProps {
@@ -29,42 +30,239 @@ const DEFAULT_SPOTLIGHT_RADIUS = 300;
 const DEFAULT_GLOW_COLOR = '194, 194, 225'; // #C2C2E1
 const MOBILE_BREAKPOINT = 768;
 
+// SVG Icons for each card
+const CitationTrackingIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 200 200"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <defs>
+      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="rgba(194, 194, 225, 0.3)" />
+        <stop offset="100%" stopColor="rgba(194, 194, 225, 0.1)" />
+      </linearGradient>
+    </defs>
+    {/* Network nodes and connections */}
+    <circle cx="50" cy="50" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
+    <circle cx="150" cy="50" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
+    <circle cx="50" cy="150" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
+    <circle cx="150" cy="150" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
+    <circle cx="100" cy="100" r="12" fill="rgba(194, 194, 225, 0.8)" className="icon-node icon-center" />
+    {/* Connections */}
+    <line x1="50" y1="50" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
+    <line x1="150" y1="50" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
+    <line x1="50" y1="150" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
+    <line x1="150" y1="150" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
+  </svg>
+);
+
+const SentimentAnalysisIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 200 200"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Bar chart representing sentiment - wider bars */}
+    <rect x="25" y="130" width="25" height="50" fill="rgba(194, 194, 225, 0.5)" className="icon-bar" rx="4" />
+    <rect x="60" y="90" width="25" height="90" fill="rgba(194, 194, 225, 0.6)" className="icon-bar" rx="4" />
+    <rect x="95" y="110" width="25" height="70" fill="rgba(194, 194, 225, 0.7)" className="icon-bar" rx="4" />
+    <rect x="130" y="70" width="25" height="110" fill="rgba(194, 194, 225, 0.8)" className="icon-bar" rx="4" />
+    {/* Trend line */}
+    <path
+      d="M 37.5 155 Q 72.5 115, 107.5 125 T 142.5 115"
+      stroke="rgba(194, 194, 225, 0.8)"
+      strokeWidth="3"
+      fill="none"
+      className="icon-line"
+    />
+  </svg>
+);
+
+const ShareOfVoiceIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 200 200"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Pie chart segments - smaller, more compact */}
+    <circle cx="100" cy="100" r="50" fill="none" stroke="rgba(194, 194, 225, 0.2)" strokeWidth="2" />
+    <path
+      d="M 100 100 L 100 50 A 50 50 0 0 1 150 100 Z"
+      fill="rgba(194, 194, 225, 0.6)"
+      className="icon-segment"
+    />
+    <path
+      d="M 100 100 L 150 100 A 50 50 0 0 1 125 150 Z"
+      fill="rgba(194, 194, 225, 0.4)"
+      className="icon-segment"
+    />
+    <path
+      d="M 100 100 L 125 150 A 50 50 0 0 1 50 150 Z"
+      fill="rgba(194, 194, 225, 0.3)"
+      className="icon-segment"
+    />
+    <path
+      d="M 100 100 L 50 150 A 50 50 0 0 1 100 50 Z"
+      fill="rgba(194, 194, 225, 0.5)"
+      className="icon-segment"
+    />
+    {/* Center circle */}
+    <circle cx="100" cy="100" r="18" fill="rgba(194, 194, 225, 0.2)" className="icon-center" />
+  </svg>
+);
+
+const PlatformBreakdownIcon = ({ className }: { className?: string }) => {
+  // Generate 2 rows x 3 columns = 6 rectangles
+  const rows = 2;
+  const cols = 3;
+  const totalWidth = 200; // Full viewBox width
+  const spacing = 5;
+  const rectWidth = (totalWidth - (spacing * (cols - 1))) / cols; // Calculate width to fill space
+  const rectHeight = 55;
+  const startX = 0;
+  const startY = 60;
+  
+  const rectangles = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const x = startX + col * (rectWidth + spacing);
+      const y = startY + row * (rectHeight + spacing);
+      rectangles.push(
+        <rect
+          key={`${row}-${col}`}
+          x={x}
+          y={y}
+          width={rectWidth}
+          height={rectHeight}
+          rx="6"
+          fill="rgba(194, 194, 225, 0.3)"
+          className="icon-platform-square"
+          data-index={row * cols + col}
+        />
+      );
+    }
+  }
+  
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 200 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: '100%' }}
+    >
+      {rectangles}
+    </svg>
+  );
+};
+
+const QueryPatternsIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 200 200"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Wave patterns - wider waves */}
+    <path
+      d="M 15 90 Q 50 50, 85 90 T 155 90 T 185 90"
+      stroke="rgba(194, 194, 225, 0.6)"
+      strokeWidth="3"
+      fill="none"
+      className="icon-wave"
+    />
+    <path
+      d="M 15 110 Q 50 150, 85 110 T 155 110 T 185 110"
+      stroke="rgba(194, 194, 225, 0.5)"
+      strokeWidth="3"
+      fill="none"
+      className="icon-wave"
+    />
+    {/* Dots representing data points */}
+    <circle cx="50" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+    <circle cx="100" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+    <circle cx="150" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+  </svg>
+);
+
+const TrendingQueriesIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 200 200"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Ascending trend line - more pronounced */}
+    <path
+      d="M 25 155 L 55 125 L 85 105 L 115 75 L 145 55 L 165 45"
+      stroke="rgba(194, 194, 225, 0.8)"
+      strokeWidth="4"
+      fill="none"
+      className="icon-trend"
+    />
+    {/* Arrow pointing up */}
+    <path
+      d="M 155 55 L 165 45 L 175 55"
+      stroke="rgba(194, 194, 225, 0.8)"
+      strokeWidth="4"
+      fill="none"
+      className="icon-arrow"
+    />
+    {/* Data points - fewer, more spaced */}
+    <circle cx="25" cy="155" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+    <circle cx="85" cy="105" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+    <circle cx="145" cy="55" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
+    <circle cx="165" cy="45" r="5" fill="rgba(194, 194, 225, 1)" className="icon-node icon-center" />
+  </svg>
+);
+
 const cardData: BentoCardProps[] = [
   {
     color: 'transparent',
     title: 'Citation Tracking',
     description: 'Monitor brand mentions across AI platforms',
-    label: 'Tracking'
+    label: 'Tracking',
+    icon: CitationTrackingIcon
   },
   {
     color: 'transparent',
     title: 'Sentiment Analysis',
     description: 'Understand how AI perceives your brand',
-    label: 'Insights'
+    label: 'Insights',
+    icon: SentimentAnalysisIcon
   },
   {
     color: 'transparent',
     title: 'Share of Voice',
     description: 'Compare your mentions against competitors',
-    label: 'Competition'
+    label: 'Competition',
+    icon: ShareOfVoiceIcon
   },
   {
     color: 'transparent',
     title: 'Platform Breakdown',
     description: 'Track performance across ChatGPT, Gemini, Claude',
-    label: 'Analytics'
+    label: 'Analytics',
+    icon: PlatformBreakdownIcon
   },
   {
     color: 'transparent',
     title: 'Query Patterns',
     description: 'Discover what prompts mention your brand',
-    label: 'Patterns'
+    label: 'Patterns',
+    icon: QueryPatternsIcon
   },
   {
     color: 'transparent',
     title: 'Trending Queries',
     description: 'Identify emerging search trends',
-    label: 'Trends'
+    label: 'Trends',
+    icon: TrendingQueriesIcon
   }
 ];
 
@@ -611,6 +809,160 @@ const MagicBento: React.FC<BentoProps> = ({
             box-shadow: 0 4px 20px rgba(46, 24, 78, 0.4), 0 0 30px rgba(${glowColor}, 0.2);
           }
           
+          .card-icon {
+            position: absolute;
+            opacity: 0.4;
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 0;
+          }
+          
+          .card-icon-3 {
+            pointer-events: auto;
+          }
+          
+          /* Individual card icon positioning and sizing */
+          .card-icon-0 {
+            width: 120px;
+            height: 120px;
+            top: calc(1.5rem + 1.25rem);
+          }
+          
+          .card-icon-1 {
+            width: 140px;
+            height: 100px;
+            top: calc(1.5rem + 1.5rem);
+          }
+          
+          .card-icon-2 {
+            width: 110px;
+            height: 110px;
+            top: calc(1.5rem + 1.75rem);
+          }
+          
+          .card-icon-3 {
+            width: calc(100% - 3rem);
+            max-width: 100%;
+            height: 250px;
+            top: calc(1rem + 1.5rem);
+            left: 1.5rem;
+            transform: none;
+          }
+          
+          .card-icon-4 {
+            width: 150px;
+            height: 80px;
+            top: calc(1.5rem + 2rem);
+          }
+          
+          .card-icon-5 {
+            width: 140px;
+            height: 90px;
+            top: calc(1.5rem + 1.75rem);
+          }
+          
+          .card:hover .card-icon {
+            opacity: 0.7;
+          }
+          
+          .card:hover .card-icon:not(.card-icon-3) {
+            transform: translateX(-50%) scale(1.05);
+          }
+          
+          .card__header {
+            position: relative;
+            z-index: 10;
+          }
+          
+          .card__content {
+            position: relative;
+            z-index: 10;
+            margin-top: auto;
+          }
+          
+          .card-icon svg {
+            width: 100%;
+            height: 100%;
+          }
+          
+          .icon-node,
+          .icon-line,
+          .icon-bar,
+          .icon-segment,
+          .icon-platform,
+          .icon-wave,
+          .icon-trend,
+          .icon-arrow {
+            transition: all 0.3s ease;
+          }
+          
+          .card:hover .icon-node {
+            fill: rgba(194, 194, 225, 0.9);
+            transform: scale(1.1);
+          }
+          
+          .card:hover .icon-center {
+            fill: rgba(194, 194, 225, 0.6);
+            transform: scale(1.15);
+          }
+          
+          .card:hover .icon-line {
+            stroke: rgba(194, 194, 225, 0.8);
+            stroke-width: 3;
+          }
+          
+          .card:hover .icon-bar {
+            fill: rgba(194, 194, 225, 0.8);
+            transform: translateY(-2px);
+          }
+          
+          .card:hover .icon-segment {
+            fill: rgba(194, 194, 225, 0.7);
+          }
+          
+          .card:hover .icon-platform {
+            fill: rgba(194, 194, 225, 0.6);
+            transform: translateY(-3px);
+          }
+          
+          .icon-platform-square {
+            transition: fill 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            fill: rgba(194, 194, 225, 0.3);
+          }
+          
+          .icon-platform-square.active {
+            fill: rgba(165, 165, 214, 0.9);
+            transition: fill 1s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .card:hover .icon-wave {
+            stroke: rgba(194, 194, 225, 0.8);
+            stroke-width: 4;
+          }
+          
+          .card:hover .icon-trend {
+            stroke: rgba(194, 194, 225, 1);
+            stroke-width: 5;
+          }
+          
+          .card:hover .icon-arrow {
+            stroke: rgba(194, 194, 225, 1);
+            stroke-width: 5;
+          }
+          
+          @keyframes pulse {
+            0%, 100% {
+              opacity: 0.4;
+            }
+            50% {
+              opacity: 0.7;
+            }
+          }
+          
+          .card:hover .icon-node {
+            animation: pulse 2s ease-in-out infinite;
+          }
+          
           .particle::before {
             content: '';
             position: absolute;
@@ -677,6 +1029,9 @@ const MagicBento: React.FC<BentoProps> = ({
             const baseClassName = `card flex flex-col justify-between relative aspect-[4/3] min-h-[250px] w-full max-w-full p-6 rounded-[20px] border border-solid font-light overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.15)] ${
               enableBorderGlow ? 'card--border-glow' : ''
             }`;
+            
+            // Calculate icon position: between header and content
+            const iconTop = 'calc(50% - 0.5rem)'; // Slightly above center to account for text spacing
 
             const cardStyle = {
               backgroundColor: card.color || 'var(--background-dark)',
@@ -701,10 +1056,10 @@ const MagicBento: React.FC<BentoProps> = ({
                   clickEffect={clickEffect}
                   enableMagnetism={enableMagnetism}
                 >
-                  <div className="card__header flex justify-between gap-3 relative" style={{ color: 'hsl(var(--foreground))' }}>
+                  <div className="card__header flex justify-between gap-3 relative z-10" style={{ color: 'hsl(var(--foreground))' }}>
                     <span className="card__label text-base font-medium">{card.label}</span>
                   </div>
-                  <div className="card__content flex flex-col relative" style={{ color: 'hsl(var(--foreground))' }}>
+                  <div className="card__content flex flex-col relative z-10" style={{ color: 'hsl(var(--foreground))' }}>
                     <h3 className={`card__title font-semibold text-lg m-0 mb-2 ${textAutoHide ? 'text-clamp-1' : ''}`}>
                       {card.title}
                     </h3>
@@ -714,6 +1069,92 @@ const MagicBento: React.FC<BentoProps> = ({
                       {card.description}
                     </p>
                   </div>
+                  {card.icon && (
+                    <div 
+                      className={`card-icon card-icon-${index}`}
+                      ref={(el) => {
+                        if (el && index === 3) {
+                          // Add sequential random glow animation for Platform Breakdown card
+                          let glowInterval: NodeJS.Timeout | null = null;
+                          let currentIndex = -1;
+                          let isActive = false;
+                          
+                          const handleMouseEnter = () => {
+                            if (isActive) return;
+                            isActive = true;
+                            
+                            const squares = Array.from(el.querySelectorAll('.icon-platform-square')) as HTMLElement[];
+                            
+                            const glowNext = () => {
+                              if (!isActive) return;
+                              
+                              // Remove active class from previous square
+                              if (currentIndex >= 0 && squares[currentIndex]) {
+                                squares[currentIndex].classList.remove('active');
+                              }
+                              
+                              // Pick a random square (different from current)
+                              let nextIndex;
+                              if (squares.length === 1) {
+                                nextIndex = 0;
+                              } else {
+                                do {
+                                  nextIndex = Math.floor(Math.random() * squares.length);
+                                } while (nextIndex === currentIndex);
+                              }
+                              
+                              currentIndex = nextIndex;
+                              squares[currentIndex].classList.add('active');
+                              
+                              // Schedule next glow
+                              const delay = 400 + Math.random() * 300; // 400-700ms between glows
+                              glowInterval = setTimeout(glowNext, delay);
+                            };
+                            
+                            // Start the sequence immediately
+                            glowNext();
+                          };
+                          
+                          const handleMouseLeave = () => {
+                            isActive = false;
+                            if (glowInterval) {
+                              clearTimeout(glowInterval);
+                              glowInterval = null;
+                            }
+                            const squares = el.querySelectorAll('.icon-platform-square');
+                            squares.forEach((square) => {
+                              square.classList.remove('active');
+                            });
+                            currentIndex = -1;
+                          };
+                          
+                          // Also listen on the card itself
+                          const card = el.closest('.card');
+                          if (card) {
+                            card.addEventListener('mouseenter', handleMouseEnter);
+                            card.addEventListener('mouseleave', handleMouseLeave);
+                          }
+                          
+                          el.addEventListener('mouseenter', handleMouseEnter);
+                          el.addEventListener('mouseleave', handleMouseLeave);
+                          
+                          return () => {
+                            if (card) {
+                              card.removeEventListener('mouseenter', handleMouseEnter);
+                              card.removeEventListener('mouseleave', handleMouseLeave);
+                            }
+                            el.removeEventListener('mouseenter', handleMouseEnter);
+                            el.removeEventListener('mouseleave', handleMouseLeave);
+                            if (glowInterval) {
+                              clearTimeout(glowInterval);
+                            }
+                          };
+                        }
+                      }}
+                    >
+                      <card.icon className="card-icon-svg" />
+                    </div>
+                  )}
                 </ParticleCard>
               );
             }
@@ -833,10 +1274,10 @@ const MagicBento: React.FC<BentoProps> = ({
                   el.addEventListener('click', handleClick);
                 }}
               >
-                <div className="card__header flex justify-between gap-3 relative" style={{ color: 'hsl(var(--foreground))' }}>
+                <div className="card__header flex justify-between gap-3 relative z-10" style={{ color: 'hsl(var(--foreground))' }}>
                   <span className="card__label text-base font-medium">{card.label}</span>
                 </div>
-                <div className="card__content flex flex-col relative" style={{ color: 'hsl(var(--foreground))' }}>
+                <div className="card__content flex flex-col relative z-10" style={{ color: 'hsl(var(--foreground))' }}>
                   <h3 className={`card__title font-semibold text-lg m-0 mb-2 ${textAutoHide ? 'text-clamp-1' : ''}`}>
                     {card.title}
                   </h3>
@@ -844,6 +1285,31 @@ const MagicBento: React.FC<BentoProps> = ({
                     {card.description}
                   </p>
                 </div>
+                {card.icon && (
+                  <div 
+                    className={`card-icon card-icon-${index}`}
+                    ref={(el) => {
+                      if (el && index === 3) {
+                        // Add random glow animation for Platform Breakdown card
+                        const handleMouseEnter = () => {
+                          const squares = el.querySelectorAll('.icon-platform-square');
+                          squares.forEach((square) => {
+                            const delay = Math.random() * 1.5;
+                            const duration = 0.3 + Math.random() * 0.4;
+                            (square as HTMLElement).style.animationDelay = `${delay}s`;
+                            (square as HTMLElement).style.animationDuration = `${duration}s`;
+                          });
+                        };
+                        el.addEventListener('mouseenter', handleMouseEnter);
+                        return () => {
+                          el.removeEventListener('mouseenter', handleMouseEnter);
+                        };
+                      }
+                    }}
+                  >
+                    <card.icon className="card-icon-svg" />
+                  </div>
+                )}
               </div>
             );
           })}
