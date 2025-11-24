@@ -82,7 +82,7 @@ const clientLogos = [
           alt="Prime Players"
           width={150}
           height={32}
-          className="h-8 w-auto object-contain"
+          className="h-8 w-auto object-contain block"
           quality={100}
           unoptimized
         />
@@ -114,7 +114,7 @@ const clientLogos = [
           alt="Simbiosia"
           width={200}
           height={32}
-          className="h-8 w-auto object-contain"
+          className="h-8 w-auto object-contain block"
           quality={100}
           unoptimized
         />
