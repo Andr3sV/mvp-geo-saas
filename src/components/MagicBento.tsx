@@ -247,17 +247,6 @@ const ShareOfVoiceIcon = ({ className }: { className?: string }) => {
                 animationDelay: `${bar.delay}s`
               }}
             />
-            {/* Small indicator dot */}
-            <circle
-              cx={10 + bar.width}
-              cy={y}
-              r="4"
-              fill="rgba(194, 194, 225, 0.8)"
-              className="icon-bar-dot"
-              style={{
-                animationDelay: `${bar.delay + 0.1}s`
-              }}
-            />
           </g>
         );
       })}
@@ -1102,20 +1091,16 @@ const MagicBento: React.FC<BentoProps> = ({
           
           .icon-bar-voice {
             transform-origin: left center;
+            transform-box: fill-box;
             transition: stroke 0.3s ease, stroke-width 0.3s ease;
           }
           
           .icon-bar-voice-fill {
             transform-origin: left center;
+            transform-box: fill-box;
             transform: scaleX(0);
             opacity: 0;
             transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-          }
-          
-          .icon-bar-dot {
-            opacity: 0;
-            transform: scale(0);
-            transition: opacity 0.3s ease, transform 0.3s ease;
           }
           
           .card:hover .icon-bar-voice {
@@ -1128,29 +1113,12 @@ const MagicBento: React.FC<BentoProps> = ({
             opacity: 1;
           }
           
-          .card:hover .icon-bar-dot {
-            opacity: 1;
-            transform: scale(1);
-            animation: dotPulse 1.5s ease-in-out infinite;
-          }
-          
           @keyframes barGlow {
             0%, 100% {
               filter: brightness(1);
             }
             50% {
               filter: brightness(1.3);
-            }
-          }
-          
-          @keyframes dotPulse {
-            0%, 100% {
-              r: 4;
-              opacity: 0.8;
-            }
-            50% {
-              r: 5;
-              opacity: 1;
             }
           }
           
