@@ -911,6 +911,8 @@ const MagicBento: React.FC<BentoProps> = ({
             width: 140px;
             height: 100px;
             top: calc(1.5rem + 1.5rem);
+            left: 50%;
+            transform: translateX(-50%);
           }
           
           .card-icon-2 {
@@ -944,8 +946,13 @@ const MagicBento: React.FC<BentoProps> = ({
             opacity: 0.7;
           }
           
-          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0) {
+          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1) {
             transform: translateX(-50%) scale(1.05);
+          }
+          
+          .card:hover .card-icon-1 {
+            transform: translateX(-50%) !important;
+            scale: 1 !important;
           }
           
           .card:hover .card-icon-0 {
@@ -1084,7 +1091,19 @@ const MagicBento: React.FC<BentoProps> = ({
           
           .card:hover .icon-bar {
             fill: rgba(194, 194, 225, 0.8);
-            transform: translateY(-2px);
+          }
+          
+          .card-icon-1 .icon-bar,
+          .card-icon-1 .icon-line {
+            transition: none !important;
+            transform: none !important;
+            animation: none !important;
+          }
+          
+          .card:hover .card-icon-1 .icon-bar,
+          .card:hover .card-icon-1 .icon-line {
+            transform: none !important;
+            animation: none !important;
           }
           
           .card:hover .icon-segment {
