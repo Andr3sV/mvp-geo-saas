@@ -184,7 +184,7 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        <div className="container relative mx-auto px-4 pt-24 pb-32 md:pt-32 md:pb-40">
+        <div className="container relative mx-auto px-4 pt-24 pb-16 md:pt-32 md:pb-20">
           <div className="mx-auto max-w-4xl text-center">
             {/* Badge */}
             <Badge variant="secondary" className="mb-6 gap-2 px-4 py-1.5">
@@ -292,7 +292,7 @@ export default function Home() {
       </section>
 
       {/* Magic Bento Section */}
-      <section className="py-24 md:py-32 relative">
+      <section className="py-12 md:py-16 relative">
         <div className="container mx-auto px-4 max-w-[70rem]">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="outline" className="mb-4">
@@ -324,7 +324,7 @@ export default function Home() {
       </section>
 
       {/* Benefits Section */}
-      <section className="py-24 md:py-32 relative">
+      <section className="py-12 md:py-16 relative">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
             <div className="grid gap-12 md:grid-cols-3">
@@ -349,7 +349,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 md:py-32">
+      <section className="py-12 md:py-16">
         <div className="container mx-auto px-4">
           <Card className="border-2 bg-gradient-to-br from-[#C2C2E1]/20 via-background to-background">
             <CardContent className="px-6 py-16 text-center md:px-12">
