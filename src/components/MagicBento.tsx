@@ -165,11 +165,11 @@ const ShareOfVoiceIcon = ({ className }: { className?: string }) => {
   const startY = 45;
   
   const bars = [
-    { width: 85, delay: 0 },
-    { width: 120, delay: 0.1 },
-    { width: 65, delay: 0.2 },
-    { width: 95, delay: 0.3 },
-    { width: 110, delay: 0.4 },
+    { width: 120, delay: 0 },
+    { width: 180, delay: 0.1 },
+    { width: 90, delay: 0.2 },
+    { width: 110, delay: 0.3 },
+    { width: 130, delay: 0.4 },
   ];
   
   return (
@@ -311,34 +311,118 @@ const PlatformBreakdownIcon = ({ className }: { className?: string }) => {
   );
 };
 
-const QueryPatternsIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 200 200"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {/* Wave patterns - wider waves */}
-    <path
-      d="M 15 90 Q 50 50, 85 90 T 155 90 T 185 90"
-      stroke="rgba(194, 194, 225, 0.6)"
-      strokeWidth="3"
+const QueryPatternsIcon = ({ className }: { className?: string }) => {
+  // Multiple intersecting trend lines representing query patterns
+  const patterns = [
+    { 
+      path: "M 10 160 L 40 140 L 70 100 L 100 80 L 130 60 L 160 50 L 190 45",
+      delay: 0,
+      color: "rgba(194, 194, 225, 0.4)"
+    },
+    { 
+      path: "M 10 50 L 40 70 L 70 90 L 100 110 L 130 120 L 160 130 L 190 135",
+      delay: 0.2,
+      color: "rgba(194, 194, 225, 0.35)"
+    },
+    { 
+      path: "M 10 100 L 50 85 L 90 75 L 130 90 L 170 105 L 190 110",
+      delay: 0.4,
+      color: "rgba(194, 194, 225, 0.3)"
+    },
+    { 
+      path: "M 10 120 L 35 100 L 60 80 L 85 100 L 110 120 L 135 100 L 160 80 L 185 70",
+      delay: 0.6,
+      color: "rgba(194, 194, 225, 0.4)"
+    },
+  ];
+  
+  const dataPoints = [
+    { x: 40, y: 140 },
+    { x: 70, y: 100 },
+    { x: 100, y: 80 },
+    { x: 130, y: 60 },
+    { x: 160, y: 50 },
+    { x: 50, y: 70 },
+    { x: 90, y: 75 },
+    { x: 130, y: 90 },
+    { x: 170, y: 105 },
+    { x: 35, y: 100 },
+    { x: 85, y: 100 },
+    { x: 135, y: 100 },
+  ];
+  
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 200 200"
       fill="none"
-      className="icon-wave"
-    />
-    <path
-      d="M 15 110 Q 50 150, 85 110 T 155 110 T 185 110"
-      stroke="rgba(194, 194, 225, 0.5)"
-      strokeWidth="3"
-      fill="none"
-      className="icon-wave"
-    />
-    {/* Dots representing data points */}
-    <circle cx="50" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-    <circle cx="100" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-    <circle cx="150" cy="90" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-  </svg>
-);
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: '100%' }}
+    >
+      <defs>
+        <linearGradient id="patternGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgba(194, 194, 225, 0.3)" />
+          <stop offset="50%" stopColor="rgba(194, 194, 225, 0.6)" />
+          <stop offset="100%" stopColor="rgba(194, 194, 225, 0.3)" />
+        </linearGradient>
+        <filter id="patternGlow">
+          <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      
+      {/* Pattern lines - static by default */}
+      {patterns.map((pattern, idx) => (
+        <path
+          key={`pattern-${idx}`}
+          d={pattern.path}
+          stroke={pattern.color}
+          strokeWidth="2"
+          fill="none"
+          className="icon-pattern-line"
+          style={{
+            animationDelay: `${pattern.delay}s`
+          }}
+        />
+      ))}
+      
+      {/* Animated pattern lines that appear on hover */}
+      {patterns.map((pattern, idx) => (
+        <path
+          key={`pattern-animated-${idx}`}
+          d={pattern.path}
+          stroke="url(#patternGradient)"
+          strokeWidth="2.5"
+          fill="none"
+          className="icon-pattern-line-animated"
+          filter="url(#patternGlow)"
+          style={{
+            animationDelay: `${pattern.delay}s`
+          }}
+        />
+      ))}
+      
+      {/* Data points */}
+      {dataPoints.map((point, idx) => (
+        <circle
+          key={`point-${idx}`}
+          cx={point.x}
+          cy={point.y}
+          r="3"
+          fill="rgba(194, 194, 225, 0.5)"
+          className="icon-pattern-point"
+          style={{
+            animationDelay: `${idx * 0.1}s`
+          }}
+        />
+      ))}
+    </svg>
+  );
+};
 
 const TrendingQueriesIcon = ({ className }: { className?: string }) => (
   <svg
@@ -1080,9 +1164,12 @@ const MagicBento: React.FC<BentoProps> = ({
           }
           
           .card-icon-4 {
-            width: 150px;
-            height: 80px;
-            top: calc(1.5rem + 2rem);
+            width: calc(100% - 3rem);
+            max-width: 100%;
+            height: calc(100% - 1.5rem - 1.5rem - 1.5rem - 1.5rem - 3rem);
+            top: calc(1.5rem + 1.5rem);
+            left: 1.5rem;
+            transform: none;
           }
           
           .card-icon-5 {
@@ -1095,8 +1182,18 @@ const MagicBento: React.FC<BentoProps> = ({
             opacity: 0.7;
           }
           
-          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1):not(.card-icon-2) {
+          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1):not(.card-icon-2):not(.card-icon-4) {
             transform: translateX(-50%) scale(1.05);
+          }
+          
+          .card:hover .card-icon-4 {
+            transform: none !important;
+            scale: 1 !important;
+          }
+          
+          .card-icon-4 {
+            transform: none !important;
+            scale: 1 !important;
           }
           
           .card:hover .card-icon-1 {
@@ -1159,9 +1256,39 @@ const MagicBento: React.FC<BentoProps> = ({
             transition: all 0.3s ease;
           }
           
-          .card:hover .icon-node {
+          /* Disable all hover effects for Tracking card (card-icon-0) except lines */
+          .card-icon-0 .icon-node,
+          .card-icon-0 .icon-node-pulse {
+            transition: none !important;
+            transform: none !important;
+            animation: none !important;
+          }
+          
+          .card:hover .card-icon-0 .icon-node,
+          .card:hover .card-icon-0 .icon-node-pulse {
+            fill: rgba(194, 194, 225, 0.6) !important;
+            transform: none !important;
+            animation: none !important;
+          }
+          
+          /* Disable hover effects for Patterns card nodes */
+          .card:hover .icon-node:not(.card-icon-0 .icon-node):not(.card-icon-4 .icon-node) {
             fill: rgba(194, 194, 225, 0.9);
             transform: scale(1.1);
+          }
+          
+          .card-icon-4 .icon-node {
+            fill: rgba(194, 194, 225, 0.8) !important;
+            transform: none !important;
+            animation: none !important;
+            transition: none !important;
+          }
+          
+          .card:hover .card-icon-4 .icon-node {
+            fill: rgba(194, 194, 225, 0.8) !important;
+            transform: none !important;
+            animation: none !important;
+            transition: none !important;
           }
           
           .card:hover .icon-center {
@@ -1169,7 +1296,7 @@ const MagicBento: React.FC<BentoProps> = ({
             transform: scale(1.15);
           }
           
-          .card:hover .icon-line {
+          .card:hover .icon-line:not(.icon-line-animated) {
             stroke: rgba(194, 194, 225, 0.8);
             stroke-width: 3;
           }
@@ -1238,6 +1365,23 @@ const MagicBento: React.FC<BentoProps> = ({
             animation: none !important;
           }
           
+          /* Ensure Tracking card nodes have no animations or hover effects */
+          .card-icon-0 .icon-node,
+          .card-icon-0 .icon-node-pulse {
+            fill: rgba(194, 194, 225, 0.6) !important;
+            transform: none !important;
+            animation: none !important;
+            transition: none !important;
+          }
+          
+          .card:hover .card-icon-0 .icon-node,
+          .card:hover .card-icon-0 .icon-node-pulse {
+            fill: rgba(194, 194, 225, 0.6) !important;
+            transform: none !important;
+            animation: none !important;
+            transition: none !important;
+          }
+          
           .card:hover .icon-bar {
             fill: rgba(194, 194, 225, 0.8);
           }
@@ -1282,7 +1426,61 @@ const MagicBento: React.FC<BentoProps> = ({
             transition: fill 1s cubic-bezier(0.4, 0, 0.2, 1);
           }
           
-          .card:hover .icon-wave {
+          /* Pattern lines - static by default */
+          .icon-pattern-line {
+            transition: stroke 0.3s ease;
+          }
+          
+          .icon-pattern-line-animated {
+            stroke-dasharray: 6 4;
+            stroke-dashoffset: 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            animation: none !important;
+          }
+          
+          .icon-pattern-point {
+            opacity: 0.5;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+          }
+          
+          /* Animated on hover */
+          .card:hover .icon-pattern-line {
+            stroke: rgba(194, 194, 225, 0.2);
+          }
+          
+          .card:hover .icon-pattern-line-animated {
+            opacity: 1;
+            animation: patternFlow 2.5s linear infinite !important;
+          }
+          
+          .card:hover .icon-pattern-point {
+            opacity: 1;
+            transform: scale(1.2);
+            animation: pointPulse 2s ease-in-out infinite;
+          }
+          
+          @keyframes patternFlow {
+            0% {
+              stroke-dashoffset: 0;
+            }
+            100% {
+              stroke-dashoffset: 20;
+            }
+          }
+          
+          @keyframes pointPulse {
+            0%, 100% {
+              r: 3;
+              opacity: 1;
+            }
+            50% {
+              r: 4;
+              opacity: 0.8;
+            }
+          }
+          
+          .card:hover .icon-wave:not(.card-icon-4 .icon-wave) {
             stroke: rgba(194, 194, 225, 0.8);
             stroke-width: 4;
           }
