@@ -31,32 +31,108 @@ const DEFAULT_GLOW_COLOR = '194, 194, 225'; // #C2C2E1
 const MOBILE_BREAKPOINT = 768;
 
 // SVG Icons for each card
-const CitationTrackingIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 200 200"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <defs>
-      <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="rgba(194, 194, 225, 0.3)" />
-        <stop offset="100%" stopColor="rgba(194, 194, 225, 0.1)" />
-      </linearGradient>
-    </defs>
-    {/* Network nodes and connections */}
-    <circle cx="50" cy="50" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
-    <circle cx="150" cy="50" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
-    <circle cx="50" cy="150" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
-    <circle cx="150" cy="150" r="8" fill="rgba(194, 194, 225, 0.6)" className="icon-node" />
-    <circle cx="100" cy="100" r="12" fill="rgba(194, 194, 225, 0.8)" className="icon-node icon-center" />
-    {/* Connections */}
-    <line x1="50" y1="50" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
-    <line x1="150" y1="50" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
-    <line x1="50" y1="150" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
-    <line x1="150" y1="150" x2="100" y2="100" stroke="rgba(194, 194, 225, 0.4)" strokeWidth="2" className="icon-line" />
-  </svg>
-);
+const CitationTrackingIcon = ({ className }: { className?: string }) => {
+  // Create a more complex network with animated connections
+  const nodes = [
+    { x: 20, y: 40, r: 5, delay: 0 },
+    { x: 60, y: 25, r: 4, delay: 0.2 },
+    { x: 100, y: 35, r: 5, delay: 0.4 },
+    { x: 140, y: 25, r: 4, delay: 0.6 },
+    { x: 180, y: 40, r: 5, delay: 0.8 },
+    { x: 30, y: 80, r: 6, delay: 0.1 },
+    { x: 70, y: 70, r: 7, delay: 0.3 },
+    { x: 110, y: 75, r: 6, delay: 0.5 },
+    { x: 150, y: 70, r: 7, delay: 0.7 },
+    { x: 190, y: 80, r: 6, delay: 0.9 },
+    { x: 40, y: 120, r: 5, delay: 0.2 },
+    { x: 80, y: 115, r: 6, delay: 0.4 },
+    { x: 120, y: 120, r: 5, delay: 0.6 },
+    { x: 160, y: 115, r: 6, delay: 0.8 },
+    { x: 20, y: 160, r: 5, delay: 0.3 },
+    { x: 60, y: 165, r: 4, delay: 0.5 },
+    { x: 100, y: 160, r: 5, delay: 0.7 },
+    { x: 140, y: 165, r: 4, delay: 0.9 },
+    { x: 180, y: 160, r: 5, delay: 1.1 },
+  ];
+  
+  const connections = [
+    { from: 0, to: 5 }, { from: 1, to: 6 }, { from: 2, to: 7 }, { from: 3, to: 8 }, { from: 4, to: 9 },
+    { from: 5, to: 6 }, { from: 6, to: 7 }, { from: 7, to: 8 }, { from: 8, to: 9 },
+    { from: 5, to: 10 }, { from: 6, to: 11 }, { from: 7, to: 12 }, { from: 8, to: 13 },
+    { from: 10, to: 11 }, { from: 11, to: 12 }, { from: 12, to: 13 },
+    { from: 10, to: 14 }, { from: 11, to: 15 }, { from: 12, to: 16 }, { from: 13, to: 17 },
+    { from: 14, to: 15 }, { from: 15, to: 16 }, { from: 16, to: 17 }, { from: 17, to: 18 },
+  ];
+  
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 200 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: '100%' }}
+    >
+      <defs>
+        <filter id="glow-track">
+          <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      
+      {/* Animated connection lines */}
+      {connections.map((conn, idx) => {
+        const fromNode = nodes[conn.from];
+        const toNode = nodes[conn.to];
+        return (
+          <line
+            key={`line-${idx}`}
+            x1={fromNode.x}
+            y1={fromNode.y}
+            x2={toNode.x}
+            y2={toNode.y}
+            stroke="rgba(194, 194, 225, 0.25)"
+            strokeWidth="1.5"
+            className="icon-line icon-line-animated"
+            style={{
+              animationDelay: `${idx * 0.15}s`
+            }}
+          />
+        );
+      })}
+      
+      {/* Nodes with pulse animation */}
+      {nodes.map((node, idx) => (
+        <g key={`node-${idx}`}>
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={node.r + 3}
+            fill="rgba(194, 194, 225, 0.08)"
+            className="icon-node-pulse"
+            style={{
+              animation: 'none'
+            }}
+          />
+          <circle
+            cx={node.x}
+            cy={node.y}
+            r={node.r}
+            fill="rgba(194, 194, 225, 0.6)"
+            className="icon-node"
+            filter="url(#glow-track)"
+            style={{
+              animation: 'none'
+            }}
+          />
+        </g>
+      ))}
+    </svg>
+  );
+};
 
 const SentimentAnalysisIcon = ({ className }: { className?: string }) => (
   <svg
@@ -823,9 +899,12 @@ const MagicBento: React.FC<BentoProps> = ({
           
           /* Individual card icon positioning and sizing */
           .card-icon-0 {
-            width: 120px;
-            height: 120px;
-            top: calc(1.5rem + 1.25rem);
+            width: calc(100% - 3rem);
+            max-width: 100%;
+            height: calc(100% - 1.5rem - 1.5rem - 1.5rem - 1.5rem - 3rem);
+            top: calc(1.5rem + 1.5rem);
+            left: 1.5rem;
+            transform: none;
           }
           
           .card-icon-1 {
@@ -865,8 +944,24 @@ const MagicBento: React.FC<BentoProps> = ({
             opacity: 0.7;
           }
           
-          .card:hover .card-icon:not(.card-icon-3) {
+          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0) {
             transform: translateX(-50%) scale(1.05);
+          }
+          
+          .card:hover .card-icon-0 {
+            transform: none !important;
+            scale: 1 !important;
+            will-change: auto;
+          }
+          
+          .card-icon-0 {
+            transform: none !important;
+            scale: 1 !important;
+            will-change: auto;
+          }
+          
+          .card:nth-child(1):hover {
+            transform: none !important;
           }
           
           .card__header {
@@ -883,6 +978,18 @@ const MagicBento: React.FC<BentoProps> = ({
           .card-icon svg {
             width: 100%;
             height: 100%;
+            transform: none !important;
+            transition: none;
+          }
+          
+          .card-icon-0 svg {
+            transform: none !important;
+            scale: 1 !important;
+          }
+          
+          .card:hover .card-icon-0 svg {
+            transform: none !important;
+            scale: 1 !important;
           }
           
           .icon-node,
@@ -909,6 +1016,70 @@ const MagicBento: React.FC<BentoProps> = ({
           .card:hover .icon-line {
             stroke: rgba(194, 194, 225, 0.8);
             stroke-width: 3;
+          }
+          
+          @keyframes dashFlow {
+            0% {
+              stroke-dashoffset: 0;
+              opacity: 0.25;
+            }
+            50% {
+              opacity: 0.7;
+            }
+            100% {
+              stroke-dashoffset: 16;
+              opacity: 0.25;
+            }
+          }
+          
+          @keyframes nodePulse {
+            0%, 100% {
+              r: 8;
+              opacity: 0.08;
+            }
+            50% {
+              r: 14;
+              opacity: 0.2;
+            }
+          }
+          
+          @keyframes nodeGlow {
+            0%, 100% {
+              fill: rgba(194, 194, 225, 0.6);
+            }
+            50% {
+              fill: rgba(165, 165, 214, 0.95);
+            }
+          }
+          
+          .icon-line-animated {
+            stroke-dasharray: 4 4;
+            stroke-dashoffset: 0;
+            animation: none !important;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+          }
+          
+          .icon-node-pulse {
+            animation: none !important;
+          }
+          
+          .icon-node {
+            animation: none !important;
+            transition: fill 0.3s ease;
+          }
+          
+          .card:hover .icon-line-animated {
+            stroke: rgba(165, 165, 214, 0.9) !important;
+            stroke-width: 2;
+            animation: dashFlow 2s linear infinite !important;
+          }
+          
+          .card:hover .icon-node-pulse {
+            animation: none !important;
+          }
+          
+          .card:hover .icon-node {
+            animation: none !important;
           }
           
           .card:hover .icon-bar {
@@ -959,8 +1130,54 @@ const MagicBento: React.FC<BentoProps> = ({
             }
           }
           
-          .card:hover .icon-node {
-            animation: pulse 2s ease-in-out infinite;
+          @keyframes dashFlow {
+            0% {
+              stroke-dashoffset: 0;
+              opacity: 0.3;
+            }
+            50% {
+              opacity: 0.8;
+            }
+            100% {
+              stroke-dashoffset: 16;
+              opacity: 0.3;
+            }
+          }
+          
+          @keyframes nodePulse {
+            0%, 100% {
+              r: 8;
+              opacity: 0.1;
+            }
+            50% {
+              r: 12;
+              opacity: 0.3;
+            }
+          }
+          
+          @keyframes nodeGlow {
+            0%, 100% {
+              fill: rgba(194, 194, 225, 0.6);
+            }
+            50% {
+              fill: rgba(165, 165, 214, 0.9);
+            }
+          }
+          
+          .icon-line-animated {
+            stroke-dasharray: 4 4;
+            stroke-dashoffset: 0;
+            animation: none !important;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+          }
+          
+          .icon-node-pulse {
+            animation: none !important;
+          }
+          
+          .icon-node {
+            animation: none !important;
+            transition: fill 0.3s ease;
           }
           
           .particle::before {
@@ -1026,7 +1243,9 @@ const MagicBento: React.FC<BentoProps> = ({
       <BentoCardGrid gridRef={gridRef}>
         <div className="card-responsive grid gap-2">
           {cardData.map((card, index) => {
-            const baseClassName = `card flex flex-col justify-between relative aspect-[4/3] min-h-[250px] w-full max-w-full p-6 rounded-[20px] border border-solid font-light overflow-hidden transition-all duration-300 ease-in-out hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.15)] ${
+            const baseClassName = `card flex flex-col justify-between relative aspect-[4/3] min-h-[250px] w-full max-w-full p-6 rounded-[20px] border border-solid font-light overflow-hidden transition-all duration-300 ease-in-out ${
+              index === 0 ? '' : 'hover:-translate-y-0.5'
+            } hover:shadow-[0_8px_25px_rgba(0,0,0,0.15)] ${
               enableBorderGlow ? 'card--border-glow' : ''
             }`;
             
