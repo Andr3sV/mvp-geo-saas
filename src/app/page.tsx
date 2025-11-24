@@ -125,7 +125,7 @@ const clientLogos = [
 ];
 
 export default function Home() {
-  const brands = ["Gemini", "OpenAI", "Claude", "Perplexity"];
+  const brands = ["Gemini", "ChatGTP", "Claude", "Perplexity"];
   const [currentBrandIndex, setCurrentBrandIndex] = useState(0);
 
   useEffect(() => {
