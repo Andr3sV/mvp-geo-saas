@@ -186,12 +186,6 @@ export default function Home() {
       <section className="relative overflow-hidden">
         <div className="container relative mx-auto px-4 pt-24 pb-16 md:pt-32 md:pb-20">
           <div className="mx-auto max-w-4xl text-center">
-            {/* Badge */}
-            <Badge variant="secondary" className="mb-6 gap-2 px-4 py-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span className="text-xs font-medium">Powered by AI</span>
-            </Badge>
-
             {/* Main Heading */}
             <h1 className="mb-6 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
               Become the brand everyone is talking about on
