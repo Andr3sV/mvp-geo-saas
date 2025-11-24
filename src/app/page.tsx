@@ -107,9 +107,14 @@ export default function Home() {
   }, [brands.length]);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col relative">
+      {/* Background gradients - applied to entire page */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-b from-[#C2C2E1]/20 via-background to-background" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.3),transparent_50%)]" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_70%_80%,rgba(194,194,225,0.2),transparent_50%)]" />
+      
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full backdrop-blur border-b border-gray-200/50">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center space-x-2">
             <div className="relative h-8 w-8">
@@ -149,11 +154,6 @@ export default function Home() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Background with gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#C2C2E1]/20 via-background to-background" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.3),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(194,194,225,0.2),transparent_50%)]" />
-        
         <div className="container relative mx-auto px-4 pt-24 pb-32 md:pt-32 md:pb-40">
           <div className="mx-auto max-w-4xl text-center">
             {/* Badge */}
@@ -262,7 +262,7 @@ export default function Home() {
       </section>
 
       {/* Magic Bento Section */}
-      <section className="py-24 md:py-32 bg-gradient-to-b from-background to-[#C2C2E1]/5">
+      <section className="py-24 md:py-32 relative">
         <div className="container mx-auto px-4 max-w-[70rem]">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="outline" className="mb-4">
@@ -294,7 +294,7 @@ export default function Home() {
       </section>
 
       {/* Benefits Section */}
-      <section className="bg-gradient-to-b from-[#C2C2E1]/10 to-transparent py-24 md:py-32">
+      <section className="py-24 md:py-32 relative">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-4xl">
             <div className="grid gap-12 md:grid-cols-3">
