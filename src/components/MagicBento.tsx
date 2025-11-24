@@ -157,39 +157,113 @@ const SentimentAnalysisIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const ShareOfVoiceIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 200 200"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {/* Pie chart segments - smaller, more compact */}
-    <circle cx="100" cy="100" r="50" fill="none" stroke="rgba(194, 194, 225, 0.2)" strokeWidth="2" />
-    <path
-      d="M 100 100 L 100 50 A 50 50 0 0 1 150 100 Z"
-      fill="rgba(194, 194, 225, 0.6)"
-      className="icon-segment"
-    />
-    <path
-      d="M 100 100 L 150 100 A 50 50 0 0 1 125 150 Z"
-      fill="rgba(194, 194, 225, 0.4)"
-      className="icon-segment"
-    />
-    <path
-      d="M 100 100 L 125 150 A 50 50 0 0 1 50 150 Z"
-      fill="rgba(194, 194, 225, 0.3)"
-      className="icon-segment"
-    />
-    <path
-      d="M 100 100 L 50 150 A 50 50 0 0 1 100 50 Z"
-      fill="rgba(194, 194, 225, 0.5)"
-      className="icon-segment"
-    />
-    {/* Center circle */}
-    <circle cx="100" cy="100" r="18" fill="rgba(194, 194, 225, 0.2)" className="icon-center" />
-  </svg>
-);
+const ShareOfVoiceIcon = ({ className }: { className?: string }) => {
+  // Horizontal bar chart representing share of voice for different competitors
+  // Thicker bars to fill the space
+  const barHeight = 28;
+  const barSpacing = 32;
+  const startY = 35;
+  
+  const bars = [
+    { width: 85, delay: 0 },
+    { width: 120, delay: 0.1 },
+    { width: 65, delay: 0.2 },
+    { width: 95, delay: 0.3 },
+    { width: 110, delay: 0.4 },
+  ];
+  
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 200 200"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: '100%' }}
+    >
+      <defs>
+        <linearGradient id="barGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgba(194, 194, 225, 0.4)" />
+          <stop offset="50%" stopColor="rgba(194, 194, 225, 0.7)" />
+          <stop offset="100%" stopColor="rgba(194, 194, 225, 0.4)" />
+        </linearGradient>
+        <filter id="barGlow">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      
+      {/* Background bars (static) */}
+      {bars.map((bar, idx) => {
+        const y = startY + idx * barSpacing;
+        return (
+          <rect
+            key={`bg-${idx}`}
+            x="10"
+            y={y - barHeight / 2}
+            width="180"
+            height={barHeight}
+            rx="8"
+            fill="rgba(194, 194, 225, 0.05)"
+            className="icon-bar-bg"
+          />
+        );
+      })}
+      
+      {/* Bars with visible borders (default state) */}
+      {bars.map((bar, idx) => {
+        const y = startY + idx * barSpacing;
+        return (
+          <g key={`bar-${idx}`}>
+            {/* Border bar (always visible) */}
+            <rect
+              x="10"
+              y={y - barHeight / 2}
+              width={bar.width}
+              height={barHeight}
+              rx="8"
+              fill="transparent"
+              stroke="rgba(194, 194, 225, 0.5)"
+              strokeWidth="2"
+              className="icon-bar-voice"
+              style={{
+                animationDelay: `${bar.delay}s`
+              }}
+            />
+            {/* Filled bar that appears on hover */}
+            <rect
+              x="10"
+              y={y - barHeight / 2}
+              width={bar.width}
+              height={barHeight}
+              rx="8"
+              fill="url(#barGradient)"
+              className="icon-bar-voice-fill"
+              filter="url(#barGlow)"
+              style={{
+                animationDelay: `${bar.delay}s`
+              }}
+            />
+            {/* Small indicator dot */}
+            <circle
+              cx={10 + bar.width}
+              cy={y}
+              r="4"
+              fill="rgba(194, 194, 225, 0.8)"
+              className="icon-bar-dot"
+              style={{
+                animationDelay: `${bar.delay + 0.1}s`
+              }}
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
 
 const PlatformBreakdownIcon = ({ className }: { className?: string }) => {
   // Generate 2 rows x 3 columns = 6 rectangles
@@ -916,9 +990,85 @@ const MagicBento: React.FC<BentoProps> = ({
           }
           
           .card-icon-2 {
-            width: 110px;
-            height: 110px;
-            top: calc(1.5rem + 1.75rem);
+            width: calc(100% - 3rem);
+            max-width: 100%;
+            height: calc(100% - 1.5rem - 1.5rem - 1.5rem - 1.5rem - 3rem);
+            top: calc(1.5rem + 1.5rem);
+            left: 1.5rem;
+            transform: none;
+          }
+          
+          .card-icon-2 .icon-segment,
+          .card-icon-2 .icon-center {
+            display: none;
+          }
+          
+          .icon-bar-voice {
+            transform-origin: left center;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+          }
+          
+          .icon-bar-voice-fill {
+            transform-origin: left center;
+            transform: scaleX(0);
+            opacity: 0;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+          }
+          
+          .icon-bar-dot {
+            opacity: 0;
+            transform: scale(0);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+          }
+          
+          .card:hover .icon-bar-voice {
+            stroke: rgba(194, 194, 225, 0.7);
+            stroke-width: 2.5;
+          }
+          
+          .card:hover .icon-bar-voice-fill {
+            transform: scaleX(1);
+            opacity: 1;
+            animation: barGlow 2s ease-in-out infinite;
+          }
+          
+          .card:hover .icon-bar-dot {
+            opacity: 1;
+            transform: scale(1);
+            animation: dotPulse 1.5s ease-in-out infinite;
+          }
+          
+          @keyframes barGlow {
+            0%, 100% {
+              filter: brightness(1);
+            }
+            50% {
+              filter: brightness(1.3);
+            }
+          }
+          
+          @keyframes dotPulse {
+            0%, 100% {
+              r: 4;
+              opacity: 0.8;
+            }
+            50% {
+              r: 5;
+              opacity: 1;
+            }
+          }
+          
+          .card:hover .card-icon-2 {
+            transform: none !important;
+            scale: 1 !important;
+          }
+          
+          .card-icon-2 svg {
+            transform: none !important;
+          }
+          
+          .card:hover .card-icon-2 svg {
+            transform: none !important;
           }
           
           .card-icon-3 {
@@ -946,7 +1096,7 @@ const MagicBento: React.FC<BentoProps> = ({
             opacity: 0.7;
           }
           
-          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1) {
+          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1):not(.card-icon-2) {
             transform: translateX(-50%) scale(1.05);
           }
           
@@ -1108,6 +1258,14 @@ const MagicBento: React.FC<BentoProps> = ({
           
           .card:hover .icon-segment {
             fill: rgba(194, 194, 225, 0.7);
+          }
+          
+          .card-icon-2 .icon-segment {
+            transition: none !important;
+          }
+          
+          .card:hover .card-icon-2 .icon-segment {
+            fill: rgba(194, 194, 225, 0.6) !important;
           }
           
           .card:hover .icon-platform {
