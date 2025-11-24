@@ -162,7 +162,7 @@ const ShareOfVoiceIcon = ({ className }: { className?: string }) => {
   // Thicker bars to fill the space
   const barHeight = 28;
   const barSpacing = 32;
-  const startY = 35;
+  const startY = 45;
   
   const bars = [
     { width: 85, delay: 0 },
@@ -1029,7 +1029,6 @@ const MagicBento: React.FC<BentoProps> = ({
           .card:hover .icon-bar-voice-fill {
             transform: scaleX(1);
             opacity: 1;
-            animation: barGlow 2s ease-in-out infinite;
           }
           
           .card:hover .icon-bar-dot {
