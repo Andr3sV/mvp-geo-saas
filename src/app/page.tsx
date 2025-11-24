@@ -242,23 +242,7 @@ export default function Home() {
             <div className="mt-16 md:mt-20">
               <div style={{ minHeight: '100px', position: 'relative', overflow: 'visible', paddingTop: '10px', paddingBottom: '10px' }} className="flex items-center justify-center mb-4">
                 {/* Overflow container to clip only horizontally, not vertically */}
-                <div style={{ position: 'relative', overflowX: 'hidden', overflowY: 'visible', width: '70%', minHeight: '80px' }}>
-                  {/* Smooth gradient overlays for gradual fade effect - wider and smoother */}
-                  <div 
-                    className="absolute inset-y-0 left-0 z-20 pointer-events-none"
-                    style={{
-                      width: '150px',
-                      background: 'linear-gradient(to right, hsl(var(--background)) 0%, hsl(var(--background)) 15%, hsl(var(--background)) / 0.98 25%, hsl(var(--background)) / 0.95 35%, hsl(var(--background)) / 0.9 45%, hsl(var(--background)) / 0.8 55%, hsl(var(--background)) / 0.65 65%, hsl(var(--background)) / 0.5 75%, hsl(var(--background)) / 0.3 85%, hsl(var(--background)) / 0.15 92%, transparent 100%)',
-                    }}
-                  />
-                  <div 
-                    className="absolute inset-y-0 right-0 z-20 pointer-events-none"
-                    style={{
-                      width: '150px',
-                      background: 'linear-gradient(to left, hsl(var(--background)) 0%, hsl(var(--background)) 15%, hsl(var(--background)) / 0.98 25%, hsl(var(--background)) / 0.95 35%, hsl(var(--background)) / 0.9 45%, hsl(var(--background)) / 0.8 55%, hsl(var(--background)) / 0.65 65%, hsl(var(--background)) / 0.5 75%, hsl(var(--background)) / 0.3 85%, hsl(var(--background)) / 0.15 92%, transparent 100%)',
-                    }}
-                  />
-                  
+                <div className="relative overflow-hidden mx-auto w-[70%] h-20">
                   <LogoLoop
                     logos={clientLogos}
                     speed={60}
