@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: "Ateneai",
-  description: "Generative Engine Optimization Platform",
+  description: "AI Visibility for Modern Brands",
   url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3055",
   nav: [
     {

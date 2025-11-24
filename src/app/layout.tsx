@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ateneai - Generative Engine Optimization Platform",
-  description: "Track and optimize your brand presence in AI-generated responses",
+  title: "Ateneai — AI Visibility for Modern Brands",
+  description: "Put your products in front of the millions who rely on AI to decide what to buy next",
   icons: {
     icon: [
       { url: "/ateneaiicon.svg", type: "image/svg+xml" },
