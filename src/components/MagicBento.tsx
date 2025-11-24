@@ -424,36 +424,49 @@ const QueryPatternsIcon = ({ className }: { className?: string }) => {
   );
 };
 
-const TrendingQueriesIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    viewBox="0 0 200 200"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    {/* Ascending trend line - more pronounced */}
-    <path
-      d="M 25 155 L 55 125 L 85 105 L 115 75 L 145 55 L 165 45"
-      stroke="rgba(194, 194, 225, 0.8)"
-      strokeWidth="4"
+const TrendingQueriesIcon = ({ className }: { className?: string }) => {
+  const baseLine = "M 0 178 C 30 150, 60 140, 90 118 S 150 60, 200 25";
+  const drawLine = "M 0 168 C 28 142, 58 128, 88 105 S 150 48, 200 15";
+
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 200 200"
       fill="none"
-      className="icon-trend"
-    />
-    {/* Arrow pointing up */}
-    <path
-      d="M 155 55 L 165 45 L 175 55"
-      stroke="rgba(194, 194, 225, 0.8)"
-      strokeWidth="4"
-      fill="none"
-      className="icon-arrow"
-    />
-    {/* Data points - fewer, more spaced */}
-    <circle cx="25" cy="155" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-    <circle cx="85" cy="105" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-    <circle cx="145" cy="55" r="4" fill="rgba(194, 194, 225, 0.8)" className="icon-node" />
-    <circle cx="165" cy="45" r="5" fill="rgba(194, 194, 225, 1)" className="icon-node icon-center" />
-  </svg>
-);
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+      style={{ width: "100%", height: "100%" }}
+    >
+      <defs>
+        <linearGradient id="trendPrimary" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgba(194, 194, 225, 0.25)" />
+          <stop offset="50%" stopColor="rgba(194, 194, 225, 0.8)" />
+          <stop offset="100%" stopColor="rgba(194, 194, 225, 0.35)" />
+        </linearGradient>
+      </defs>
+
+      {/* First line - always visible (base) */}
+      <path
+        d={baseLine}
+        stroke="rgba(194, 194, 225, 0.45)"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        className="icon-trend-line-base"
+      />
+
+      {/* Second line - hidden by default, draws from 0 on hover */}
+      <path
+        d={drawLine}
+        stroke="url(#trendPrimary)"
+        strokeWidth="3"
+        fill="none"
+        strokeLinecap="round"
+        className="icon-trend-line-draw"
+      />
+    </svg>
+  );
+};
 
 const cardData: BentoCardProps[] = [
   {
@@ -1173,16 +1186,19 @@ const MagicBento: React.FC<BentoProps> = ({
           }
           
           .card-icon-5 {
-            width: 140px;
-            height: 90px;
-            top: calc(1.5rem + 1.75rem);
+            width: calc(100% - 3rem);
+            max-width: 100%;
+            height: calc(100% - 1.5rem - 1.5rem - 1.5rem - 1.5rem - 3rem);
+            top: calc(1.5rem + 1.5rem);
+            left: 1.5rem;
+            transform: none;
           }
           
           .card:hover .card-icon {
             opacity: 0.7;
           }
           
-          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1):not(.card-icon-2):not(.card-icon-4) {
+          .card:hover .card-icon:not(.card-icon-3):not(.card-icon-0):not(.card-icon-1):not(.card-icon-2):not(.card-icon-4):not(.card-icon-5) {
             transform: translateX(-50%) scale(1.05);
           }
           
@@ -1192,6 +1208,16 @@ const MagicBento: React.FC<BentoProps> = ({
           }
           
           .card-icon-4 {
+            transform: none !important;
+            scale: 1 !important;
+          }
+
+          .card:hover .card-icon-5 {
+            transform: none !important;
+            scale: 1 !important;
+          }
+
+          .card-icon-5 {
             transform: none !important;
             scale: 1 !important;
           }
@@ -1249,11 +1275,14 @@ const MagicBento: React.FC<BentoProps> = ({
           .icon-line,
           .icon-bar,
           .icon-segment,
-          .icon-platform,
-          .icon-wave,
-          .icon-trend,
-          .icon-arrow {
+          .icon-platform {
             transition: all 0.3s ease;
+          }
+
+          .icon-trend-line,
+          .icon-trend-point {
+            transition: none !important;
+            animation: none !important;
           }
           
           /* Disable all hover effects for Tracking card (card-icon-0) except lines */
@@ -1479,20 +1508,37 @@ const MagicBento: React.FC<BentoProps> = ({
               opacity: 0.8;
             }
           }
-          
-          .card:hover .icon-wave:not(.card-icon-4 .icon-wave) {
-            stroke: rgba(194, 194, 225, 0.8);
-            stroke-width: 4;
+
+          .icon-trend-line-base {
+            stroke-linecap: round;
+            transition: stroke 0.3s ease;
           }
-          
-          .card:hover .icon-trend {
-            stroke: rgba(194, 194, 225, 1);
-            stroke-width: 5;
+
+          .icon-trend-line-draw {
+            stroke-linecap: round;
+            stroke-dasharray: 400;
+            stroke-dashoffset: 400;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            animation: none !important;
           }
-          
-          .card:hover .icon-arrow {
-            stroke: rgba(194, 194, 225, 1);
-            stroke-width: 5;
+
+          .card:hover .icon-trend-line-base {
+            stroke: rgba(194, 194, 225, 0.4);
+          }
+
+          .card:hover .icon-trend-line-draw {
+            opacity: 1;
+            animation: drawTrendLine 2.5s ease-out forwards !important;
+          }
+
+          @keyframes drawTrendLine {
+            from {
+              stroke-dashoffset: 400;
+            }
+            to {
+              stroke-dashoffset: 0;
+            }
           }
           
           @keyframes pulse {
