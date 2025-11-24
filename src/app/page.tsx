@@ -24,73 +24,103 @@ import LogoLoop from "@/components/LogoLoop";
 import GradualBlur from "@/components/GradualBlur";
 import MagicBento from "@/components/MagicBento";
 
-// Client logos data
+// Client logos data - only PNG files
 const clientLogos = [
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          AI
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">Acme Inc</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/berruslogo.png"
+          alt="Berrus"
+          width={150}
+          height={64}
+          className="h-16 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "Acme Inc",
+    title: "Berrus",
   },
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          TC
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">TechCorp</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/cimslogo.png"
+          alt="CIMS"
+          width={200}
+          height={64}
+          className="h-16 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "TechCorp",
+    title: "CIMS",
   },
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          BC
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">BrandCo</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/expofastlogo.png"
+          alt="ExpoFast"
+          width={200}
+          height={64}
+          className="h-16 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "BrandCo",
+    title: "ExpoFast",
   },
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          SX
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">StartupXYZ</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/primeplayerslogo.png"
+          alt="Prime Players"
+          width={150}
+          height={32}
+          className="h-8 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "StartupXYZ",
+    title: "Prime Players",
   },
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          IL
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">InnovateLabs</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/ralogo.png"
+          alt="RA"
+          width={200}
+          height={64}
+          className="h-16 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "InnovateLabs",
+    title: "RA",
   },
   {
     node: (
-      <div className="flex items-center justify-center gap-2 rounded-lg border bg-card/50 px-6 py-3 transition-all hover:bg-card hover:shadow-sm">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 text-xs font-semibold text-[#C2C2E1]">
-          GH
-        </div>
-        <span className="text-sm font-medium text-muted-foreground">GrowthHub</span>
+      <div className="flex items-center justify-center h-16 px-6 transition-all hover:opacity-80">
+        <Image
+          src="/logos-reputation/simbiosialogo.png"
+          alt="Simbiosia"
+          width={200}
+          height={32}
+          className="h-8 w-auto object-contain"
+          quality={100}
+          unoptimized
+        />
       </div>
     ),
-    title: "GrowthHub",
+    title: "Simbiosia",
   },
 ];
 
@@ -118,7 +148,7 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link href="/" className="flex items-center space-x-2">
             <div className="relative h-8 w-8">
-              <Image
+        <Image
                 src="/ateneaiiconblack.png"
                 alt="Ateneai"
                 fill
@@ -193,7 +223,7 @@ export default function Home() {
                   </motion.span>
                 </AnimatePresence>
               </span>
-            </h1>
+          </h1>
 
             <p className="mb-8 text-lg text-muted-foreground sm:text-xl md:mx-auto md:max-w-2xl">
               Put your products in front of the millions who rely on AI to decide what to buy next
@@ -419,7 +449,7 @@ export default function Home() {
                 </li>
                 <li>
                   <Link href="/docs" className="hover:text-foreground transition-colors">
-                    Documentation
+            Documentation
                   </Link>
                 </li>
               </ul>
