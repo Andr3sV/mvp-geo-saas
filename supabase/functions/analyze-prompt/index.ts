@@ -346,7 +346,7 @@ async function triggerCitationProcessing(
       const urlRecords = citationUrls.map((url: string, index: number) => ({
         ai_response_id: aiResponseId,
         project_id: projectId,
-        citation_text: null, // No specific mention text, just the URL
+        citation_text: `Source URL: ${url}`, // Use URL as citation text since it's required
         context_before: null,
         context_after: null,
         position_in_response: null,
@@ -361,6 +361,7 @@ async function triggerCitationProcessing(
       
       if (urlError) {
         logError('analyze-prompt', 'Failed to insert URL records', urlError);
+        // Don't throw - this is not critical, we can continue
       } else {
         logInfo('analyze-prompt', `Successfully saved ${urlRecords.length} URLs to citations_detail`);
       }

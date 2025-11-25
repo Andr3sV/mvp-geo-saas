@@ -301,15 +301,23 @@ export default function OnboardingPage() {
       
       // Trigger analysis for each prompt in the background
       // We don't await to avoid blocking the UI
-      result.data.forEach((prompt: any) => {
-        startAnalysis({
-          prompt_tracking_id: prompt.id,
-          project_id: projectId!,
-          prompt_text: prompt.prompt,
-          platforms: allPlatforms,
-        }).catch((error) => {
+      result.data.forEach(async (prompt: any) => {
+        try {
+          const analysisResult = await startAnalysis({
+            prompt_tracking_id: prompt.id,
+            project_id: projectId!,
+            prompt_text: prompt.prompt,
+            platforms: allPlatforms,
+          });
+          
+          if (analysisResult.error) {
+            console.error("Failed to start analysis for prompt:", prompt.id, analysisResult.error);
+          } else {
+            console.log("Analysis started successfully for prompt:", prompt.id);
+          }
+        } catch (error) {
           console.error("Failed to start analysis for prompt:", prompt.id, error);
-        });
+        }
       });
     }
 

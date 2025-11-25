@@ -89,18 +89,56 @@ export async function startAnalysis(params: AnalyzePromptParams) {
       return { error: "Access denied to this project", data: null };
     }
 
-    // Call Edge Function (no auth header needed, service role handles it)
+    // Call Edge Function - Supabase automatically passes the user's auth token
+    console.log("Calling Edge Function analyze-prompt with params:", {
+      prompt_tracking_id: params.prompt_tracking_id,
+      project_id: params.project_id,
+      prompt_text: params.prompt_text.substring(0, 50) + "...",
+      platforms: params.platforms,
+    });
+
+    // Ensure all required fields are present and properly formatted
+    const requestBody = {
+      prompt_tracking_id: params.prompt_tracking_id,
+      project_id: params.project_id,
+      prompt_text: params.prompt_text,
+      ...(params.platforms && params.platforms.length > 0 && { platforms: params.platforms }),
+    };
+
+    console.log("Sending request body to Edge Function:", {
+      ...requestBody,
+      prompt_text: requestBody.prompt_text.substring(0, 50) + "...",
+    });
+
     const { data, error } = await supabase.functions.invoke("analyze-prompt", {
-      body: params,
+      body: requestBody,
     });
 
     if (error) {
       console.error("Edge Function error:", error);
-      return { error: error.message, data: null };
+      console.error("Error status:", error.status);
+      console.error("Error message:", error.message);
+      console.error("Error details:", JSON.stringify(error, null, 2));
+      
+      // Check if it's a 422 (validation error) and try to extract the error message
+      if (error.status === 422 || error.message?.includes('422')) {
+        const errorMessage = data?.error || error.message || "Validation error: Invalid request data";
+        console.error("422 Validation Error:", errorMessage);
+        return { error: errorMessage, data: null };
+      }
+      
+      return { error: error.message || "Failed to invoke Edge Function", data: null };
     }
 
+    // Check if response indicates an error even if no error object
+    if (data && typeof data === 'object' && 'error' in data) {
+      console.error("Edge Function returned error in response:", data.error);
+      return { error: data.error || "Edge Function returned an error", data: null };
+    }
+
+    console.log("Edge Function response:", data);
     revalidatePath("/dashboard/analysis");
-    return { error: null, data: data.data };
+    return { error: null, data: data?.data || data };
   } catch (error: any) {
     console.error("startAnalysis error:", error);
     return { error: error.message || "Failed to start analysis", data: null };

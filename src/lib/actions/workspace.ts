@@ -179,7 +179,11 @@ export async function savePrompts(data: {
     return { error: error.message, success: false, data: null };
   }
 
+  // Revalidate all relevant paths
   revalidatePath("/", "layout");
+  revalidatePath("/dashboard/prompts");
+  revalidatePath("/dashboard");
+  
   return { error: null, success: true, data: createdPrompts };
 }
 
