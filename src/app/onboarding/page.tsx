@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWorkspace, createProject, savePrompts, saveOnboardingData } from "@/lib/actions/workspace";
+import { startAnalysis, type AIProvider } from "@/lib/actions/analysis";
 import { generatePromptSuggestions } from "@/lib/prompts-suggestions";
 import { Loader2, Check, Building2, FolderKanban, Globe, Sparkles, ArrowRight, ArrowLeft, Plus, X, Tag, Trophy, CreditCard, Mail, Star, Users, Briefcase } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -292,6 +293,24 @@ export default function OnboardingPage() {
       setError(result.error);
       setLoading(false);
       return;
+    }
+
+    // Start analysis for each created prompt
+    if (result.data && result.data.length > 0) {
+      const allPlatforms: AIProvider[] = ["openai", "gemini", "claude", "perplexity"];
+      
+      // Trigger analysis for each prompt in the background
+      // We don't await to avoid blocking the UI
+      result.data.forEach((prompt: any) => {
+        startAnalysis({
+          prompt_tracking_id: prompt.id,
+          project_id: projectId!,
+          prompt_text: prompt.prompt,
+          platforms: allPlatforms,
+        }).catch((error) => {
+          console.error("Failed to start analysis for prompt:", prompt.id, error);
+        });
+      });
     }
 
     setLoading(false);
