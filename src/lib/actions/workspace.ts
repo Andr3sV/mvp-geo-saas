@@ -158,7 +158,7 @@ export async function savePrompts(data: {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Not authenticated", success: false };
+    return { error: "Not authenticated", success: false, data: null };
   }
 
   // Insert prompts with region and category
@@ -170,13 +170,16 @@ export async function savePrompts(data: {
     is_active: true,
   }));
 
-  const { error } = await supabase.from("prompt_tracking").insert(promptsData);
+  const { data: createdPrompts, error } = await supabase
+    .from("prompt_tracking")
+    .insert(promptsData)
+    .select();
 
   if (error) {
-    return { error: error.message, success: false };
+    return { error: error.message, success: false, data: null };
   }
 
   revalidatePath("/", "layout");
-  return { error: null, success: true };
+  return { error: null, success: true, data: createdPrompts };
 }
 
