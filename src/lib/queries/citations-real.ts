@@ -82,6 +82,7 @@ export async function getQuickLookMetrics(
   const toDate = filters?.toDate ? filters.toDate.toISOString() : null;
   const platform = filters?.platform || null;
   const region = filters?.region || null;
+  const topicId = filters?.topicId && filters.topicId !== "all" ? filters.topicId : null;
 
   const [
     totalCitationPagesResult,
@@ -95,7 +96,8 @@ export async function getQuickLookMetrics(
       p_from_date: fromDate,
       p_to_date: toDate,
       p_platform: platform,
-      p_region: region
+      p_region: region,
+      p_topic_id: topicId
     }),
     
     // My Pages Cited - total citations WITH URLs
@@ -141,6 +143,10 @@ export async function getQuickLookMetrics(
       
       if (filters?.region && filters.region !== "GLOBAL") {
         query = query.eq("prompt_tracking.region", filters.region);
+      }
+      
+      if (filters?.topicId && filters.topicId !== "all") {
+        query = query.eq("prompt_tracking.topic_id", filters.topicId);
       }
       
       return applyDateFilter(query, filters);
