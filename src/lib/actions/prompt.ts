@@ -65,6 +65,7 @@ export async function createPrompt(data: {
   project_id: string;
   prompt: string;
   category?: PromptCategory;
+  topic_id?: string;
   region?: string;
   is_active?: boolean;
 }) {
@@ -77,20 +78,28 @@ export async function createPrompt(data: {
     return { error: "Not authenticated", data: null };
   }
 
-  // Handle topic mapping
-  const categoryName = data.category || "general";
-  const topicId = await getOrCreateTopic(supabase, data.project_id, categoryName);
+  // topic_id is now provided directly by the user selection
+  // category is kept separate as a tag (legacy support)
+  const insertData: any = {
+    project_id: data.project_id,
+    prompt: data.prompt,
+    region: data.region || "GLOBAL",
+    is_active: data.is_active ?? true,
+  };
+
+  // Add topic_id if provided
+  if (data.topic_id) {
+    insertData.topic_id = data.topic_id;
+  }
+
+  // Add category (tag) if provided
+  if (data.category) {
+    insertData.category = data.category;
+  }
 
   const { data: prompt, error } = await supabase
     .from("prompt_tracking")
-    .insert({
-      project_id: data.project_id,
-      prompt: data.prompt,
-      category: categoryName, // Keep for legacy/tags
-      topic_id: topicId,      // New strict relation
-      region: data.region || "GLOBAL",
-      is_active: data.is_active ?? true,
-    })
+    .insert(insertData)
     .select()
     .single();
 
@@ -133,10 +142,10 @@ export async function updatePrompt(
 
   const updates: any = { ...data };
 
-  // If category changed, update topic relation
-  if (data.category) {
-    updates.topic_id = await getOrCreateTopic(supabase, currentPrompt.project_id, data.category);
-  }
+  // If category changed, update topic relation - REMOVED to decouple Tags from Topics
+  // if (data.category) {
+  //   updates.topic_id = await getOrCreateTopic(supabase, currentPrompt.project_id, data.category);
+  // }
 
   const { data: prompt, error } = await supabase
     .from("prompt_tracking")

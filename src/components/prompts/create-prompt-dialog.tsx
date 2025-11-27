@@ -14,8 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createPrompt } from "@/lib/actions/prompt";
 import { CountrySelect } from "@/components/ui/country-select";
-import { TagInput } from "@/components/ui/tag-input";
 import { getProjectTags } from "@/lib/actions/tags";
+import { getProjectTopics } from "@/lib/actions/topics";
+import { TopicSelector } from "./topic-selector";
+import { PromptCategorySelector } from "./prompt-category-selector";
 
 interface CreatePromptDialogProps {
   open: boolean;
@@ -31,28 +33,43 @@ export function CreatePromptDialog({
   onSuccess,
 }: CreatePromptDialogProps) {
   const [prompt, setPrompt] = useState("");
-  const [category, setCategory] = useState("general");
+  const [topicId, setTopicId] = useState<string | undefined>(undefined);
+  const [category, setCategory] = useState<string | undefined>(undefined);
   const [region, setRegion] = useState("GLOBAL");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingTags, setExistingTags] = useState<string[]>([]);
-  const [loadingTags, setLoadingTags] = useState(false);
+  const [existingTopics, setExistingTopics] = useState<Array<{ id: string; name: string; color?: string }>>([]);
+  const [loadingData, setLoadingData] = useState(false);
 
-  // Load existing tags when dialog opens
+  // Load existing tags and topics when dialog opens
   useEffect(() => {
     if (open && projectId) {
-      loadTags();
+      loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId]);
 
-  const loadTags = async () => {
-    setLoadingTags(true);
-    const result = await getProjectTags(projectId);
-    if (result.data) {
-      setExistingTags(result.data);
+  const loadData = async () => {
+    setLoadingData(true);
+    
+    // Load tags
+    const tagsResult = await getProjectTags(projectId);
+    if (tagsResult.data) {
+      setExistingTags(tagsResult.data);
     }
-    setLoadingTags(false);
+    
+    // Load topics
+    const topicsResult = await getProjectTopics(projectId);
+    if (topicsResult.data) {
+      setExistingTopics(topicsResult.data.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        color: t.color
+      })));
+    }
+    
+    setLoadingData(false);
   };
 
   const handleSubmit = async () => {
@@ -67,7 +84,8 @@ export function CreatePromptDialog({
     const result = await createPrompt({
       project_id: projectId,
       prompt: prompt.trim(),
-      category,
+      category: category || undefined,
+      topic_id: topicId || undefined,
       region,
       is_active: true,
     });
@@ -77,7 +95,8 @@ export function CreatePromptDialog({
       setCreating(false);
     } else {
       setPrompt("");
-      setCategory("general");
+      setTopicId(undefined);
+      setCategory(undefined);
       setRegion("GLOBAL");
       onOpenChange(false);
       onSuccess();
@@ -113,16 +132,15 @@ export function CreatePromptDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Topic / Tag</Label>
-              <TagInput
-                value={category}
-                onValueChange={setCategory}
-                suggestions={existingTags}
-                placeholder={loadingTags ? "Loading tags..." : "Type or select a tag..."}
-                disabled={creating || loadingTags}
+              <Label htmlFor="topic">Topic</Label>
+              <TopicSelector
+                currentTopicId={topicId}
+                existingTopics={existingTopics}
+                onSelect={setTopicId}
+                disabled={creating || loadingData}
               />
               <p className="text-xs text-muted-foreground">
-                Create custom topics or reuse existing ones
+                Select a topic to group this prompt
               </p>
             </div>
 
@@ -138,6 +156,20 @@ export function CreatePromptDialog({
                 Target region for AI analysis
               </p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="tag">Tag</Label>
+            <PromptCategorySelector
+              currentCategory={category}
+              existingCategories={existingTags}
+              onSelect={setCategory}
+              disabled={creating || loadingData}
+              variant="default"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional tag for additional categorization
+            </p>
           </div>
 
           {error && (

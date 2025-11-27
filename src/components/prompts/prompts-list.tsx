@@ -4,11 +4,12 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Edit2, Trash2, ChevronRight } from "lucide-react";
-import { deletePrompt, togglePromptActive } from "@/lib/actions/prompt";
+import { Edit2, Trash2, ChevronRight, Tag } from "lucide-react";
+import { deletePrompt, togglePromptActive, updatePrompt } from "@/lib/actions/prompt";
 import { EditPromptDialog } from "./edit-prompt-dialog";
 import { RunAnalysisButton } from "./run-analysis-button";
 import { PromptCitationsSummary } from "./prompt-citations-summary";
+import { PromptCategorySelector } from "./prompt-category-selector";
 import { getCountryByCode } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,15 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+
+  // Get all unique categories for the selector
+  const allCategories = useMemo(() => {
+    const categories = new Set<string>();
+    prompts.forEach(p => {
+      if (p.category) categories.add(p.category);
+    });
+    return Array.from(categories);
+  }, [prompts]);
 
   // Group prompts by topic
   const groupedPrompts = useMemo(() => {
@@ -100,6 +110,13 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
     setLoading(null);
   };
 
+  const handleCategoryUpdate = async (promptId: string, newCategory: string) => {
+    setLoading(promptId);
+    await updatePrompt(promptId, { category: newCategory });
+    onUpdate();
+    setLoading(null);
+  };
+
   const toggleExpandedPrompt = (promptId: string) => {
     const newExpanded = new Set(expandedPrompts);
     if (newExpanded.has(promptId)) {
@@ -161,10 +178,18 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
                       <div className="flex-1 space-y-2">
                         <div className="flex items-start gap-2">
                           <p className="flex-1 text-sm font-medium leading-relaxed">{prompt.prompt}</p>
-                          <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0 font-normal bg-background/50">
-                            <span>{getCountryByCode(prompt.region)?.flag || "🌍"}</span>
-                            <span>{getCountryByCode(prompt.region)?.name || "Global"}</span>
-                          </Badge>
+                          <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <PromptCategorySelector
+                              currentCategory={prompt.category === "general" ? undefined : prompt.category}
+                              existingCategories={allCategories}
+                              onSelect={(category) => handleCategoryUpdate(prompt.id, category)}
+                              disabled={loading === prompt.id}
+                            />
+                            <Badge variant="outline" className="text-[10px] flex items-center gap-1 font-normal bg-background/50 px-1.5 h-5">
+                              <span>{getCountryByCode(prompt.region)?.flag || "🌍"}</span>
+                              <span className="hidden sm:inline">{getCountryByCode(prompt.region)?.name || "Global"}</span>
+                            </Badge>
+                          </div>
                         </div>
                         <p className="text-[10px] text-muted-foreground">
                           Added {new Date(prompt.created_at).toLocaleDateString()}
