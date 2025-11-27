@@ -16,7 +16,8 @@ export async function getShareOfVoice(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  topicId?: string
 ) {
   const supabase = await createClient();
 
@@ -35,11 +36,12 @@ export async function getShareOfVoice(
     return date;
   })();
 
-  // Build platform and region filters
+  // Build platform, region, and topic filters
   const platformFilter = platform && platform !== "all";
   const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
 
-  // Get brand citations in period with platform and region filters
+  // Get brand citations in period with platform, region, and topic filters
   // Use count instead of fetching all rows to avoid Supabase's 1000 row limit
   let brandCitationsQuery = supabase
     .from("citations_detail")
@@ -47,7 +49,7 @@ export async function getShareOfVoice(
       id,
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
@@ -62,6 +64,10 @@ export async function getShareOfVoice(
     brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
   }
 
+  if (topicFilter) {
+    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+  }
+
   const { count: brandCitationsCount, error: brandError } = await brandCitationsQuery;
   
   if (brandError) {
@@ -70,7 +76,7 @@ export async function getShareOfVoice(
   
   const brandMentions = brandCitationsCount || 0;
 
-  // Get competitor citations in period with competitor info, platform and region filters
+  // Get competitor citations in period with competitor info, platform, region, and topic filters
   // Need full data to group by competitor, so we'll fetch in batches if needed
   let competitorCitationsQuery = supabase
     .from("competitor_citations")
@@ -81,7 +87,7 @@ export async function getShareOfVoice(
       competitors!inner(name, domain, is_active, region),
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `)
     .eq("project_id", projectId)
@@ -97,6 +103,11 @@ export async function getShareOfVoice(
     // Filter by prompt's region only (we'll filter competitor region in JS below)
     competitorCitationsQuery = competitorCitationsQuery
       .eq("ai_responses.prompt_tracking.region", region);
+  }
+
+  if (topicFilter) {
+    competitorCitationsQuery = competitorCitationsQuery
+      .eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
   const { data: competitorCitations, error: compError } = await competitorCitationsQuery;
@@ -206,7 +217,8 @@ export async function getShareOfVoiceTrends(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  topicId?: string
 ) {
   const supabase = await createClient();
 
@@ -225,9 +237,10 @@ export async function getShareOfVoiceTrends(
   const previousEndDate = new Date(currentStartDate);
   const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
 
-  // Build platform and region filters
+  // Build platform, region, and topic filters
   const platformFilter = platform && platform !== "all";
   const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
 
   // Get current period data
   let currentBrandQuery = supabase
@@ -236,7 +249,7 @@ export async function getShareOfVoiceTrends(
       id,
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
@@ -251,6 +264,10 @@ export async function getShareOfVoiceTrends(
     currentBrandQuery = currentBrandQuery.eq("ai_responses.prompt_tracking.region", region);
   }
 
+  if (topicFilter) {
+    currentBrandQuery = currentBrandQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+  }
+
   let currentCompQuery = supabase
     .from("competitor_citations")
     .select(`
@@ -259,7 +276,7 @@ export async function getShareOfVoiceTrends(
       competitors!inner(name, is_active, region),
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `)
     .eq("project_id", projectId)
@@ -276,6 +293,11 @@ export async function getShareOfVoiceTrends(
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
+  if (topicFilter) {
+    currentCompQuery = currentCompQuery
+      .eq("ai_responses.prompt_tracking.topic_id", topicId);
+  }
+
   const [currentBrandResult, currentCompResult] = await Promise.all([
     currentBrandQuery,
     currentCompQuery,
@@ -288,7 +310,7 @@ export async function getShareOfVoiceTrends(
       id,
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
@@ -303,6 +325,10 @@ export async function getShareOfVoiceTrends(
     previousBrandQuery = previousBrandQuery.eq("ai_responses.prompt_tracking.region", region);
   }
 
+  if (topicFilter) {
+    previousBrandQuery = previousBrandQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+  }
+
   let previousCompQuery = supabase
     .from("competitor_citations")
     .select(`
@@ -311,7 +337,7 @@ export async function getShareOfVoiceTrends(
       competitors!inner(name, is_active, region),
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `)
     .eq("project_id", projectId)
@@ -326,6 +352,11 @@ export async function getShareOfVoiceTrends(
   if (regionFilter) {
     previousCompQuery = previousCompQuery
       .eq("ai_responses.prompt_tracking.region", region);
+  }
+
+  if (topicFilter) {
+    previousCompQuery = previousCompQuery
+      .eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
   const [previousBrandResult, previousCompResult] = await Promise.all([
@@ -459,11 +490,12 @@ export async function getShareOfVoiceInsights(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  topicId?: string
 ) {
   const [sovData, trendsData] = await Promise.all([
-    getShareOfVoice(projectId, fromDate, toDate, platform, region),
-    getShareOfVoiceTrends(projectId, fromDate, toDate, platform, region),
+    getShareOfVoice(projectId, fromDate, toDate, platform, region, topicId),
+    getShareOfVoiceTrends(projectId, fromDate, toDate, platform, region, topicId),
   ]);
 
   const insights: Array<{
@@ -543,7 +575,8 @@ export async function getShareOfVoiceOverTime(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  topicId?: string
 ) {
   const supabase = await createClient();
 
@@ -582,6 +615,7 @@ export async function getShareOfVoiceOverTime(
     p_to_date: endDate.toISOString(),
     p_platform: platform && platform !== "all" ? platform : null,
     p_region: region && region !== "GLOBAL" ? region : null,
+    p_topic_id: topicId && topicId !== "all" ? topicId : null,
   });
 
   if (error) {

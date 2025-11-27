@@ -7,6 +7,7 @@ type CitationFilterOptions = {
   toDate?: Date;
   platform?: string;
   region?: string;
+  topicId?: string;
 };
 
 function applyDateFilter(
@@ -41,6 +42,17 @@ function applyRegionFilter(
   if (filters?.region && filters.region !== "GLOBAL") {
     // For queries that join with prompt_tracking, filter by region
     query = query.eq("ai_responses.prompt_tracking.region", filters.region);
+  }
+  return query;
+}
+
+function applyTopicFilter(
+  query: any,
+  filters?: CitationFilterOptions
+) {
+  if (filters?.topicId && filters.topicId !== "all") {
+    // For queries that join with prompt_tracking, filter by topic_id
+    query = query.eq("ai_responses.prompt_tracking.topic_id", filters.topicId);
   }
   return query;
 }
@@ -87,20 +99,23 @@ export async function getQuickLookMetrics(
     }),
     
     // My Pages Cited - total citations WITH URLs
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations_detail")
-            .select(`
-              id,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region)
-              )
-            `, { count: "exact", head: true })
-            .eq("project_id", projectId)
-            .not("cited_url", "is", null), // ✅ Only real citations with URLs
+    applyTopicFilter(
+      applyRegionFilter(
+        applyPlatformFilter(
+          applyDateFilter(
+            supabase
+              .from("citations_detail")
+              .select(`
+                id,
+                ai_responses!inner(
+                  platform,
+                  prompt_tracking!inner(region, topic_id)
+                )
+              `, { count: "exact", head: true })
+              .eq("project_id", projectId)
+              .not("cited_url", "is", null), // ✅ Only real citations with URLs
+            filters
+          ),
           filters
         ),
         filters
@@ -114,7 +129,7 @@ export async function getQuickLookMetrics(
         .from("ai_responses")
         .select(`
           platform,
-          prompt_tracking!inner(region)
+          prompt_tracking!inner(region, topic_id)
         `)
         .eq("project_id", projectId)
         .eq("status", "success")
@@ -132,21 +147,24 @@ export async function getQuickLookMetrics(
     })(),
     
     // Sentiments for rating calculation - only citations WITH URLs
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations_detail")
-            .select(`
-              sentiment,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region)
-              )
-            `)
-            .eq("project_id", projectId)
-            .not("cited_url", "is", null) // ✅ Only real citations with URLs
-            .limit(50000), // Increase limit to handle large datasets
+    applyTopicFilter(
+      applyRegionFilter(
+        applyPlatformFilter(
+          applyDateFilter(
+            supabase
+              .from("citations_detail")
+              .select(`
+                sentiment,
+                ai_responses!inner(
+                  platform,
+                  prompt_tracking!inner(region, topic_id)
+                )
+              `)
+              .eq("project_id", projectId)
+              .not("cited_url", "is", null) // ✅ Only real citations with URLs
+              .limit(50000), // Increase limit to handle large datasets
+            filters
+          ),
           filters
         ),
         filters
@@ -274,7 +292,8 @@ export async function getCitationsEvolution(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  topicId?: string
 ) {
   const supabase = await createClient();
   const { format, subDays, eachDayOfInterval } = await import("date-fns");
@@ -290,9 +309,10 @@ export async function getCitationsEvolution(
   const endDate = toDate || new Date();
   const startDate = fromDate || subDays(endDate, 30);
 
-  // Build platform and region filters
+  // Build platform, region, and topic filters
   const platformFilter = platform && platform !== "all";
   const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
 
   // Get brand citations over time (only with URLs)
   let brandCitationsQuery = supabase
@@ -302,7 +322,7 @@ export async function getCitationsEvolution(
       created_at,
       ai_responses!inner(
         platform,
-        prompt_tracking!inner(region)
+        prompt_tracking!inner(region, topic_id)
       )
     `)
     .eq("project_id", projectId)
@@ -317,6 +337,10 @@ export async function getCitationsEvolution(
 
   if (regionFilter) {
     brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
+  }
+
+  if (topicFilter) {
+    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
   const { data: brandCitations } = await brandCitationsQuery;
@@ -335,7 +359,7 @@ export async function getCitationsEvolution(
         competitors!inner(name, domain, region),
         ai_responses!inner(
           platform,
-          prompt_tracking!inner(region)
+          prompt_tracking!inner(region, topic_id)
         )
       `)
       .eq("project_id", projectId)
@@ -350,6 +374,10 @@ export async function getCitationsEvolution(
 
     if (regionFilter) {
       compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
+    }
+
+    if (topicFilter) {
+      compQuery = compQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
     }
 
     const { data: compData } = await compQuery;
@@ -409,22 +437,25 @@ export async function getDRBreakdown(
   const supabase = await createClient();
 
   // Get citations with platform info joined - only citations WITH URLs
-  const { data: citationsWithPlatform } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            id,
-            ai_response_id,
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null) // ✅ Only real citations with URLs
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: citationsWithPlatform } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              id,
+              ai_response_id,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null) // ✅ Only real citations with URLs
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -482,25 +513,28 @@ export async function getMostCitedDomains(
   const supabase = await createClient();
 
   // Get citations with domain and platform info - only citations WITH URLs
-  const { data: citations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            id,
-            cited_domain,
-            cited_url,
-            sentiment,
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null) // Only real citations with URLs
-          .not("cited_domain", "is", null) // Only citations with domains
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: citations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              id,
+              cited_domain,
+              cited_url,
+              sentiment,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null) // Only real citations with URLs
+            .not("cited_domain", "is", null) // Only citations with domains
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -596,24 +630,27 @@ export async function getHighValueOpportunities(
   // Get brand citations WITH URLs only (domains where we ARE mentioned)
   // IMPORTANT: Filter by citation_text IS NOT NULL to exclude URLs without brand mentions
   // URLs without brand mentions have citation_text = NULL (they're just URLs saved from LLM)
-  const { data: brandCitations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            cited_domain,
-            ai_response_id,
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null)
-          .not("cited_domain", "is", null)
-          .not("citation_text", "is", null) // Only citations with brand mentions
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: brandCitations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              cited_domain,
+              ai_response_id,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null)
+            .not("cited_domain", "is", null)
+            .not("citation_text", "is", null) // Only citations with brand mentions
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -640,24 +677,27 @@ export async function getHighValueOpportunities(
 
   // Get ALL citations_detail (includes URLs with and without brand mentions)
   // Used to find domains cited in each response
-  const { data: allCitations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            cited_domain,
-            ai_response_id,
-            sentiment,
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null)
-          .not("cited_domain", "is", null)
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: allCitations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              cited_domain,
+              ai_response_id,
+              sentiment,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null)
+            .not("cited_domain", "is", null)
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -666,27 +706,30 @@ export async function getHighValueOpportunities(
   );
 
   // Get competitor citations (these tell us about competitor presence)
-  const { data: compCitations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("competitor_citations")
-          .select(`
-            ai_response_id,
-            competitor_id,
-            cited_url,
-            cited_domain,
-            sentiment,
-            competitors!inner(name),
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null) // Only competitor citations with URLs
-          .not("cited_domain", "is", null)
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: compCitations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("competitor_citations")
+            .select(`
+              ai_response_id,
+              competitor_id,
+              cited_url,
+              cited_domain,
+              sentiment,
+              competitors!inner(name),
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null) // Only competitor citations with URLs
+            .not("cited_domain", "is", null)
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -835,25 +878,28 @@ export async function getTopPerformingPages(
     .toLowerCase();
 
   // Get all citations with URLs, platform, and response info
-  const { data: citations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            id,
-            cited_url,
-            cited_domain,
-            ai_response_id,
-            ai_responses!inner(
-              platform,
-              prompt_tracking_id,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null) // Only citations with URLs
-          .limit(10000), // Increase limit to handle large datasets
+  const { data: citations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              id,
+              cited_url,
+              cited_domain,
+              ai_response_id,
+              ai_responses!inner(
+                platform,
+                prompt_tracking_id,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null) // Only citations with URLs
+            .limit(10000), // Increase limit to handle large datasets
+          filters
+        ),
         filters
       ),
       filters
@@ -989,22 +1035,25 @@ export async function getCompetitiveTopicAnalysis(
         .eq("is_active", true),
       
       // Get brand citations with prompt category - only citations WITH URLs
-      applyRegionFilter(
-        applyPlatformFilter(
-          applyDateFilter(
-            supabase
-              .from("citations_detail")
-              .select(`
-                id,
-                ai_responses!inner(
-                  platform,
-                  prompt_tracking_id,
-                  prompt_tracking!inner(category, region)
-                )
-              `)
-              .eq("project_id", projectId)
-              .not("cited_url", "is", null) // ✅ Only real citations with URLs
-              .limit(10000), // Increase limit to handle large datasets
+      applyTopicFilter(
+        applyRegionFilter(
+          applyPlatformFilter(
+            applyDateFilter(
+              supabase
+                .from("citations_detail")
+                .select(`
+                  id,
+                  ai_responses!inner(
+                    platform,
+                    prompt_tracking_id,
+                    prompt_tracking!inner(category, region, topic_id)
+                  )
+                `)
+                .eq("project_id", projectId)
+                .not("cited_url", "is", null) // ✅ Only real citations with URLs
+                .limit(10000), // Increase limit to handle large datasets
+              filters
+            ),
             filters
           ),
           filters
@@ -1013,23 +1062,26 @@ export async function getCompetitiveTopicAnalysis(
       ),
       
       // Get competitor citations with prompt category and competitor name
-      applyRegionFilter(
-        applyPlatformFilter(
-          applyDateFilter(
-            supabase
-              .from("competitor_citations")
-              .select(`
-                id,
-                competitor_id,
-                competitors!inner(name),
-                ai_responses!inner(
-                  platform,
-                  prompt_tracking_id,
-                  prompt_tracking!inner(category, region)
-                )
-              `)
-              .eq("project_id", projectId)
-              .limit(10000), // Increase limit to handle large datasets
+      applyTopicFilter(
+        applyRegionFilter(
+          applyPlatformFilter(
+            applyDateFilter(
+              supabase
+                .from("competitor_citations")
+                .select(`
+                  id,
+                  competitor_id,
+                  competitors!inner(name),
+                  ai_responses!inner(
+                    platform,
+                    prompt_tracking_id,
+                    prompt_tracking!inner(category, region, topic_id)
+                  )
+                `)
+                .eq("project_id", projectId)
+                .limit(10000), // Increase limit to handle large datasets
+              filters
+            ),
             filters
           ),
           filters
@@ -1135,20 +1187,23 @@ export async function getCitationSources(
   const offset = (page - 1) * pageSize;
 
   // Get total count for pagination
-  const { count } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            id,
-            ai_responses!inner(
-              platform,
-              prompt_tracking!inner(region)
-            )
-          `, { count: "exact", head: true })
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null), // Only citations with URLs
+  const { count } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
+              id,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `, { count: "exact", head: true })
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null), // Only citations with URLs
+          filters
+        ),
         filters
       ),
       filters
@@ -1158,28 +1213,31 @@ export async function getCitationSources(
 
   // Get paginated citations with response_text from ai_responses
   // Note: We show response_text (full AI response) instead of citation_text (individual mention)
-  const { data: citations } = await applyRegionFilter(
-    applyPlatformFilter(
-      applyDateFilter(
-        supabase
-          .from("citations_detail")
-          .select(`
-            id,
-            cited_url,
-            cited_domain,
-            sentiment,
-            created_at,
-            ai_responses!inner(
+  const { data: citations } = await applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations_detail")
+            .select(`
               id,
-              platform,
-              response_text,
-              prompt_tracking!inner(region)
-            )
-          `)
-          .eq("project_id", projectId)
-          .not("cited_url", "is", null) // Only citations with URLs
-          .order("created_at", { ascending: false })
-          .range(offset, offset + pageSize - 1),
+              cited_url,
+              cited_domain,
+              sentiment,
+              created_at,
+              ai_responses!inner(
+                id,
+                platform,
+                response_text,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
+            .not("cited_url", "is", null) // Only citations with URLs
+            .order("created_at", { ascending: false })
+            .range(offset, offset + pageSize - 1),
+          filters
+        ),
         filters
       ),
       filters

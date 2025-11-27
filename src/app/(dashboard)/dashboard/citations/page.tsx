@@ -55,6 +55,7 @@ export default function CitationsPage() {
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
+  const [topicId, setTopicId] = useState<string>("all");
 
   // Evolution chart state
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
@@ -71,21 +72,21 @@ export default function CitationsPage() {
       loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadCitationSources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, citationSourcesPage, dateRange.from, dateRange.to, platform, region]);
+  }, [selectedProjectId, citationSourcesPage, dateRange.from, dateRange.to, platform, region, topicId]);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId, dateRange.from, dateRange.to, platform, region]);
+  }, [selectedProjectId, selectedCompetitorId, dateRange.from, dateRange.to, platform, region, topicId]);
 
   // Load competitors filtered by region for the selector
   useEffect(() => {
@@ -127,7 +128,8 @@ export default function CitationsPage() {
         dateRange.from,
         dateRange.to,
         platform,
-        region
+        region,
+        topicId
       );
 
       setEvolutionData(evolution.data);
@@ -146,12 +148,14 @@ export default function CitationsPage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
+    topicId: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
+    setTopicId(filters.topicId);
     setCitationSourcesPage(1);
   };
 
@@ -163,6 +167,7 @@ export default function CitationsPage() {
       toDate: dateRange.to,
       platform,
       region,
+      topicId,
     };
 
     try {
@@ -189,6 +194,7 @@ export default function CitationsPage() {
       toDate: dateRange.to,
       platform,
       region,
+      topicId,
     };
 
     setIsLoading(true);
@@ -252,6 +258,7 @@ export default function CitationsPage() {
         dateRange={dateRange}
         platform={platform}
         region={region}
+        topicId={topicId}
         onApply={handleFiltersChange}
       />
 

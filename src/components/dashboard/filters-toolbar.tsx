@@ -15,16 +15,20 @@ import { CountrySelect } from "@/components/ui/country-select";
 import { DateRangePicker, DateRangeValue } from "@/components/ui/date-range-picker";
 import { useState, useEffect } from "react";
 import { subDays } from "date-fns";
+import { useProject } from "@/contexts/project-context";
+import { getProjectTopics } from "@/lib/actions/topics";
 
 interface FiltersToolbarProps {
 	className?: string;
 	dateRange?: DateRangeValue;
 	platform?: string;
 	region?: string;
+	topicId?: string;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
 		platform: string;
+		topicId: string;
 	}) => void;
 }
 
@@ -33,8 +37,10 @@ export function FiltersToolbar({
 	dateRange: controlledDateRange, 
 	platform: controlledPlatform,
 	region: controlledRegion,
+	topicId: controlledTopicId,
 	onApply 
 }: FiltersToolbarProps) {
+	const { selectedProjectId } = useProject();
 	const [region, setRegion] = useState<string>(controlledRegion || "GLOBAL");
 	const [dateRange, setDateRange] = useState<DateRangeValue>(
 		controlledDateRange || {
@@ -43,6 +49,23 @@ export function FiltersToolbar({
 		}
 	);
 	const [platform, setPlatform] = useState<string>(controlledPlatform || "all");
+	const [topicId, setTopicId] = useState<string>(controlledTopicId || "all");
+	const [topics, setTopics] = useState<any[]>([]);
+
+	// Load topics for the project
+	useEffect(() => {
+		if (selectedProjectId) {
+			loadTopics();
+		}
+	}, [selectedProjectId]);
+
+	const loadTopics = async () => {
+		if (!selectedProjectId) return;
+		const result = await getProjectTopics(selectedProjectId);
+		if (result.data) {
+			setTopics(result.data);
+		}
+	};
 
 	// Sync with controlled props
 	useEffect(() => {
@@ -63,6 +86,12 @@ export function FiltersToolbar({
 		}
 	}, [controlledRegion]);
 
+	useEffect(() => {
+		if (controlledTopicId !== undefined) {
+			setTopicId(controlledTopicId);
+		}
+	}, [controlledTopicId]);
+
 	const getDefaultDateRange = () => ({
 		from: subDays(new Date(), 29),
 		to: new Date(),
@@ -72,11 +101,13 @@ export function FiltersToolbar({
 		const resetDateRange = getDefaultDateRange();
 		const resetRegion = "GLOBAL";
 		const resetPlatform = "all";
+		const resetTopicId = "all";
 		setRegion(resetRegion);
 		setDateRange(resetDateRange);
 		setPlatform(resetPlatform);
+		setTopicId(resetTopicId);
 		// Auto-apply reset
-		onApply?.({ region: resetRegion, dateRange: resetDateRange, platform: resetPlatform });
+		onApply?.({ region: resetRegion, dateRange: resetDateRange, platform: resetPlatform, topicId: resetTopicId });
 	};
 
 	// Helper to compare dates (same day, ignoring time)
@@ -96,6 +127,7 @@ export function FiltersToolbar({
 	// Get actual applied values (controlled props take precedence)
 	const appliedRegion = controlledRegion ?? region;
 	const appliedPlatform = controlledPlatform ?? platform;
+	const appliedTopicId = controlledTopicId ?? topicId;
 	const appliedDateRange = controlledDateRange ?? dateRange;
 	
 	// Check if date range is different from default (last 30 days)
@@ -108,6 +140,7 @@ export function FiltersToolbar({
 	const hasActiveFilters = 
 		appliedRegion !== "GLOBAL" ||
 		appliedPlatform !== "all" ||
+		appliedTopicId !== "all" ||
 		!isDefaultDateRange;
 
 	return (
@@ -120,7 +153,7 @@ export function FiltersToolbar({
 							onValueChange={(newRegion) => {
 								setRegion(newRegion);
 								// Auto-apply when region changes
-								onApply?.({ region: newRegion, dateRange, platform });
+								onApply?.({ region: newRegion, dateRange, platform, topicId });
 							}}
 							placeholder="Select country..."
 						/>
@@ -134,7 +167,7 @@ export function FiltersToolbar({
 								setDateRange(newRange);
 								// Apply immediately when Apply button is clicked in picker
 								if (newRange.from && newRange.to) {
-									onApply?.({ region, dateRange: newRange, platform });
+									onApply?.({ region, dateRange: newRange, platform, topicId });
 								}
 							}}
 						/>
@@ -146,7 +179,7 @@ export function FiltersToolbar({
 							onValueChange={(newPlatform) => {
 								setPlatform(newPlatform);
 								// Auto-apply when platform changes
-								onApply?.({ region, dateRange, platform: newPlatform });
+								onApply?.({ region, dateRange, platform: newPlatform, topicId });
 							}}
 						>
 							<SelectTrigger className="w-full">
@@ -160,6 +193,40 @@ export function FiltersToolbar({
 									<SelectItem value="gemini">Gemini</SelectItem>
 									<SelectItem value="claude">Claude</SelectItem>
 									<SelectItem value="perplexity">Perplexity</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="w-full md:w-52">
+						<Select 
+							value={topicId} 
+							onValueChange={(newTopicId) => {
+								setTopicId(newTopicId);
+								// Auto-apply when topic changes
+								onApply?.({ region, dateRange, platform, topicId: newTopicId });
+							}}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Topic" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectLabel>Topic</SelectLabel>
+									<SelectItem value="all">All Topics</SelectItem>
+									{topics.map((topic) => (
+										<SelectItem key={topic.id} value={topic.id}>
+											<div className="flex items-center gap-2">
+												{topic.color && (
+													<div
+														className="h-3 w-3 rounded-full"
+														style={{ backgroundColor: topic.color }}
+													/>
+												)}
+												<span>{topic.name}</span>
+											</div>
+										</SelectItem>
+									))}
 								</SelectGroup>
 							</SelectContent>
 						</Select>
