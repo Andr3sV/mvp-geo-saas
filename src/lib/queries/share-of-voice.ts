@@ -558,100 +558,80 @@ export async function getShareOfVoiceOverTime(
   const endDate = toDate || new Date();
   const startDate = fromDate || subDays(endDate, 30);
 
-  // Build platform and region filters
-  const platformFilter = platform && platform !== "all";
-  const regionFilter = region && region !== "GLOBAL";
-
-  // Get brand mentions over time
-  let brandMentionsQuery = supabase
-    .from("citations_detail")
-    .select(`
-      id,
-      created_at,
-      ai_responses!inner(
-        platform,
-        prompt_tracking!inner(region)
-      )
-    `)
-    .eq("project_id", projectId)
-    .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString())
-    .limit(50000); // Increase limit to handle large datasets
-
-  if (platformFilter) {
-    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.platform", platform);
-  }
-
-  if (regionFilter) {
-    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.prompt_tracking.region", region);
-  }
-
-  const { data: brandMentions } = await brandMentionsQuery;
-
-  // Get competitor mentions over time (if competitor selected)
-  let competitorMentions: any[] = [];
+  // Get competitor info if competitor selected
   let competitorName = "";
   let competitorDomain = "";
 
   if (competitorId) {
-    let compQuery = supabase
-      .from("competitor_citations")
-      .select(`
-        id,
-        created_at,
-        competitors!inner(name, domain, region),
-        ai_responses!inner(
-          platform,
-          prompt_tracking!inner(region)
-        )
-      `)
-      .eq("project_id", projectId)
-      .eq("competitor_id", competitorId)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString())
-      .limit(50000); // Increase limit to handle large datasets
+    const { data: compData } = await supabase
+      .from("competitors")
+      .select("name, domain")
+      .eq("id", competitorId)
+      .single();
 
-    if (platformFilter) {
-      compQuery = compQuery.eq("ai_responses.platform", platform);
-    }
-
-    if (regionFilter) {
-      // Since a specific competitor is selected, we still filter by prompt region
-      // (the competitor's assigned region is validated at selection time in getShareOfVoice)
-      compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
-    }
-
-    const { data: compData } = await compQuery;
-
-    competitorMentions = compData || [];
-    competitorName = (compData as any)?.[0]?.competitors?.name || "Competitor";
-    competitorDomain = (compData as any)?.[0]?.competitors?.domain || "";
+    competitorName = compData?.name || "Competitor";
+    competitorDomain = compData?.domain || "";
   }
 
-  // Create array of all days in range
-  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+  // Use optimized SQL function for aggregation (handles large datasets efficiently)
+  // This replaces client-side counting which was hitting pagination limits
+  const { data: dailyMentions, error } = await supabase.rpc("get_daily_mentions_evolution", {
+    p_project_id: projectId,
+    p_competitor_id: competitorId || null,
+    p_from_date: startDate.toISOString(),
+    p_to_date: endDate.toISOString(),
+    p_platform: platform && platform !== "all" ? platform : null,
+    p_region: region && region !== "GLOBAL" ? region : null,
+  });
 
-  // Count mentions by day
+  if (error) {
+    console.error("Error fetching daily mentions evolution:", error);
+    // Fallback to empty data structure
+    const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+    const dailyData = allDays.map((day) => ({
+      date: format(day, "MMM dd"),
+      fullDate: format(day, "yyyy-MM-dd"),
+      brandMentions: 0,
+      competitorMentions: 0,
+    }));
+
+    return {
+      data: dailyData,
+      brandName: project?.name || "Your Brand",
+      brandDomain: project?.client_url || project?.name || "",
+      competitorName,
+      competitorDomain,
+    };
+  }
+
+  // Create array of all days in range to ensure we have data for every day
+  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+  
+  interface DailyMentions {
+    brandMentions: number;
+    competitorMentions: number;
+  }
+  
+  const mentionsMap = new Map<string, DailyMentions>(
+    (dailyMentions || []).map((item: any) => [
+      format(new Date(item.date), "yyyy-MM-dd"),
+      {
+        brandMentions: Number(item.brand_mentions) || 0,
+        competitorMentions: Number(item.competitor_mentions) || 0,
+      },
+    ])
+  );
+
+  // Map to chart format
   const dailyData = allDays.map((day) => {
     const dayStr = format(day, "yyyy-MM-dd");
-
-    // Count brand mentions for this day
-    const brandCount = brandMentions?.filter((m) => {
-      const mentionDate = format(new Date(m.created_at), "yyyy-MM-dd");
-      return mentionDate === dayStr;
-    }).length || 0;
-
-    // Count competitor mentions for this day
-    const competitorCount = competitorMentions.filter((m) => {
-      const mentionDate = format(new Date(m.created_at), "yyyy-MM-dd");
-      return mentionDate === dayStr;
-    }).length || 0;
+    const mentions: DailyMentions = mentionsMap.get(dayStr) || { brandMentions: 0, competitorMentions: 0 };
 
     return {
       date: format(day, "MMM dd"),
       fullDate: dayStr,
-      brandMentions: brandCount,
-      competitorMentions: competitorCount,
+      brandMentions: mentions.brandMentions,
+      competitorMentions: mentions.competitorMentions,
     };
   });
 

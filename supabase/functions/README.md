@@ -14,11 +14,37 @@ functions/
 │   └── index.ts          # Función principal de análisis
 ├── process-analysis/
 │   └── index.ts          # Procesamiento de citaciones
+├── trigger-daily-analysis/
+│   └── index.ts          # Dispara análisis diario automático (2:00 AM)
+├── process-queue/
+│   └── index.ts          # Worker que procesa la cola de análisis
+├── analyze-sentiment/
+│   └── index.ts          # Análisis avanzado de sentimiento
 ├── deno.json             # Configuración de Deno
 └── README.md             # Este archivo
 ```
 
 ## 🚀 Funciones Disponibles
+
+### Sistema de Análisis Diario Automático
+
+#### `trigger-daily-analysis` ⚡
+Se ejecuta automáticamente cada día a las 2:00 AM para buscar todos los prompts activos y agregarlos a la cola de análisis.
+
+**📚 Documentación completa:** Ver [docs/DAILY_ANALYSIS_SYSTEM.md](../../docs/DAILY_ANALYSIS_SYSTEM.md)
+
+#### `process-queue` 🔄
+Worker que procesa la cola de análisis en lotes pequeños (5 prompts a la vez), ejecutando análisis en todos los LLMs disponibles.
+
+**Características:**
+- Procesa en lotes de 5 para evitar saturación
+- Auto-continúa hasta procesar toda la cola
+- Reintenta automáticamente hasta 3 veces en caso de fallo
+- Ejecuta análisis en: Perplexity, Gemini, OpenAI, Claude
+
+---
+
+### Funciones de Análisis
 
 ### 1. `analyze-prompt`
 Ejecuta un prompt en múltiples plataformas de IA en paralelo.
@@ -206,6 +232,14 @@ Las funciones tienen rate limiting de 10 requests/minuto por usuario. Espera ant
 Asegúrate de que tu frontend esté en el dominio autorizado en Supabase Dashboard.
 
 ## 📚 Recursos
+
+### Documentación Interna
+
+- **[Sistema de Análisis Diario Automático](../../docs/DAILY_ANALYSIS_SYSTEM.md)** - Documentación completa del sistema de análisis automatizado
+- **[Guía de Inicio Rápido](../../docs/DAILY_ANALYSIS_QUICKSTART.md)** - Configuración rápida del análisis diario
+- **[Optimizaciones de Queries y Performance](../../docs/QUERY_OPTIMIZATIONS.md)** - Optimizaciones para manejar grandes volúmenes de datos
+
+### Recursos Externos
 
 - [Supabase Edge Functions Docs](https://supabase.com/docs/guides/functions)
 - [Deno Documentation](https://deno.land/manual)
