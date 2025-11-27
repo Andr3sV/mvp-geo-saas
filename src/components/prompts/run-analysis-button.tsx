@@ -23,6 +23,7 @@ interface RunAnalysisButtonProps {
   projectId: string;
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
+  className?: string;
 }
 
 export function RunAnalysisButton({
@@ -31,6 +32,7 @@ export function RunAnalysisButton({
   projectId,
   variant = "default",
   size = "sm",
+  className,
 }: RunAnalysisButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -117,6 +119,7 @@ export function RunAnalysisButton({
         size={size}
         onClick={() => setIsOpen(true)}
         disabled={isRunning}
+        className={className}
       >
         {isRunning ? (
           <>
