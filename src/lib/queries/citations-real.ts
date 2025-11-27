@@ -694,7 +694,14 @@ export async function getHighValueOpportunities(
     filters
   );
 
-  if (!allCitations || !compCitations) return [];
+  // Handle empty arrays (not just null/undefined)
+  if (!allCitations || allCitations.length === 0) {
+    return [];
+  }
+  
+  if (!compCitations || compCitations.length === 0) {
+    return [];
+  }
 
   // Build a map of domains with their competitor presence
   const domainOpportunities = new Map<string, {
@@ -715,13 +722,15 @@ export async function getHighValueOpportunities(
     if (!domain) return;
     
     // Skip if brand is cited in this domain in any response
-    if (domainsWithBrand.has(domain)) return;
+    if (domainsWithBrand.has(domain)) {
+      return;
+    }
     
-    // Check if brand is cited in this same response
-    // If brand is cited, skip this response entirely (not an opportunity)
-    const brandCitedInResponse = brandCitationsByResponse.has(responseId);
-    if (brandCitedInResponse) {
-      return; // Skip this response - brand is already cited
+    // Check if brand is cited in this same response AND in the same domain
+    // We want to skip only if brand is cited in this exact domain in this response
+    const brandDomainsInResponse = brandCitationsByResponse.get(responseId);
+    if (brandDomainsInResponse && brandDomainsInResponse.has(domain)) {
+      return; // Skip - brand is already cited in this exact domain in this response
     }
 
     if (!domainOpportunities.has(domain)) {

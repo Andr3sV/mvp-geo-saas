@@ -29,14 +29,17 @@ functions/
 ### Sistema de Análisis Diario Automático
 
 #### `trigger-daily-analysis` ⚡
+
 Se ejecuta automáticamente cada día a las 2:00 AM para buscar todos los prompts activos y agregarlos a la cola de análisis.
 
 **📚 Documentación completa:** Ver [docs/DAILY_ANALYSIS_SYSTEM.md](../../docs/DAILY_ANALYSIS_SYSTEM.md)
 
 #### `process-queue` 🔄
+
 Worker que procesa la cola de análisis en lotes pequeños (5 prompts a la vez), ejecutando análisis en todos los LLMs disponibles.
 
 **Características:**
+
 - Procesa en lotes de 5 para evitar saturación
 - Auto-continúa hasta procesar toda la cola
 - Reintenta automáticamente hasta 3 veces en caso de fallo
@@ -47,11 +50,13 @@ Worker que procesa la cola de análisis en lotes pequeños (5 prompts a la vez),
 ### Funciones de Análisis
 
 ### 1. `analyze-prompt`
+
 Ejecuta un prompt en múltiples plataformas de IA en paralelo.
 
 **Endpoint**: `https://your-project.supabase.co/functions/v1/analyze-prompt`
 
 **Request**:
+
 ```json
 {
   "prompt_tracking_id": "uuid",
@@ -62,6 +67,7 @@ Ejecuta un prompt en múltiples plataformas de IA en paralelo.
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -74,11 +80,13 @@ Ejecuta un prompt en múltiples plataformas de IA en paralelo.
 ```
 
 ### 2. `process-analysis`
+
 Procesa las respuestas de IA para extraer y analizar citaciones.
 
 **Endpoint**: `https://your-project.supabase.co/functions/v1/process-analysis`
 
 **Request**:
+
 ```json
 {
   "job_id": "uuid",
@@ -87,6 +95,7 @@ Procesa las respuestas de IA para extraer y analizar citaciones.
 ```
 
 **Response**:
+
 ```json
 {
   "success": true,
@@ -116,12 +125,14 @@ DEBUG=false
 ```
 
 **Para configurar en Supabase Dashboard**:
+
 1. Ve a `Settings` → `Edge Functions`
 2. Añade las variables de entorno
 3. Reinicia las funciones
 
 **Para configurar localmente**:
 Crea un archivo `.env` en `supabase/.env`:
+
 ```bash
 OPENAI_API_KEY=sk-...
 GEMINI_API_KEY=...
@@ -132,6 +143,7 @@ PERPLEXITY_API_KEY=pplx-...
 ## 🧪 Testing Local
 
 ### Prerequisitos
+
 - Supabase CLI instalado: `npm install -g supabase`
 - Deno instalado: [deno.land](https://deno.land)
 
@@ -213,6 +225,7 @@ Los costos por análisis varían según la plataforma:
 - **Perplexity**: ~$0.0015 por 1K tokens
 
 **Ejemplo**: Un prompt de 100 palabras (~150 tokens) + respuesta de 500 palabras (~750 tokens):
+
 - Total: ~900 tokens
 - Costo por plataforma: ~$0.0018 - $0.0027
 - Costo total (4 plataformas): ~$0.008 - $0.012 por análisis
@@ -220,15 +233,19 @@ Los costos por análisis varían según la plataforma:
 ## 🔧 Troubleshooting
 
 ### Error: "Missing API key for provider"
+
 Asegúrate de configurar las variables de entorno para cada proveedor de IA.
 
 ### Error: "Access denied to this project"
+
 Verifica que el usuario tenga permisos en el proyecto mediante `project_members`.
 
 ### Error: "Rate limit exceeded"
+
 Las funciones tienen rate limiting de 10 requests/minuto por usuario. Espera antes de reintentar.
 
 ### Error de CORS
+
 Asegúrate de que tu frontend esté en el dominio autorizado en Supabase Dashboard.
 
 ## 📚 Recursos
@@ -247,4 +264,3 @@ Asegúrate de que tu frontend esté en el dominio autorizado en Supabase Dashboa
 - [Google AI (Gemini)](https://ai.google.dev/docs)
 - [Anthropic (Claude)](https://docs.anthropic.com)
 - [Perplexity API](https://docs.perplexity.ai)
-

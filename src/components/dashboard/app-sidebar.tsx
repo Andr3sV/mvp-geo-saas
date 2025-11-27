@@ -15,6 +15,9 @@ import {
   FileText,
   Users2,
   Tag,
+  Target,
+  Presentation,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -120,6 +123,30 @@ export function AppSidebar() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
         <SidebarContent className="relative z-10">
         <SidebarGroup>
+          <SidebarGroupLabel>Reports</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/reports/executive"}>
+                  <Link href="/dashboard/reports/executive">
+                    <Presentation className="h-4 w-4" />
+                    <span>Executive Report</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/reports/detailed"}>
+                  <Link href="/dashboard/reports/detailed">
+                    <BookOpen className="h-4 w-4" />
+                    <span>Detailed Report</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
           <SidebarGroupLabel>Analytics</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -161,6 +188,22 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Actions</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/opportunities"}>
+                  <Link href="/dashboard/opportunities">
+                    <Target className="h-4 w-4" />
+                    <span>Opportunities</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
