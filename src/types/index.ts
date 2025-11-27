@@ -57,11 +57,25 @@ export interface Citation {
   created_at: string;
 }
 
+export interface Topic {
+  id: string;
+  project_id: string;
+  name: string;
+  slug?: string;
+  color?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PromptTracking {
   id: string;
   project_id: string;
   prompt: string;
   is_active: boolean;
+  category?: string; // Keeping for backward compatibility/tags
+  region?: string;
+  topic_id?: string;
+  topics?: Topic; // Joined relation
   created_at: string;
   updated_at: string;
 }

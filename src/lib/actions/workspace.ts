@@ -161,12 +161,52 @@ export async function savePrompts(data: {
     return { error: "Not authenticated", success: false, data: null };
   }
 
-  // Insert prompts with region and category
+  // Process categories -> topics first
+  const categories = new Set(
+    data.prompts
+      .map((p) => p.category)
+      .filter((c): c is string => !!c && c !== "general")
+  );
+
+  const topicMap = new Map<string, string>(); // name -> id
+
+  // Ensure all categories exist as topics
+  for (const category of categories) {
+    // Check if exists
+    const { data: existing } = await supabase
+      .from("topics")
+      .select("id")
+      .eq("project_id", data.project_id)
+      .eq("name", category)
+      .single();
+
+    if (existing) {
+      topicMap.set(category, existing.id);
+    } else {
+      // Create new topic
+      const { data: newTopic } = await supabase
+        .from("topics")
+        .insert({
+          project_id: data.project_id,
+          name: category,
+          slug: generateSlug(category),
+        })
+        .select("id")
+        .single();
+      
+      if (newTopic) {
+        topicMap.set(category, newTopic.id);
+      }
+    }
+  }
+
+  // Insert prompts with region and mapped topic_id
   const promptsData = data.prompts.map((prompt) => ({
     project_id: data.project_id,
     prompt: prompt.prompt,
     region: prompt.region || "GLOBAL",
-    category: prompt.category || "general",
+    category: prompt.category || "general", // Keep text category for now
+    topic_id: prompt.category ? topicMap.get(prompt.category) : null,
     is_active: true,
   }));
 

@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   FileText,
   Users2,
+  Tag,
 } from "lucide-react";
 import {
   Sidebar,
@@ -73,6 +74,11 @@ const configItems = [
     title: "Prompt Management",
     href: "/dashboard/prompts",
     icon: MessageSquare,
+  },
+  {
+    title: "Topics",
+    href: "/dashboard/topics",
+    icon: Tag,
   },
   {
     title: "Analysis Reports",
