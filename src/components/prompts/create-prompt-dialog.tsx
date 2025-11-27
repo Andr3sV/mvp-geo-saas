@@ -136,7 +136,7 @@ export function CreatePromptDialog({
               <TopicSelector
                 currentTopicId={topicId}
                 existingTopics={existingTopics}
-                onSelect={setTopicId}
+                onSelect={(id) => setTopicId(id || undefined)}
                 disabled={creating || loadingData}
               />
               <p className="text-xs text-muted-foreground">
