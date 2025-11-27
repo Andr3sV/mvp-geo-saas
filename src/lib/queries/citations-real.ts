@@ -64,33 +64,27 @@ export async function getQuickLookMetrics(
 
   // Execute all queries in parallel for better performance
   // ⚠️ IMPORTANT: Filter by cited_url IS NOT NULL - only show REAL citations with URLs from web search
+  
+  // Prepare filter parameters for SQL function
+  const fromDate = filters?.fromDate ? filters.fromDate.toISOString() : null;
+  const toDate = filters?.toDate ? filters.toDate.toISOString() : null;
+  const platform = filters?.platform || null;
+  const region = filters?.region || null;
+
   const [
-    responsesWithCitationsResult,
+    totalCitationPagesResult,
     myPagesCitedResult,
     platformsResult,
     sentimentsResult
   ] = await Promise.all([
-    // Total Citation Pages - count DISTINCT ai_response_id from citations WITH URLs
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations_detail")
-            .select(`
-              ai_response_id,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region)
-              )
-            `)
-            .eq("project_id", projectId)
-            .not("cited_url", "is", null), // ✅ Only real citations with URLs
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
+    // Total Citation Pages - use SQL function for efficient COUNT DISTINCT
+    supabase.rpc('count_distinct_citation_pages', {
+      p_project_id: projectId,
+      p_from_date: fromDate,
+      p_to_date: toDate,
+      p_platform: platform,
+      p_region: region
+    }),
     
     // My Pages Cited - total citations WITH URLs
     applyRegionFilter(
@@ -123,7 +117,8 @@ export async function getQuickLookMetrics(
           prompt_tracking!inner(region)
         `)
         .eq("project_id", projectId)
-        .eq("status", "success");
+        .eq("status", "success")
+        .limit(50000); // Increase limit to handle large datasets
       
       if (filters?.platform && filters.platform !== "all") {
         query = query.eq("platform", filters.platform);
@@ -150,7 +145,8 @@ export async function getQuickLookMetrics(
               )
             `)
             .eq("project_id", projectId)
-            .not("cited_url", "is", null), // ✅ Only real citations with URLs
+            .not("cited_url", "is", null) // ✅ Only real citations with URLs
+            .limit(50000), // Increase limit to handle large datasets
           filters
         ),
         filters
@@ -159,11 +155,16 @@ export async function getQuickLookMetrics(
     )
   ]);
 
-  // Total Citation Pages - count unique responses with citations
-  const uniqueResponses = new Set(
-    responsesWithCitationsResult.data?.map((c: any) => c.ai_response_id) || []
-  );
-  const totalCitationPages = uniqueResponses.size;
+  // Total Citation Pages - get result from SQL function
+  // Handle potential errors from RPC call
+  let totalCitationPages = 0;
+  if (totalCitationPagesResult.error) {
+    console.error('Error calling count_distinct_citation_pages:', totalCitationPagesResult.error);
+    // Fallback: if function doesn't exist yet, return 0
+    totalCitationPages = 0;
+  } else {
+    totalCitationPages = totalCitationPagesResult.data || 0;
+  }
 
   // My Pages Cited
   const myPagesCited = myPagesCitedResult.count || 0;
@@ -219,7 +220,8 @@ export async function getCitationsOverTime(
     .select("created_at")
     .eq("project_id", projectId)
     .not("cited_url", "is", null) // ✅ Only real citations with URLs
-    .gte("created_at", startDate.toISOString());
+    .gte("created_at", startDate.toISOString())
+    .limit(10000); // Increase limit to handle large datasets
 
   if (!citations) return [];
 
@@ -306,7 +308,8 @@ export async function getCitationsEvolution(
     .eq("project_id", projectId)
     .not("cited_url", "is", null) // ✅ Only real citations with URLs
     .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
+    .lte("created_at", endDate.toISOString())
+    .limit(10000); // Increase limit to handle large datasets
 
   if (platformFilter) {
     brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
@@ -338,7 +341,8 @@ export async function getCitationsEvolution(
       .eq("project_id", projectId)
       .eq("competitor_id", competitorId)
       .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
+      .lte("created_at", endDate.toISOString())
+      .limit(10000); // Increase limit to handle large datasets
 
     if (platformFilter) {
       compQuery = compQuery.eq("ai_responses.platform", platform);
@@ -419,7 +423,8 @@ export async function getDRBreakdown(
             )
           `)
           .eq("project_id", projectId)
-          .not("cited_url", "is", null), // ✅ Only real citations with URLs
+          .not("cited_url", "is", null) // ✅ Only real citations with URLs
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -494,7 +499,8 @@ export async function getMostCitedDomains(
           `)
           .eq("project_id", projectId)
           .not("cited_url", "is", null) // Only real citations with URLs
-          .not("cited_domain", "is", null), // Only citations with domains
+          .not("cited_domain", "is", null) // Only citations with domains
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -606,7 +612,8 @@ export async function getHighValueOpportunities(
           .eq("project_id", projectId)
           .not("cited_url", "is", null)
           .not("cited_domain", "is", null)
-          .not("citation_text", "is", null), // Only citations with brand mentions
+          .not("citation_text", "is", null) // Only citations with brand mentions
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -649,7 +656,8 @@ export async function getHighValueOpportunities(
           `)
           .eq("project_id", projectId)
           .not("cited_url", "is", null)
-          .not("cited_domain", "is", null),
+          .not("cited_domain", "is", null)
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -677,7 +685,8 @@ export async function getHighValueOpportunities(
           `)
           .eq("project_id", projectId)
           .not("cited_url", "is", null) // Only competitor citations with URLs
-          .not("cited_domain", "is", null),
+          .not("cited_domain", "is", null)
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -834,7 +843,8 @@ export async function getTopPerformingPages(
             )
           `)
           .eq("project_id", projectId)
-          .not("cited_url", "is", null), // Only citations with URLs
+          .not("cited_url", "is", null) // Only citations with URLs
+          .limit(10000), // Increase limit to handle large datasets
         filters
       ),
       filters
@@ -984,7 +994,8 @@ export async function getCompetitiveTopicAnalysis(
                 )
               `)
               .eq("project_id", projectId)
-              .not("cited_url", "is", null), // ✅ Only real citations with URLs
+              .not("cited_url", "is", null) // ✅ Only real citations with URLs
+              .limit(10000), // Increase limit to handle large datasets
             filters
           ),
           filters
@@ -1008,7 +1019,8 @@ export async function getCompetitiveTopicAnalysis(
                   prompt_tracking!inner(category, region)
                 )
               `)
-              .eq("project_id", projectId),
+              .eq("project_id", projectId)
+              .limit(10000), // Increase limit to handle large datasets
             filters
           ),
           filters

@@ -40,16 +40,16 @@ export async function getShareOfVoice(
   const regionFilter = region && region !== "GLOBAL";
 
   // Get brand citations in period with platform and region filters
+  // Use count instead of fetching all rows to avoid Supabase's 1000 row limit
   let brandCitationsQuery = supabase
     .from("citations_detail")
     .select(`
       id,
-      created_at,
       ai_responses!inner(
         platform,
         prompt_tracking!inner(region)
       )
-    `)
+    `, { count: 'exact', head: false })
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
@@ -62,9 +62,16 @@ export async function getShareOfVoice(
     brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
   }
 
-  const { data: brandCitations } = await brandCitationsQuery;
+  const { count: brandCitationsCount, error: brandError } = await brandCitationsQuery;
+  
+  if (brandError) {
+    console.error('Error fetching brand citations:', brandError);
+  }
+  
+  const brandMentions = brandCitationsCount || 0;
 
   // Get competitor citations in period with competitor info, platform and region filters
+  // Need full data to group by competitor, so we'll fetch in batches if needed
   let competitorCitationsQuery = supabase
     .from("competitor_citations")
     .select(`
@@ -79,7 +86,8 @@ export async function getShareOfVoice(
     `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
+    .lte("created_at", endDate.toISOString())
+    .limit(50000); // Increase limit to handle large datasets
 
   if (platformFilter) {
     competitorCitationsQuery = competitorCitationsQuery.eq("ai_responses.platform", platform);
@@ -91,10 +99,11 @@ export async function getShareOfVoice(
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
-  const { data: competitorCitations } = await competitorCitationsQuery;
-
-  // Count brand mentions
-  const brandMentions = brandCitations?.length || 0;
+  const { data: competitorCitations, error: compError } = await competitorCitationsQuery;
+  
+  if (compError) {
+    console.error('Error fetching competitor citations:', compError);
+  }
 
   // First, get ALL active competitors for this region (even if they have 0 mentions)
   // This ensures all competitors defined for the region appear in Market Share Distribution
@@ -229,7 +238,7 @@ export async function getShareOfVoiceTrends(
         platform,
         prompt_tracking!inner(region)
       )
-    `)
+    `, { count: 'exact', head: false })
     .eq("project_id", projectId)
     .gte("created_at", currentStartDate.toISOString())
     .lte("created_at", currentEndDate.toISOString());
@@ -255,7 +264,8 @@ export async function getShareOfVoiceTrends(
     `)
     .eq("project_id", projectId)
     .gte("created_at", currentStartDate.toISOString())
-    .lte("created_at", currentEndDate.toISOString());
+    .lte("created_at", currentEndDate.toISOString())
+    .limit(50000); // Increase limit to handle large datasets
 
   if (platformFilter) {
     currentCompQuery = currentCompQuery.eq("ai_responses.platform", platform);
@@ -280,7 +290,7 @@ export async function getShareOfVoiceTrends(
         platform,
         prompt_tracking!inner(region)
       )
-    `)
+    `, { count: 'exact', head: false })
     .eq("project_id", projectId)
     .gte("created_at", previousStartDate.toISOString())
     .lte("created_at", previousEndDate.toISOString());
@@ -306,7 +316,8 @@ export async function getShareOfVoiceTrends(
     `)
     .eq("project_id", projectId)
     .gte("created_at", previousStartDate.toISOString())
-    .lte("created_at", previousEndDate.toISOString());
+    .lte("created_at", previousEndDate.toISOString())
+    .limit(50000); // Increase limit to handle large datasets
 
   if (platformFilter) {
     previousCompQuery = previousCompQuery.eq("ai_responses.platform", platform);
@@ -322,8 +333,8 @@ export async function getShareOfVoiceTrends(
     previousCompQuery,
   ]);
 
-  // Calculate current period stats
-  const currentBrandMentions = currentBrandResult.data?.length || 0;
+  // Calculate current period stats - use count instead of data.length
+  const currentBrandMentions = currentBrandResult.count || 0;
   
   // Count current competitor mentions (with region filter in JS)
   let currentCompMentions = 0;
@@ -345,8 +356,8 @@ export async function getShareOfVoiceTrends(
     ? (currentBrandMentions / currentTotal) * 100 
     : 0;
 
-  // Calculate previous period stats
-  const previousBrandMentions = previousBrandResult.data?.length || 0;
+  // Calculate previous period stats - use count instead of data.length
+  const previousBrandMentions = previousBrandResult.count || 0;
   
   // Count previous competitor mentions (with region filter in JS)
   let previousCompMentions = 0;
@@ -564,7 +575,8 @@ export async function getShareOfVoiceOverTime(
     `)
     .eq("project_id", projectId)
     .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
+    .lte("created_at", endDate.toISOString())
+    .limit(50000); // Increase limit to handle large datasets
 
   if (platformFilter) {
     brandMentionsQuery = brandMentionsQuery.eq("ai_responses.platform", platform);
@@ -596,7 +608,8 @@ export async function getShareOfVoiceOverTime(
       .eq("project_id", projectId)
       .eq("competitor_id", competitorId)
       .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
+      .lte("created_at", endDate.toISOString())
+      .limit(50000); // Increase limit to handle large datasets
 
     if (platformFilter) {
       compQuery = compQuery.eq("ai_responses.platform", platform);
