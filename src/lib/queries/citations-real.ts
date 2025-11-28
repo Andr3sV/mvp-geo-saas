@@ -302,7 +302,7 @@ export async function getCitationsEvolution(
   topicId?: string
 ) {
   const supabase = await createClient();
-  const { format, subDays, eachDayOfInterval } = await import("date-fns");
+  const { format, subDays, eachDayOfInterval, endOfDay, startOfDay } = await import("date-fns");
 
   // Get project info (including domain for logo)
   const { data: project } = await supabase
@@ -312,8 +312,9 @@ export async function getCitationsEvolution(
     .single();
 
   // Calculate date range (default to last 30 days if not provided)
-  const endDate = toDate || new Date();
-  const startDate = fromDate || subDays(endDate, 30);
+  // IMPORTANT: Use startOfDay for fromDate and endOfDay for toDate to include the full day
+  const endDate = toDate ? endOfDay(toDate) : endOfDay(new Date());
+  const startDate = fromDate ? startOfDay(fromDate) : startOfDay(subDays(endDate, 30));
 
   // Build platform, region, and topic filters
   const platformFilter = platform && platform !== "all";
@@ -321,35 +322,65 @@ export async function getCitationsEvolution(
   const topicFilter = topicId && topicId !== "all";
 
   // Get brand citations over time (only with URLs)
-  let brandCitationsQuery = supabase
-    .from("citations_detail")
-    .select(`
-      id,
-      created_at,
-      ai_responses!inner(
-        platform,
-        prompt_tracking!inner(region, topic_id)
-      )
-    `)
-    .eq("project_id", projectId)
-    .not("cited_url", "is", null) // ✅ Only real citations with URLs
-    .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString())
-    .limit(10000); // Increase limit to handle large datasets
+  // IMPORTANT: Use pagination to fetch all records (Supabase default limit is 1000)
+  let brandCitations: any[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  let hasMore = true;
 
-  if (platformFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
+  while (hasMore) {
+    let brandCitationsQuery = supabase
+      .from("citations_detail")
+      .select(`
+        id,
+        created_at,
+        ai_responses!inner(
+          platform,
+          prompt_tracking!inner(region, topic_id)
+        )
+      `)
+      .eq("project_id", projectId)
+      .not("cited_url", "is", null) // ✅ Only real citations with URLs
+      .gte("created_at", startDate.toISOString())
+      .lte("created_at", endDate.toISOString())
+      .range(from, from + pageSize - 1)
+      .order("created_at", { ascending: true });
+
+    if (platformFilter) {
+      brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
+    }
+
+    if (regionFilter) {
+      brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
+    }
+
+    if (topicFilter) {
+      brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+    }
+
+    const { data: pageData, error } = await brandCitationsQuery;
+
+    if (error) {
+      console.error("Error fetching brand citations:", error);
+      break;
+    }
+
+    if (pageData && pageData.length > 0) {
+      brandCitations = [...brandCitations, ...pageData];
+      from += pageSize;
+      // If we got less than pageSize, we've reached the end
+      if (pageData.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+
+    // Safety limit: don't fetch more than 100,000 records
+    if (brandCitations.length >= 100000) {
+      hasMore = false;
+    }
   }
-
-  if (regionFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
-  }
-
-  if (topicFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
-  }
-
-  const { data: brandCitations } = await brandCitationsQuery;
 
   // Get competitor citations over time (if competitor selected)
   let competitorCitations: any[] = [];
@@ -357,44 +388,74 @@ export async function getCitationsEvolution(
   let competitorDomain = "";
 
   if (competitorId) {
-    let compQuery = supabase
-      .from("competitor_citations")
-      .select(`
-        id,
-        created_at,
-        competitors!inner(name, domain, region),
-        ai_responses!inner(
-          platform,
-          prompt_tracking!inner(region, topic_id)
-        )
-      `)
-      .eq("project_id", projectId)
-      .eq("competitor_id", competitorId)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString())
-      .limit(10000); // Increase limit to handle large datasets
+    // Use pagination for competitor citations too
+    let compFrom = 0;
+    let compHasMore = true;
 
-    if (platformFilter) {
-      compQuery = compQuery.eq("ai_responses.platform", platform);
+    while (compHasMore) {
+      let compQuery = supabase
+        .from("competitor_citations")
+        .select(`
+          id,
+          created_at,
+          competitors!inner(name, domain, region),
+          ai_responses!inner(
+            platform,
+            prompt_tracking!inner(region, topic_id)
+          )
+        `)
+        .eq("project_id", projectId)
+        .eq("competitor_id", competitorId)
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString())
+        .range(compFrom, compFrom + pageSize - 1)
+        .order("created_at", { ascending: true });
+
+      if (platformFilter) {
+        compQuery = compQuery.eq("ai_responses.platform", platform);
+      }
+
+      if (regionFilter) {
+        compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
+      }
+
+      if (topicFilter) {
+        compQuery = compQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+      }
+
+      const { data: compPageData, error: compError } = await compQuery;
+
+      if (compError) {
+        console.error("Error fetching competitor citations:", compError);
+        break;
+      }
+
+      if (compPageData && compPageData.length > 0) {
+        competitorCitations = [...competitorCitations, ...compPageData];
+        compFrom += pageSize;
+        if (compPageData.length < pageSize) {
+          compHasMore = false;
+        }
+      } else {
+        compHasMore = false;
+      }
+
+      if (competitorCitations.length >= 100000) {
+        compHasMore = false;
+      }
     }
 
-    if (regionFilter) {
-      compQuery = compQuery.eq("ai_responses.prompt_tracking.region", region);
-    }
-
-    if (topicFilter) {
-      compQuery = compQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
-    }
-
-    const { data: compData } = await compQuery;
-
-    competitorCitations = compData || [];
-    competitorName = (compData as any)?.[0]?.competitors?.name || "Competitor";
-    competitorDomain = (compData as any)?.[0]?.competitors?.domain || "";
+    competitorName = (competitorCitations as any)?.[0]?.competitors?.name || "Competitor";
+    competitorDomain = (competitorCitations as any)?.[0]?.competitors?.domain || "";
   }
 
   // Create array of all days in range
-  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+  // IMPORTANT: Use startOfDay for both to get consistent day boundaries
+  // endDate is already endOfDay, so we need to convert it back to startOfDay for the interval
+  const allDays = eachDayOfInterval({ 
+    start: startOfDay(startDate), 
+    end: startOfDay(endDate) // endDate is endOfDay, so startOfDay(endDate) gives us the same day
+  });
 
   // Count citations by day
   const dailyData = allDays.map((day) => {
@@ -402,14 +463,16 @@ export async function getCitationsEvolution(
 
     // Count brand citations for this day
     const brandCount = (brandCitations || []).filter((c) => {
-      const citationDate = format(new Date(c.created_at), "yyyy-MM-dd");
-      return citationDate === dayStr;
+      const citationDate = new Date(c.created_at);
+      const citationDayStr = format(citationDate, "yyyy-MM-dd");
+      return citationDayStr === dayStr;
     }).length;
 
     // Count competitor citations for this day
     const competitorCount = competitorCitations.filter((c) => {
-      const citationDate = format(new Date(c.created_at), "yyyy-MM-dd");
-      return citationDate === dayStr;
+      const citationDate = new Date(c.created_at);
+      const citationDayStr = format(citationDate, "yyyy-MM-dd");
+      return citationDayStr === dayStr;
     }).length;
 
     return {

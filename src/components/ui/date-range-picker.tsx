@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
@@ -63,6 +63,38 @@ export function DateRangePicker({
     }
   };
 
+  const handleQuickFilter = (filterType: "today" | "lastWeek" | "lastMonth") => {
+    const now = new Date();
+    let range: DateRange | undefined;
+
+    switch (filterType) {
+      case "today":
+        range = {
+          from: startOfDay(now),
+          to: endOfDay(now),
+        };
+        break;
+      case "lastWeek":
+        range = {
+          from: startOfDay(subDays(now, 6)), // Last 7 days including today
+          to: endOfDay(now),
+        };
+        break;
+      case "lastMonth":
+        range = {
+          from: startOfMonth(subDays(now, 29)), // Last 30 days
+          to: endOfDay(now),
+        };
+        break;
+    }
+
+    if (range) {
+      setSelectedRange(range);
+      onChange?.({ from: range.from, to: range.to });
+      setOpen(false);
+    }
+  };
+
   // Always show applied value (value) in trigger, not temporary selection
   const displayRange = value;
 
@@ -95,6 +127,34 @@ export function DateRangePicker({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <div className="p-3">
+            {/* Quick Filters */}
+            <div className="flex gap-2 mb-3 pb-3 border-b">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => handleQuickFilter("today")}
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => handleQuickFilter("lastWeek")}
+              >
+                Last Week
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={() => handleQuickFilter("lastMonth")}
+              >
+                Last Month
+              </Button>
+            </div>
+            
             <Calendar
               initialFocus
               mode="range"
