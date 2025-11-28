@@ -63,40 +63,82 @@ export function DateRangePicker({
     }
   };
 
-  const handleQuickFilter = (filterType: "today" | "lastWeek" | "lastMonth") => {
+  const getQuickFilterRange = (filterType: "today" | "lastWeek" | "lastMonth"): DateRange => {
     const now = new Date();
-    let range: DateRange | undefined;
-
     switch (filterType) {
       case "today":
-        range = {
+        return {
           from: startOfDay(now),
           to: endOfDay(now),
         };
-        break;
       case "lastWeek":
-        range = {
+        return {
           from: startOfDay(subDays(now, 6)), // Last 7 days including today
           to: endOfDay(now),
         };
-        break;
       case "lastMonth":
-        range = {
-          from: startOfMonth(subDays(now, 29)), // Last 30 days
+        return {
+          from: startOfDay(subDays(now, 29)), // Last 30 days
           to: endOfDay(now),
         };
-        break;
+    }
+  };
+
+  const handleQuickFilter = (filterType: "today" | "lastWeek" | "lastMonth") => {
+    const range = getQuickFilterRange(filterType);
+    setSelectedRange(range);
+    onChange?.({ from: range.from, to: range.to });
+    setOpen(false);
+  };
+
+  // Detect which quick filter matches the current value (if any)
+  const getActiveQuickFilter = (): "today" | "lastWeek" | "lastMonth" | null => {
+    if (!value?.from || !value?.to) return null;
+
+    const now = new Date();
+    const todayRange = getQuickFilterRange("today");
+    const lastWeekRange = getQuickFilterRange("lastWeek");
+    const lastMonthRange = getQuickFilterRange("lastMonth");
+
+    // Helper to compare dates (same day, ignoring time)
+    const isSameDay = (date1: Date, date2: Date) => {
+      return (
+        date1.getFullYear() === date2.getFullYear() &&
+        date1.getMonth() === date2.getMonth() &&
+        date1.getDate() === date2.getDate()
+      );
+    };
+
+    // Check if value matches today
+    if (
+      isSameDay(value.from, todayRange.from!) &&
+      isSameDay(value.to, todayRange.to!)
+    ) {
+      return "today";
     }
 
-    if (range) {
-      setSelectedRange(range);
-      onChange?.({ from: range.from, to: range.to });
-      setOpen(false);
+    // Check if value matches last week
+    if (
+      isSameDay(value.from, lastWeekRange.from!) &&
+      isSameDay(value.to, lastWeekRange.to!)
+    ) {
+      return "lastWeek";
     }
+
+    // Check if value matches last month
+    if (
+      isSameDay(value.from, lastMonthRange.from!) &&
+      isSameDay(value.to, lastMonthRange.to!)
+    ) {
+      return "lastMonth";
+    }
+
+    return null;
   };
 
   // Always show applied value (value) in trigger, not temporary selection
   const displayRange = value;
+  const activeQuickFilter = getActiveQuickFilter();
 
   return (
     <div className={cn("grid gap-2", className)}>
@@ -130,7 +172,7 @@ export function DateRangePicker({
             {/* Quick Filters */}
             <div className="flex gap-2 mb-3 pb-3 border-b">
               <Button
-                variant="outline"
+                variant={activeQuickFilter === "today" ? "default" : "outline"}
                 size="sm"
                 className="flex-1 text-xs"
                 onClick={() => handleQuickFilter("today")}
@@ -138,7 +180,7 @@ export function DateRangePicker({
                 Today
               </Button>
               <Button
-                variant="outline"
+                variant={activeQuickFilter === "lastWeek" ? "default" : "outline"}
                 size="sm"
                 className="flex-1 text-xs"
                 onClick={() => handleQuickFilter("lastWeek")}
@@ -146,7 +188,7 @@ export function DateRangePicker({
                 Last Week
               </Button>
               <Button
-                variant="outline"
+                variant={activeQuickFilter === "lastMonth" ? "default" : "outline"}
                 size="sm"
                 className="flex-1 text-xs"
                 onClick={() => handleQuickFilter("lastMonth")}
