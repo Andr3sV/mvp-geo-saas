@@ -3,14 +3,19 @@
 -- ============================================
 -- 
 -- Este script configura el sistema que ejecuta análisis de IA
--- automáticamente cada día a las 2:00 AM para todos los prompts activos.
+-- automáticamente cada día a las 2:00 AM UTC para todos los prompts activos.
 --
 -- IMPORTANTE: Antes de ejecutar este script:
--- 1. Reemplaza 'TU_SERVICE_ROLE_KEY' en la línea 71 con tu Service Role Key real
---    (Encuéntrala en: Supabase Dashboard → Project Settings → API → service_role)
--- 2. Ejecuta este script completo en el SQL Editor de Supabase
+-- 1. Encuentra tu PROJECT REF (ID del proyecto):
+--    - Ve a Supabase Dashboard → Project Settings → General
+--    - Copia el "Reference ID" (ej: sqvhxqbjxetibedzzky)
+-- 2. Encuentra tu SERVICE ROLE KEY:
+--    - Ve a Supabase Dashboard → Project Settings → API
+--    - Copia la "service_role" key (secreta, no la anon key)
+-- 3. Reemplaza 'TU_PROJECT_REF' y 'TU_SERVICE_ROLE_KEY' en las líneas 75-76
+-- 4. Ejecuta este script completo en el SQL Editor de Supabase
 --
--- Para más información, consulta: docs/DAILY_ANALYSIS_SYSTEM.md
+-- Para más información, consulta: CRON_ANALYSIS_AND_IMPROVEMENTS.md
 -- ============================================
 
 -- PASO 1: Crear la tabla de cola (si no existe)
@@ -70,14 +75,16 @@ EXCEPTION
 END $$;
 
 -- PASO 4: Programar el Cron Job (Diario a las 2:00 AM)
--- ⚠️ IMPORTANTE: Reemplaza TU_SERVICE_ROLE_KEY con tu clave real
+-- ⚠️ IMPORTANTE: 
+-- 1. Reemplaza 'TU_SERVICE_ROLE_KEY' con tu clave real (service_role key)
+-- 2. Reemplaza 'TU_PROJECT_REF' con el ID de referencia de tu proyecto (ej: sqvhxqbjxetibedzzky)
 SELECT cron.schedule(
   'daily-analysis-trigger',
   '0 2 * * *', 
   $$
   SELECT
     net.http_post(
-        url:='https://sqvhxqbjxetibedzzkyo.supabase.co/functions/v1/trigger-daily-analysis',
+        url:='https://TU_PROJECT_REF.supabase.co/functions/v1/trigger-daily-analysis',
         headers:='{"Content-Type": "application/json", "Authorization": "Bearer TU_SERVICE_ROLE_KEY"}'::jsonb,
         body:='{}'::jsonb
     ) as request_id;

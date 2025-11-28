@@ -1,15 +1,18 @@
-
 /**
  * EDGE FUNCTION: trigger-daily-analysis
  * 
  * Propósito: Se ejecuta diariamente a las 2:00 AM (vía cron job) para:
  * 1. Buscar todos los prompts activos en la base de datos
  * 2. Insertarlos en la cola de análisis (analysis_queue)
- * 3. Disparar el procesamiento llamando a process-queue
+ * 3. Disparar múltiples workers en paralelo para procesar la cola
  * 
- * Esta función está diseñada para manejar miles de prompts mediante paginación.
+ * Diseño mejorado para 10,000+ prompts:
+ * - Usa cola para persistencia y retry
+ * - Dispara múltiples workers en paralelo (no recursión)
+ * - Cada worker procesa un lote y termina
+ * - Más robusto y escalable
  * 
- * Documentación completa: docs/DAILY_ANALYSIS_SYSTEM.md
+ * Documentación completa: CRON_ANALYSIS_AND_IMPROVEMENTS.md
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -38,10 +41,7 @@ serve(async (req) => {
 
     logInfo('trigger-daily-analysis', 'Starting daily analysis trigger');
 
-    // 1. Fetch all active prompts
-    // Pagination might be needed for thousands, but for now let's fetch 10000
-    // Supabase limit is 1000 by default, we need to range it
-    
+    // 1. Fetch all active prompts with pagination
     let allPrompts = [];
     let from = 0;
     const limit = 1000;
@@ -58,7 +58,7 @@ serve(async (req) => {
         throw new Error(`Failed to fetch prompts: ${error.message}`);
       }
 
-      if (prompts.length > 0) {
+      if (prompts && prompts.length > 0) {
         allPrompts = [...allPrompts, ...prompts];
         from += limit;
       } else {
@@ -83,6 +83,7 @@ serve(async (req) => {
 
     // 3. Insert into queue (in batches of 100 to be safe)
     const chunkSize = 100;
+    let inserted = 0;
     for (let i = 0; i < queueItems.length; i += chunkSize) {
       const chunk = queueItems.slice(i, i + chunkSize);
       const { error: insertError } = await supabase
@@ -91,25 +92,49 @@ serve(async (req) => {
       
       if (insertError) {
         logError('trigger-daily-analysis', `Failed to insert chunk ${i}`, insertError);
-        // Continue with other chunks or fail? Let's continue but log
+      } else {
+        inserted += chunk.length;
       }
     }
 
-    logInfo('trigger-daily-analysis', `Inserted ${queueItems.length} items into queue with batch ${batchId}`);
+    logInfo('trigger-daily-analysis', `Inserted ${inserted} items into queue with batch ${batchId}`);
 
-    // 4. Trigger the worker
-    const { error: invokeError } = await supabase.functions.invoke('process-queue', {
-      body: { batch_id: batchId }
-    });
+    // 4. Trigger multiple workers in parallel (FIRE AND FORGET - don't wait for response)
+    // Each worker processes a batch and finishes independently
+    // For 10,000+ prompts, we need more workers
+    // Each worker processes ~50 prompts, so 20 workers = ~1000 prompts per round
+    const NUM_WORKERS = 20;
 
-    if (invokeError) {
-      logError('trigger-daily-analysis', 'Failed to trigger process-queue', invokeError);
-      // But queue is populated, so a cron or manual retry can pick it up
+    logInfo('trigger-daily-analysis', `Triggering ${NUM_WORKERS} workers (fire and forget)`);
+
+    // Fire and forget - don't await, just trigger and return
+    // This prevents connection timeouts since we don't wait for workers to finish
+    for (let i = 0; i < NUM_WORKERS; i++) {
+      // Invoke without awaiting - true fire and forget
+      supabase.functions.invoke('process-queue', {
+        body: { batch_id: batchId, worker_id: i }
+      }).then(() => {
+        logInfo('trigger-daily-analysis', `Worker ${i} invocation sent successfully`);
+      }).catch(err => {
+        logError('trigger-daily-analysis', `Worker ${i} invocation failed`, {
+          error: err.message,
+          name: err.name
+        });
+      });
+      
+      logInfo('trigger-daily-analysis', `Worker ${i + 1}/${NUM_WORKERS} invocation initiated`);
     }
 
+    // Small delay to ensure invocations are sent (but don't wait for responses)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    logInfo('trigger-daily-analysis', `All ${NUM_WORKERS} workers triggered (processing in background)`);
+
     return successResponse({ 
-      message: `Scheduled ${allPrompts.length} prompts for analysis`,
-      batch_id: batchId
+      message: `Scheduled ${inserted} prompts for analysis`,
+      batch_id: batchId,
+      workers_triggered: NUM_WORKERS,
+      note: 'Workers will process the queue. Check analysis_queue table for status.'
     });
 
   } catch (error) {
@@ -117,4 +142,3 @@ serve(async (req) => {
     return errorResponse(error.message || 'Internal server error', 500);
   }
 });
-
