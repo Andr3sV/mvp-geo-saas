@@ -114,16 +114,27 @@ export async function callGemini(
 
       // Handle rate limiting (429)
       if (response.status === 429) {
-        const retryDelay = errorData.error?.details?.[0]?.retryDelay 
-          ? parseInt(errorData.error.details[0].retryDelay.replace('s', '')) * 1000
-          : 60000; // Default 60 seconds
-
-        logError('Gemini', `Rate limit exceeded. Retry after ${retryDelay}ms`, errorData);
+        const errorDetails = errorData.error?.details || [];
+        // Find RetryInfo in the details array
+        const retryInfo = errorDetails.find((d: any) => d['@type']?.includes('RetryInfo'));
+        const quotaInfo = errorDetails.find((d: any) => d['@type']?.includes('QuotaFailure'));
         
-        // Throw a special error that can be caught and retried
-        const rateLimitError: any = new Error(`Gemini rate limit exceeded. Retry after ${retryDelay}ms`);
-        rateLimitError.retryAfter = retryDelay;
+        const retryDelaySeconds = retryInfo?.retryDelay 
+          ? parseInt(retryInfo.retryDelay.replace('s', ''))
+          : 60; // Default 60 seconds if not specified
+
+        logError('Gemini', `Rate limit exceeded (429). Retry after ${retryDelaySeconds}s`, {
+          quotaInfo: quotaInfo?.violations || [],
+          retryDelaySeconds,
+          quotaLimit: '10 requests per minute per model'
+        });
+        
+        // Throw a special error that can be caught and handled gracefully
+        const rateLimitError: any = new Error(`Gemini rate limit exceeded. Quota: 10 req/min. Retry after ${retryDelaySeconds}s`);
+        rateLimitError.statusCode = 429;
+        rateLimitError.retryAfter = retryDelaySeconds * 1000;
         rateLimitError.isRateLimit = true;
+        rateLimitError.quotaLimit = '10 requests per minute per model';
         throw rateLimitError;
       }
 
