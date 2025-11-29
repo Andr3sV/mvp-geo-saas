@@ -9,7 +9,7 @@ export const processPrompt = inngest.createFunction(
     id: "process-single-prompt",
     // Configure concurrency to avoid rate limits
     concurrency: {
-      limit: 50, // Adjust based on your API tier
+      limit: 5, // Matches Inngest plan limit
     },
     // Automatic retries on failure
     retries: 3
