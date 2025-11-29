@@ -151,13 +151,24 @@ export const processPrompt = inngest.createFunction(
         } catch (err: any) {
           const errorMessage = err?.message || String(err);
           const errorStack = err?.stack || '';
+          const isRateLimit = err?.isRateLimit || err?.statusCode === 429;
           
-          logError("process-prompt", `${platform} failed: ${errorMessage}`, {
-            platform,
-            prompt_tracking_id,
-            error: errorMessage,
-            stack: errorStack
-          });
+          // Special handling for rate limits - log but don't fail the entire job
+          if (isRateLimit) {
+            logError("process-prompt", `${platform} rate limit exceeded: ${errorMessage}`, {
+              platform,
+              prompt_tracking_id,
+              retryAfter: err?.retryAfter,
+              quotaLimit: err?.quotaLimit
+            });
+          } else {
+            logError("process-prompt", `${platform} failed: ${errorMessage}`, {
+              platform,
+              prompt_tracking_id,
+              error: errorMessage,
+              stack: errorStack
+            });
+          }
           
           // Try to update error status - but don't fail if this fails
           try {
@@ -165,7 +176,9 @@ export const processPrompt = inngest.createFunction(
               .from("ai_responses")
               .update({
                 status: "error",
-                error_message: errorMessage,
+                error_message: isRateLimit 
+                  ? `Rate limit exceeded. ${err?.quotaLimit || 'Quota exceeded'}. Will retry on next run.`
+                  : errorMessage,
               })
               .eq("prompt_tracking_id", prompt_tracking_id)
               .eq("platform", platform)
@@ -174,7 +187,12 @@ export const processPrompt = inngest.createFunction(
             logError("process-prompt", `Failed to update error status for ${platform}`, updateError);
           }
 
-          return { platform, status: "failed", error: errorMessage };
+          return { 
+            platform, 
+            status: "failed", 
+            error: errorMessage,
+            isRateLimit: isRateLimit || false
+          };
         }
       });
 

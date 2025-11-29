@@ -104,8 +104,30 @@ export async function callGemini(
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${error}`);
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: { message: errorText } };
+      }
+
+      // Handle rate limiting (429)
+      if (response.status === 429) {
+        const retryDelay = errorData.error?.details?.[0]?.retryDelay 
+          ? parseInt(errorData.error.details[0].retryDelay.replace('s', '')) * 1000
+          : 60000; // Default 60 seconds
+
+        logError('Gemini', `Rate limit exceeded. Retry after ${retryDelay}ms`, errorData);
+        
+        // Throw a special error that can be caught and retried
+        const rateLimitError: any = new Error(`Gemini rate limit exceeded. Retry after ${retryDelay}ms`);
+        rateLimitError.retryAfter = retryDelay;
+        rateLimitError.isRateLimit = true;
+        throw rateLimitError;
+      }
+
+      throw new Error(`Gemini API error: ${errorText}`);
     }
 
     const data = await response.json();
