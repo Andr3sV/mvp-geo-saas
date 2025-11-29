@@ -59,7 +59,7 @@ export const processPrompt = inngest.createFunction(
           completed_platforms: 0,
           failed_platforms: 0,
           started_at: new Date().toISOString(),
-          created_by: "inngest-orchestrator",
+          created_by: null, // Service role execution - no user ID
         })
         .select()
         .single();
