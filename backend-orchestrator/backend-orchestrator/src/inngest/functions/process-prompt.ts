@@ -41,6 +41,11 @@ export const processPrompt = inngest.createFunction(
     // We want to run all available platforms
     const platforms: AIProvider[] = ['openai', 'gemini', 'claude', 'perplexity'];
     const availablePlatforms = platforms.filter(p => getAPIKey(p) !== null);
+    
+    logInfo("process-prompt", `Available platforms: ${availablePlatforms.join(', ')}`);
+    if (availablePlatforms.length === 0) {
+      throw new Error('No API keys configured for any AI platform');
+    }
 
     // 3. Create Analysis Job Record
     const job = await step.run("create-job-record", async () => {
@@ -104,7 +109,7 @@ export const processPrompt = inngest.createFunction(
           });
 
           // Update Response
-          await supabase
+          const updateResult = await supabase
             .from("ai_responses")
             .update({
               response_text: result.text,
@@ -120,6 +125,17 @@ export const processPrompt = inngest.createFunction(
             })
             .eq("id", aiResponse.id);
 
+          if (updateResult.error) {
+            logError("process-prompt", `Failed to update AI response for ${platform}`, updateResult.error);
+            throw new Error(`Failed to update response: ${updateResult.error.message}`);
+          }
+          
+          logInfo("process-prompt", `${platform} saved successfully to ai_responses`, {
+            aiResponseId: aiResponse.id,
+            model: result.model,
+            tokensUsed: result.tokens_used
+          });
+
           // Process Citations (Async but awaited here to ensure completion)
           await triggerCitationProcessing(
             supabase,
@@ -133,20 +149,32 @@ export const processPrompt = inngest.createFunction(
           return { platform, status: "success" };
 
         } catch (err: any) {
-          logError("process-prompt", `${platform} failed`, err);
+          const errorMessage = err?.message || String(err);
+          const errorStack = err?.stack || '';
           
-          // Update error status
-          await supabase
-            .from("ai_responses")
-            .update({
-              status: "error",
-              error_message: err.message,
-            })
-            .eq("prompt_tracking_id", prompt_tracking_id)
-            .eq("platform", platform)
-            .eq("status", "processing");
+          logError("process-prompt", `${platform} failed: ${errorMessage}`, {
+            platform,
+            prompt_tracking_id,
+            error: errorMessage,
+            stack: errorStack
+          });
+          
+          // Try to update error status - but don't fail if this fails
+          try {
+            await supabase
+              .from("ai_responses")
+              .update({
+                status: "error",
+                error_message: errorMessage,
+              })
+              .eq("prompt_tracking_id", prompt_tracking_id)
+              .eq("platform", platform)
+              .eq("status", "processing");
+          } catch (updateError: any) {
+            logError("process-prompt", `Failed to update error status for ${platform}`, updateError);
+          }
 
-          return { platform, status: "failed", error: err.message };
+          return { platform, status: "failed", error: errorMessage };
         }
       });
 
