@@ -9,7 +9,9 @@ const handler = serve({
   functions: [scheduleAnalysis, processPrompt],
 });
 
-const inngestHandler = new Elysia().all("/api/inngest/*", ({ request }) =>
+const inngestHandler = new Elysia().all("/api/inngest", ({ request }) =>
+  handler(request)
+).all("/api/inngest/*", ({ request }) =>
   handler(request)
 );
 
