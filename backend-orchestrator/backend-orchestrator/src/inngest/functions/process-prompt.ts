@@ -7,6 +7,7 @@ import type { AIProvider } from "../../lib/types";
 export const processPrompt = inngest.createFunction(
   { 
     id: "process-single-prompt",
+    name: "Process Single Prompt",
     // Configure concurrency to avoid rate limits
     concurrency: {
       limit: 5, // Matches Inngest plan limit

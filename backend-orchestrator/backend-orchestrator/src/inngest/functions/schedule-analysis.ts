@@ -2,7 +2,10 @@ import { inngest } from "../client";
 import { createSupabaseClient, logInfo, logError } from "../../lib/utils";
 
 export const scheduleAnalysis = inngest.createFunction(
-  { id: "schedule-daily-analysis" },
+  { 
+    id: "schedule-daily-analysis",
+    name: "Schedule Daily Analysis"
+  },
   { cron: "0 2 * * *" }, // Runs at 2:00 AM daily
   async ({ step }) => {
     const supabase = createSupabaseClient();
