@@ -1,6 +1,8 @@
 # Supabase Edge Functions
 
-Este directorio contiene las Edge Functions para el análisis de IA y procesamiento de citaciones.
+Este directorio contiene las Edge Functions para análisis de sentimiento y procesamiento de citaciones.
+
+> **Nota**: Las funciones de análisis diario de prompts (`trigger-daily-analysis`, `process-queue`, `analyze-prompt`) han sido migradas al nuevo servicio **Backend Orchestrator** usando Inngest. Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más información.
 
 ## 📁 Estructura
 
@@ -10,76 +12,36 @@ functions/
 │   ├── types.ts          # Tipos compartidos TypeScript
 │   ├── utils.ts          # Utilidades (auth, CORS, logging)
 │   └── ai-clients.ts     # Clientes para OpenAI, Gemini, Claude, Perplexity
-├── analyze-prompt/
-│   └── index.ts          # Función principal de análisis
-├── process-analysis/
-│   └── index.ts          # Procesamiento de citaciones
-├── trigger-daily-analysis/
-│   └── index.ts          # Dispara análisis diario automático (2:00 AM)
-├── process-queue/
-│   └── index.ts          # Worker que procesa la cola de análisis
 ├── analyze-sentiment/
 │   └── index.ts          # Análisis avanzado de sentimiento
+├── daily-sentiment-analysis/
+│   └── index.ts          # Análisis diario de sentimiento
+├── process-sentiment-queue/
+│   └── index.ts          # Procesamiento de cola de sentimiento
+├── trigger-sentiment-analysis/
+│   └── index.ts          # Dispara análisis de sentimiento
+├── process-analysis/
+│   └── index.ts          # Procesamiento de citaciones
 ├── deno.json             # Configuración de Deno
 └── README.md             # Este archivo
 ```
 
 ## 🚀 Funciones Disponibles
 
-### Sistema de Análisis Diario Automático
+### Sistema de Análisis de Sentimiento
 
-#### `trigger-daily-analysis` ⚡
+Las funciones de análisis de sentimiento siguen usando Edge Functions:
 
-Se ejecuta automáticamente cada día a las 2:00 AM para buscar todos los prompts activos y agregarlos a la cola de análisis.
+- **`analyze-sentiment`**: Análisis avanzado de sentimiento de respuestas de IA
+- **`daily-sentiment-analysis`**: Ejecuta análisis de sentimiento diariamente
+- **`process-sentiment-queue`**: Procesa la cola de análisis de sentimiento
+- **`trigger-sentiment-analysis`**: Dispara análisis de sentimiento manual
 
-**📚 Documentación completa:** Ver [docs/DAILY_ANALYSIS_SYSTEM.md](../../docs/DAILY_ANALYSIS_SYSTEM.md)
+### Funciones de Procesamiento
 
-#### `process-queue` 🔄
+### `process-analysis`
 
-Worker que procesa la cola de análisis en lotes pequeños (5 prompts a la vez), ejecutando análisis en todos los LLMs disponibles.
-
-**Características:**
-
-- Procesa en lotes de 5 para evitar saturación
-- Auto-continúa hasta procesar toda la cola
-- Reintenta automáticamente hasta 3 veces en caso de fallo
-- Ejecuta análisis en: Perplexity, Gemini, OpenAI, Claude
-
----
-
-### Funciones de Análisis
-
-### 1. `analyze-prompt`
-
-Ejecuta un prompt en múltiples plataformas de IA en paralelo.
-
-**Endpoint**: `https://your-project.supabase.co/functions/v1/analyze-prompt`
-
-**Request**:
-
-```json
-{
-  "prompt_tracking_id": "uuid",
-  "project_id": "uuid",
-  "prompt_text": "What are the best project management tools?",
-  "platforms": ["openai", "gemini", "claude", "perplexity"]
-}
-```
-
-**Response**:
-
-```json
-{
-  "success": true,
-  "data": {
-    "job_id": "uuid",
-    "status": "completed",
-    "message": "Analysis completed. 4/4 platforms completed successfully."
-  }
-}
-```
-
-### 2. `process-analysis`
+Procesa las respuestas de IA para extraer y analizar citaciones.
 
 Procesa las respuestas de IA para extraer y analizar citaciones.
 
@@ -153,20 +115,20 @@ PERPLEXITY_API_KEY=pplx-...
 # En la raíz del proyecto
 supabase functions serve
 
-# O una función específica
-supabase functions serve analyze-prompt
+# O una función específica (ejemplo: analyze-sentiment)
+supabase functions serve analyze-sentiment
 ```
 
 ### Llamar a una función localmente
 
 ```bash
-curl -i --location --request POST 'http://localhost:54321/functions/v1/analyze-prompt' \
+# Ejemplo: analyze-sentiment
+curl -i --location --request POST 'http://localhost:54321/functions/v1/analyze-sentiment' \
   --header 'Authorization: Bearer YOUR_ANON_KEY' \
   --header 'Content-Type: application/json' \
   --data '{
-    "prompt_tracking_id": "uuid",
-    "project_id": "uuid",
-    "prompt_text": "What are the best project management tools?"
+    "ai_response_id": "uuid",
+    "project_id": "uuid"
   }'
 ```
 
@@ -181,8 +143,9 @@ supabase functions deploy
 ### Deploy una función específica
 
 ```bash
-supabase functions deploy analyze-prompt
+supabase functions deploy analyze-sentiment
 supabase functions deploy process-analysis
+supabase functions deploy daily-sentiment-analysis
 ```
 
 ### Verificar deployment
@@ -196,13 +159,13 @@ supabase functions list
 ### Ver logs en tiempo real
 
 ```bash
-supabase functions logs analyze-prompt --follow
+supabase functions logs analyze-sentiment --follow
 ```
 
 ### Ver logs históricos
 
 ```bash
-supabase functions logs analyze-prompt --limit 100
+supabase functions logs analyze-sentiment --limit 100
 ```
 
 ## 🔐 Autenticación
@@ -252,9 +215,13 @@ Asegúrate de que tu frontend esté en el dominio autorizado en Supabase Dashboa
 
 ### Documentación Interna
 
-- **[Sistema de Análisis Diario Automático](../../docs/DAILY_ANALYSIS_SYSTEM.md)** - Documentación completa del sistema de análisis automatizado
-- **[Guía de Inicio Rápido](../../docs/DAILY_ANALYSIS_QUICKSTART.md)** - Configuración rápida del análisis diario
+- **[Backend Orchestrator](../../backend-orchestrator/backend-orchestrator/README.md)** - Nuevo servicio de análisis de prompts usando Inngest
+- **[Sistema de Análisis de Sentimiento](../../docs/SENTIMENT_ANALYSIS_QUEUE_SYSTEM.md)** - Documentación del sistema de análisis de sentimiento
 - **[Optimizaciones de Queries y Performance](../../docs/QUERY_OPTIMIZATIONS.md)** - Optimizaciones para manejar grandes volúmenes de datos
+
+### Nota sobre Migración
+
+Las funciones de análisis de prompts (`trigger-daily-analysis`, `process-queue`, `analyze-prompt`) han sido migradas al nuevo servicio **Backend Orchestrator** que usa Inngest para orquestación. Este servicio ofrece mejor confiabilidad, rate limiting, y monitoreo. Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más detalles.
 
 ### Recursos Externos
 
