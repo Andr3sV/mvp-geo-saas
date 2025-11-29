@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { createSupabaseClient, logInfo, logError } from "../../lib/utils";
 import { callAI, getAPIKey } from "../../lib/ai-clients";
 import { triggerCitationProcessing } from "../../lib/citation-processing";
+import { waitForRateLimit } from "../../lib/rate-limiter";
 import type { AIProvider } from "../../lib/types";
 
 export const processPrompt = inngest.createFunction(
@@ -99,6 +100,15 @@ export const processPrompt = inngest.createFunction(
           const enrichedPrompt = enrichPromptWithRegion(promptText, promptRegion);
           const apiKey = getAPIKey(platform);
           if (!apiKey) throw new Error(`Missing API key for ${platform}`);
+
+          // Wait for rate limit before calling AI
+          const waitTime = await waitForRateLimit(platform);
+          if (waitTime > 0) {
+            logInfo("process-prompt", `Waited ${Math.round(waitTime / 1000)}s for ${platform} rate limit`, {
+              platform,
+              prompt_tracking_id
+            });
+          }
 
           // Call AI
           const result = await callAI(platform, enrichedPrompt, {
