@@ -162,12 +162,12 @@ INNGEST_SIGNING_KEY=...
 
 The service implements per-platform rate limiting to prevent 429 (Rate Limit Exceeded) errors. Limits are configured based on official API documentation:
 
-| Platform       | RPM   | TPM     | Notes                            |
-| -------------- | ----- | ------- | -------------------------------- |
-| **OpenAI**     | 5,000 | 450,000 | Most models                      |
-| **Gemini**     | 10    | 250,000 | Free tier (Gemini 2.0 Flash Exp) |
-| **Claude**     | 50    | 30,000  | Tier 1                           |
-| **Perplexity** | 50    | -       | Tier 0                           |
+| Platform       | RPM   | TPM     | Notes                             |
+| -------------- | ----- | ------- | --------------------------------- |
+| **OpenAI**     | 5,000 | 450,000 | Most models                       |
+| **Gemini**     | 15    | 250,000 | Free tier (Gemini 2.5 Flash Lite) |
+| **Claude**     | 50    | 30,000  | Tier 1                            |
+| **Perplexity** | 50    | -       | Tier 0                            |
 
 **How it works**:
 

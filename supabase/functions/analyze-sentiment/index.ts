@@ -150,7 +150,7 @@ serve(async (req) => {
           await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay between calls
         }
         
-        // Analyze sentiment using Gemini 2.0 Flash
+        // Analyze sentiment using Gemini 2.5 Flash Lite
         const sentimentResults = await analyzeSentimentWithAI(
           response.response_text,
           project.brand_name,
@@ -198,7 +198,7 @@ serve(async (req) => {
             analyzed_text: result.analyzed_text,
             ai_reasoning: result.ai_reasoning,
             key_phrases: result.key_phrases,
-            model_used: 'gemini-2.0-flash-exp',
+            model_used: 'gemini-2.5-flash-lite',
             processing_time_ms: processingTime
           };
 
@@ -343,7 +343,7 @@ REMINDER: "${brandName}" = brand (NOT competitor), all others = competitor
       }
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {

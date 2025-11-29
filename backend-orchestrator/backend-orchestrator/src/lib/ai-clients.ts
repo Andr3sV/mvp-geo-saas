@@ -69,7 +69,7 @@ export async function callGemini(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'gemini-2.0-flash-exp';
+  const model = config.model || 'gemini-2.5-flash-lite';
 
   try {
     const response = await fetch(

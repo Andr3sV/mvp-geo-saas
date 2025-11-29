@@ -13,7 +13,7 @@ export const RATE_LIMITS: Record<AIProvider, { rpm: number; tpm?: number }> = {
     tpm: 450000 // Token limit varies by model
   },
   gemini: { 
-    rpm: 10, // Gemini 2.0 Flash Exp: 10 RPM (Free tier) - matches error message
+    rpm: 15, // Gemini 2.5 Flash Lite: 15 RPM (Free tier)
     tpm: 250000
   },
   claude: { 
