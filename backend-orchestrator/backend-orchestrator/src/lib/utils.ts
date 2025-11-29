@@ -9,13 +9,24 @@ import { createClient } from '@supabase/supabase-js';
 // =============================================
 
 export function createSupabaseClient(authToken?: string) {
-  const supabaseUrl = process.env.SUPABASE_URL ?? '';
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  // Try both naming conventions (SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL)
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
   if (!supabaseUrl || !supabaseKey) {
-    // Fallback for development if env vars are not standard
-    if (!supabaseUrl) console.error('Missing SUPABASE_URL');
-    if (!supabaseKey) console.error('Missing SUPABASE_SERVICE_ROLE_KEY');
+    // Detailed error logging
+    console.error('=== Supabase Environment Variables Check ===');
+    console.error('SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ Set' : '❌ Missing');
+    console.error('NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? '✅ Set' : '❌ Missing');
+    console.error('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ Set (hidden)' : '❌ Missing');
+    console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('SUPABASE')));
+    
+    if (!supabaseUrl) {
+      throw new Error('Missing SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL environment variable');
+    }
+    if (!supabaseKey) {
+      throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+    }
     throw new Error('Missing Supabase environment variables');
   }
 
