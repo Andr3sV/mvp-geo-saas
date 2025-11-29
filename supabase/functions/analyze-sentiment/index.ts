@@ -83,19 +83,41 @@ serve(async (req) => {
 
     // If specific response ID provided, analyze only that one
     if (ai_response_id) {
-      query = query.eq('id', ai_response_id);
-    }
+      // First check if this response already has sentiment analysis (unless forcing reanalysis)
+      if (!force_reanalysis) {
+        const { data: existingAnalysis } = await supabase
+          .from('sentiment_analysis')
+          .select('id')
+          .eq('ai_response_id', ai_response_id)
+          .eq('project_id', project_id)
+          .limit(1);
 
-    // If not forcing reanalysis, exclude already processed responses
-    if (!force_reanalysis) {
-      const { data: processedIds } = await supabase
-        .from('sentiment_analysis')
-        .select('ai_response_id')
-        .eq('project_id', project_id);
-      
-      if (processedIds && processedIds.length > 0) {
-        const processedResponseIds = processedIds.map(p => p.ai_response_id);
-        query = query.not('id', 'in', `(${processedResponseIds.join(',')})`);
+        if (existingAnalysis && existingAnalysis.length > 0) {
+          // Already analyzed, return success with 0 processed (this is OK)
+          return new Response(
+            JSON.stringify({ 
+              message: 'Response already analyzed',
+              processed_count: 0,
+              already_analyzed: true
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      query = query.eq('id', ai_response_id);
+    } else {
+      // If not forcing reanalysis, exclude already processed responses
+      if (!force_reanalysis) {
+        const { data: processedIds } = await supabase
+          .from('sentiment_analysis')
+          .select('ai_response_id')
+          .eq('project_id', project_id);
+        
+        if (processedIds && processedIds.length > 0) {
+          const processedResponseIds = processedIds.map(p => p.ai_response_id);
+          query = query.not('id', 'in', `(${processedResponseIds.join(',')})`);
+        }
       }
     }
 
@@ -118,9 +140,15 @@ serve(async (req) => {
     const results = [];
     let processedCount = 0;
 
-    for (const response of aiResponses) {
+    for (let i = 0; i < aiResponses.length; i++) {
+      const response = aiResponses[i];
       try {
         const startTime = Date.now();
+        
+        // Add delay between API calls to avoid rate limiting (except for first call)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay between calls
+        }
         
         // Analyze sentiment using Gemini 2.0 Flash
         const sentimentResults = await analyzeSentimentWithAI(
@@ -301,71 +329,115 @@ IMPORTANT RULES:
 REMINDER: "${brandName}" = brand (NOT competitor), all others = competitor
 `;
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }],
-          generationConfig: {
-            temperature: 0.1, // Low temperature for consistent analysis
-            topK: 1,
-            topP: 0.8,
-            maxOutputTokens: 2048,
-          },
-        }),
-      }
-    );
+  // Retry logic with exponential backoff for rate limiting
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!content) {
-      console.error('No content received from Gemini. Response:', JSON.stringify(data));
-      throw new Error('No content received from Gemini API');
-    }
-
-    // Parse JSON response with better error handling
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      // Remove markdown code blocks and trim
-      let cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
-      
-      // Sometimes Gemini adds extra text before/after JSON, try to extract just the JSON
-      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanContent = jsonMatch[0];
+      // Exponential backoff: wait before retry (except first attempt)
+      if (attempt > 0) {
+        const backoffDelay = Math.min(1000 * Math.pow(2, attempt - 1), 30000); // Max 30 seconds
+        console.log(`Retrying Gemini API call (attempt ${attempt + 1}/${maxRetries}) after ${backoffDelay}ms delay`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
       }
 
-      const analysisResult = JSON.parse(cleanContent);
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+              temperature: 0.1, // Low temperature for consistent analysis
+              topK: 1,
+              topP: 0.8,
+              maxOutputTokens: 2048,
+            },
+          }),
+        }
+      );
 
-      if (!analysisResult.analyses || !Array.isArray(analysisResult.analyses)) {
-        console.error('Invalid analysis result structure:', analysisResult);
-        return []; // Return empty array instead of failing
+      // Handle rate limiting (429) with longer backoff
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(60000 * (attempt + 1), 300000); // Max 5 minutes
+        console.log(`Rate limited (429). Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue; // Retry
+        } else {
+          throw new Error(`Gemini API rate limited (429) after ${maxRetries} attempts`);
+        }
       }
 
-      return analysisResult.analyses;
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
 
-    } catch (parseError) {
-      console.error('Failed to parse Gemini response:', parseError);
-      console.error('Raw content:', content);
-      console.error('Cleaned content:', content.replace(/```json\n?|\n?```/g, '').trim());
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!content) {
+        console.error('No content received from Gemini. Response:', JSON.stringify(data));
+        throw new Error('No content received from Gemini API');
+      }
+
+      // Parse JSON response with better error handling
+      try {
+        // Remove markdown code blocks and trim
+        let cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+        
+        // Sometimes Gemini adds extra text before/after JSON, try to extract just the JSON
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanContent = jsonMatch[0];
+        }
+
+        const analysisResult = JSON.parse(cleanContent);
+
+        if (!analysisResult.analyses || !Array.isArray(analysisResult.analyses)) {
+          console.error('Invalid analysis result structure:', analysisResult);
+          return []; // Return empty array instead of failing
+        }
+
+        return analysisResult.analyses;
+
+      } catch (parseError) {
+        console.error('Failed to parse Gemini response:', parseError);
+        console.error('Raw content:', content);
+        console.error('Cleaned content:', content.replace(/```json\n?|\n?```/g, '').trim());
+        
+        // Return empty array instead of throwing - allows other responses to continue processing
+        return [];
+      }
+
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Gemini API error (attempt ${attempt + 1}/${maxRetries}):`, error);
       
-      // Return empty array instead of throwing - allows other responses to continue processing
-      return [];
+      // If it's not a rate limit error and we have retries left, continue
+      if (attempt < maxRetries - 1 && !error.message?.includes('429')) {
+        continue; // Retry
+      }
+      
+      // If it's the last attempt or a non-rate-limit error, throw
+      if (attempt === maxRetries - 1) {
+        throw new Error(`Failed to analyze sentiment after ${maxRetries} attempts: ${error.message}`);
+      }
     }
-
-  } catch (error) {
-    console.error('Gemini API error:', error);
-    throw new Error(`Failed to analyze sentiment: ${error.message}`);
   }
+
+  // This should never be reached, but TypeScript needs it
+  if (lastError) {
+    throw lastError;
+  }
+  
+  throw new Error('Unexpected error in analyzeSentimentWithAI');
 }

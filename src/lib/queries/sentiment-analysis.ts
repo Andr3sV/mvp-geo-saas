@@ -561,7 +561,8 @@ export async function triggerSentimentAnalysis(
   const supabase = createClient();
 
   try {
-    const { data, error } = await supabase.functions.invoke('analyze-sentiment', {
+    // Use the new queue-based system instead of direct analyze-sentiment
+    const { data, error } = await supabase.functions.invoke('trigger-sentiment-analysis', {
       body: {
         project_id: projectId,
         ai_response_id: aiResponseId,
@@ -575,8 +576,8 @@ export async function triggerSentimentAnalysis(
 
     return {
       success: true,
-      message: data.message || 'Sentiment analysis completed successfully',
-      processedCount: data.processed_count,
+      message: data.message || 'Sentiment analysis queued successfully',
+      processedCount: data.processed_count || data.queued_count,
     };
   } catch (error: any) {
     return {
