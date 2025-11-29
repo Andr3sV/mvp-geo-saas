@@ -15,6 +15,29 @@ const handler = serve({
 const app = new Elysia()
   .get("/", () => "Prompt Analysis Orchestrator Running")
   .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+  // Test endpoint to trigger functions manually
+  .post("/test/trigger-test", async () => {
+    try {
+      const event = await inngest.send({
+        name: "test/ping",
+        data: { message: "Manual test trigger", timestamp: new Date().toISOString() }
+      });
+      return { success: true, eventId: event.ids[0], message: "Test event sent" };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  })
+  .post("/test/trigger-manual-schedule", async () => {
+    try {
+      const event = await inngest.send({
+        name: "analysis/manual-trigger",
+        data: { triggeredAt: new Date().toISOString() }
+      });
+      return { success: true, eventId: event.ids[0], message: "Manual schedule trigger sent" };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  })
   .all("/api/inngest", async ({ request }) => {
     return handler(request);
   })
