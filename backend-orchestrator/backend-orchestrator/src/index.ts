@@ -4,24 +4,26 @@ import { inngest } from "./inngest/client";
 import { scheduleAnalysis } from "./inngest/functions/schedule-analysis";
 import { processPrompt } from "./inngest/functions/process-prompt";
 
+// Create Inngest handler
 const handler = serve({
   client: inngest,
   functions: [scheduleAnalysis, processPrompt],
 });
 
-const inngestHandler = new Elysia().all("/api/inngest", ({ request }) =>
-  handler(request)
-).all("/api/inngest/*", ({ request }) =>
-  handler(request)
-);
-
-// Register the handler with Elysia
+// Create Elysia app
 const app = new Elysia()
   .get("/", () => "Prompt Analysis Orchestrator Running")
-  .use(inngestHandler)
+  .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+  .all("/api/inngest", async ({ request }) => {
+    return handler(request);
+  })
+  .all("/api/inngest/*", async ({ request }) => {
+    return handler(request);
+  })
   .listen(process.env.PORT || 3000);
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
 console.log(`📡 Inngest endpoint available at /api/inngest`);
+console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt`);
