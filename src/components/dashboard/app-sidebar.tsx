@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -30,9 +31,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { ChevronRight } from "lucide-react";
 
 const navItems = [
   {
@@ -92,6 +98,13 @@ const configItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const isOverviewOpen = pathname.startsWith("/dashboard/reports");
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(isOverviewOpen);
+
+  // Update expanded state when pathname changes
+  useEffect(() => {
+    setIsOverviewExpanded(pathname.startsWith("/dashboard/reports"));
+  }, [pathname]);
 
   return (
     <>
@@ -123,25 +136,41 @@ export function AppSidebar() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
         <SidebarContent className="relative z-10">
         <SidebarGroup>
-          <SidebarGroupLabel>Reports</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/reports/executive"}>
-                  <Link href="/dashboard/reports/executive">
-                    <Presentation className="h-4 w-4" />
-                    <span>Executive Report</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/reports/detailed"}>
-                  <Link href="/dashboard/reports/detailed">
-                    <BookOpen className="h-4 w-4" />
-                    <span>Detailed Report</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <Collapsible asChild open={isOverviewExpanded} onOpenChange={setIsOverviewExpanded}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Overview">
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isOverviewExpanded && "rotate-90"
+                      )} />
+                      <span>Overview</span>
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/reports/executive"}>
+                          <Link href="/dashboard/reports/executive">
+                            <Presentation className="h-4 w-4" />
+                            <span>Executive Report</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/reports/detailed"}>
+                          <Link href="/dashboard/reports/detailed">
+                            <BookOpen className="h-4 w-4" />
+                            <span>Reports & Insights</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

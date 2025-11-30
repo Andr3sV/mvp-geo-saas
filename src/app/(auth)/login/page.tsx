@@ -252,7 +252,7 @@ function LoginForm() {
                   </Button>
                 </Link>
                 <p className="mt-3 text-xs text-center text-muted-foreground">
-                  14-day free trial · No credit card required
+                  7-day free trial · No credit card required
                 </p>
               </div>
             </div>

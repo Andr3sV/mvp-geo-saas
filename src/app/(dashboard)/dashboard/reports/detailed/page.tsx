@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useProject } from "@/contexts/project-context";
+import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodSelector, type ReportPeriod } from "@/components/reports/period-selector";
 import { TopicSelector, type TopicSelection } from "@/components/reports/topic-selector";
@@ -12,7 +13,7 @@ import { getDetailedReportData } from "@/lib/queries/detailed-report";
 import { generateSectionInsights } from "@/lib/actions/insights";
 import { getProjectTopics } from "@/lib/actions/topics";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Share2, Download, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -26,11 +27,15 @@ const PERIOD_LABELS: Record<ReportPeriod, string> = {
 
 export default function DetailedReportPage() {
   const { selectedProjectId } = useProject();
+  const pathname = usePathname();
+  const reportRef = useRef<HTMLDivElement>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<ReportPeriod | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<TopicSelection>(null);
   const [topics, setTopics] = useState<Array<{ id: string; name: string; color?: string }>>([]);
   const [isLoadingTopics, setIsLoadingTopics] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
   const [insights, setInsights] = useState<{
     visibility: string;
@@ -137,6 +142,80 @@ export default function DetailedReportPage() {
     }
   };
 
+  const handleShareReport = async () => {
+    if (!selectedProjectId || !selectedPeriod) return;
+
+    try {
+      // Build the shareable URL with query parameters
+      const baseUrl = window.location.origin;
+      const params = new URLSearchParams({
+        project: selectedProjectId,
+        period: selectedPeriod,
+        ...(selectedTopic && { topic: selectedTopic }),
+      });
+      const shareUrl = `${baseUrl}${pathname}?${params.toString()}`;
+
+      // Try using the Web Share API if available
+      if (navigator.share) {
+        await navigator.share({
+          title: `Detailed Report - ${brandName}`,
+          text: `Check out this detailed report for ${PERIOD_LABELS[selectedPeriod]}`,
+          url: shareUrl,
+        });
+        toast.success("Report shared successfully");
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        toast.success("Report link copied to clipboard");
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (error: any) {
+      // User cancelled the share dialog - that's okay
+      if (error.name !== "AbortError") {
+        console.error("Error sharing report:", error);
+        toast.error("Failed to share report");
+      }
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
+
+    setIsGeneratingPDF(true);
+    try {
+      // Dynamically import html2pdf.js (client-side only)
+      const html2pdf = (await import("html2pdf.js")).default;
+
+      const element = reportRef.current;
+      const periodLabel = selectedPeriod ? PERIOD_LABELS[selectedPeriod].replace("the ", "") : "all";
+      const topicLabel = selectedTopic ? topics.find(t => t.id === selectedTopic)?.name || "all" : "all";
+      const filename = `detailed-report-${brandName}-${periodLabel}-${topicLabel}-${new Date().toISOString().split("T")[0]}.pdf`;
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff"
+        },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+      };
+
+      await html2pdf().set(opt).from(element).save();
+      toast.success("PDF downloaded successfully");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF. Please try again.");
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   if (!selectedProjectId) {
     return (
       <div className="space-y-6">
@@ -227,7 +306,7 @@ export default function DetailedReportPage() {
         description={`Detailed report for ${PERIOD_LABELS[selectedPeriod]}`}
       />
 
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center justify-between gap-4 mb-6">
         <Button
           variant="ghost"
           size="sm"
@@ -237,6 +316,36 @@ export default function DetailedReportPage() {
           <ArrowLeft className="h-4 w-4" />
           Change Topic
         </Button>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShareReport}
+            className="gap-2"
+            title="Share Report"
+          >
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadPDF}
+            disabled={isGeneratingPDF || isLoading}
+            className="gap-2"
+            title="Download PDF"
+          >
+            {isGeneratingPDF ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -247,7 +356,7 @@ export default function DetailedReportPage() {
           </div>
         </Card>
       ) : (
-        <div className="space-y-8">
+        <div ref={reportRef} className="space-y-8">
           {/* Section 1: Visibility Score */}
           <ReportSection
             title="Visibility Score"
