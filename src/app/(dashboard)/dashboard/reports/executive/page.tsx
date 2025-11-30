@@ -19,7 +19,8 @@ import {
   Info,
   CheckCircle2,
 } from "lucide-react";
-import { fetchExecutiveMetrics, type ExecutiveMetrics } from "@/lib/actions/executive-overview";
+import { fetchExecutiveMetrics } from "@/lib/actions/executive-overview";
+import { type ExecutiveMetrics } from "@/lib/queries/executive-overview";
 import { SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
 import { cn } from "@/lib/utils";
 import {
