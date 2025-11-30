@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useProject } from "@/contexts/project-context";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodSelector, type ReportPeriod } from "@/components/reports/period-selector";
 import { TopicSelector, type TopicSelection } from "@/components/reports/topic-selector";
@@ -14,10 +14,11 @@ import { getDetailedReportData } from "@/lib/queries/detailed-report";
 import { generateSectionInsights } from "@/lib/actions/insights";
 import { getProjectTopics } from "@/lib/actions/topics";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Share2, Download, Check } from "lucide-react";
+import { ArrowLeft, Loader2, Share2, Download, Check, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 
 const PERIOD_LABELS: Record<ReportPeriod, string> = {
   "yesterday": "yesterday",
@@ -26,11 +27,66 @@ const PERIOD_LABELS: Record<ReportPeriod, string> = {
   "last-3-months": "the last 3 months",
 };
 
+/**
+ * Calculate the actual date range for a report based on when it was created and its period
+ */
+function getReportDateRange(createdAt: string, period: ReportPeriod): { from: Date; to: Date } {
+  const createdDate = new Date(createdAt);
+  const reportEndDate = endOfDay(subDays(createdDate, 1)); // Report ends the day before creation
+  
+  let reportStartDate: Date;
+  
+  switch (period) {
+    case "yesterday":
+      reportStartDate = startOfDay(reportEndDate);
+      break;
+    case "last-week":
+      reportStartDate = startOfDay(subDays(reportEndDate, 6)); // 7 days total (including end date)
+      break;
+    case "last-month":
+      reportStartDate = startOfDay(subDays(reportEndDate, 29)); // 30 days total
+      break;
+    case "last-3-months":
+      reportStartDate = startOfDay(subDays(reportEndDate, 89)); // 90 days total
+      break;
+    default:
+      reportStartDate = startOfDay(reportEndDate);
+  }
+  
+  return { from: reportStartDate, to: reportEndDate };
+}
+
+/**
+ * Format date range for display
+ */
+function formatDateRange(createdAt: string, period: ReportPeriod): string {
+  const { from, to } = getReportDateRange(createdAt, period);
+  
+  // If it's a single day (yesterday)
+  if (period === "yesterday") {
+    return format(from, "MMM dd, yyyy");
+  }
+  
+  // If same month and year, show: "MMM dd - dd, yyyy"
+  if (from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()) {
+    return `${format(from, "MMM dd")} - ${format(to, "dd, yyyy")}`;
+  }
+  
+  // If same year but different months: "MMM dd - MMM dd, yyyy"
+  if (from.getFullYear() === to.getFullYear()) {
+    return `${format(from, "MMM dd")} - ${format(to, "MMM dd, yyyy")}`;
+  }
+  
+  // Different years: "MMM dd, yyyy - MMM dd, yyyy"
+  return `${format(from, "MMM dd, yyyy")} - ${format(to, "MMM dd, yyyy")}`;
+}
+
 type ViewMode = "list" | "create" | "view";
 
 export default function DetailedReportPage() {
   const { selectedProjectId } = useProject();
   const pathname = usePathname();
+  const router = useRouter();
   const reportRef = useRef<HTMLDivElement>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -50,6 +106,7 @@ export default function DetailedReportPage() {
     sentiment: string;
   } | null>(null);
   const [brandName, setBrandName] = useState("");
+  const [reportCreatedAt, setReportCreatedAt] = useState<string | null>(null);
 
   // Fetch brand name, topics, and reports
   useEffect(() => {
@@ -167,7 +224,7 @@ export default function DetailedReportPage() {
             ? topics.find((t) => t.id === selectedTopic)?.name || null
             : null;
 
-          const { error: saveError } = await supabase.from("reports").insert({
+          const { data: savedReport, error: saveError } = await supabase.from("reports").insert({
             project_id: selectedProjectId,
             period: selectedPeriod,
             topic_id: selectedTopic || null,
@@ -175,12 +232,20 @@ export default function DetailedReportPage() {
             created_by: userData.user.id,
             report_data: data,
             insights: generatedInsights,
-          });
+          }).select("id, created_at").single();
 
           if (saveError) {
             console.error("Error saving report:", saveError);
             // Don't show error to user, report was generated successfully
-          } else {
+            // Still show the report even if save fails
+            setReportCreatedAt(new Date().toISOString());
+            setViewMode("view");
+            toast.success("Report generated successfully");
+          } else if (savedReport) {
+            // Set the report ID so we can share it
+            setSelectedReportId(savedReport.id);
+            setReportCreatedAt(savedReport.created_at);
+            
             // Refresh reports list
             const { data: reportsData } = await supabase
               .from("reports")
@@ -200,15 +265,20 @@ export default function DetailedReportPage() {
                 }))
               );
             }
+
+            // Navigate to the report detail page
+            router.push(`/dashboard/reports/${savedReport.id}`);
+            toast.success("Report generated successfully");
+            return; // Exit early since we're navigating
           }
         }
       } catch (saveError) {
         console.error("Error saving report:", saveError);
-        // Continue even if save fails
+        // Continue even if save fails - still show the report
+        setReportCreatedAt(new Date().toISOString());
+        setViewMode("view");
+        toast.success("Report generated successfully");
       }
-
-      setViewMode("view");
-      toast.success("Report generated successfully");
     } catch (error) {
       console.error("Error generating report:", error);
       toast.error("Error generating report");
@@ -249,34 +319,8 @@ export default function DetailedReportPage() {
   };
 
   const handleViewReport = async (reportId: string) => {
-    setSelectedReportId(reportId);
-    setIsLoading(true);
-    
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("reports")
-        .select("period, topic_id, topic_name, report_data, insights")
-        .eq("id", reportId)
-        .single();
-
-      if (error || !data) {
-        toast.error("Report not found");
-        setIsLoading(false);
-        return;
-      }
-
-      setSelectedPeriod(data.period as ReportPeriod);
-      setSelectedTopic(data.topic_id || null);
-      setReportData(data.report_data);
-      setInsights(data.insights);
-      setViewMode("view");
-    } catch (error) {
-      console.error("Error loading report:", error);
-      toast.error("Error loading report");
-    } finally {
-      setIsLoading(false);
-    }
+    // Navigate to the report detail page
+    router.push(`/dashboard/reports/${reportId}`);
   };
 
   const handleDeleteReport = async (reportId: string) => {
@@ -312,39 +356,24 @@ export default function DetailedReportPage() {
   };
 
   const handleShareReport = async () => {
-    if (!selectedProjectId || !selectedPeriod) return;
+    if (!selectedReportId) {
+      toast.error("Report not yet saved. Please wait...");
+      return;
+    }
 
     try {
-      // Build the shareable URL with query parameters
+      // Build the shareable URL with the report ID
       const baseUrl = window.location.origin;
-      const params = new URLSearchParams({
-        project: selectedProjectId,
-        period: selectedPeriod,
-        ...(selectedTopic && { topic: selectedTopic }),
-      });
-      const shareUrl = `${baseUrl}${pathname}?${params.toString()}`;
+      const shareUrl = `${baseUrl}/dashboard/reports/${selectedReportId}`;
 
-      // Try using the Web Share API if available
-      if (navigator.share) {
-        await navigator.share({
-          title: `Detailed Report - ${brandName}`,
-          text: `Check out this detailed report for ${PERIOD_LABELS[selectedPeriod]}`,
-          url: shareUrl,
-        });
-        toast.success("Report shared successfully");
-      } else {
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        toast.success("Report link copied to clipboard");
-        setTimeout(() => setCopied(false), 2000);
-      }
+      // Copy to clipboard directly
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast.success("Report link copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
     } catch (error: any) {
-      // User cancelled the share dialog - that's okay
-      if (error.name !== "AbortError") {
-        console.error("Error sharing report:", error);
-        toast.error("Failed to share report");
-      }
+      console.error("Error copying link:", error);
+      toast.error("Failed to copy link");
     }
   };
 
@@ -403,10 +432,20 @@ export default function DetailedReportPage() {
   if (viewMode === "list") {
     return (
       <div className="space-y-6">
-        <PageHeader
-          title="Reports & Insights"
-          description="View and manage your detailed reports"
-        />
+        <div className="flex items-baseline justify-between gap-4 mb-6">
+          <div className="flex items-baseline gap-2 flex-1 min-w-0">
+            <PageHeader
+              title="Reports & Insights"
+              description="View and manage your detailed reports"
+            />
+          </div>
+          <div className="flex-shrink-0">
+            <Button onClick={handleCreateNew} size="lg" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Create Report
+            </Button>
+          </div>
+        </div>
         <ReportsList
           reports={savedReports}
           onCreateNew={handleCreateNew}
@@ -502,18 +541,22 @@ export default function DetailedReportPage() {
     <div className="space-y-6">
       <PageHeader
         title="Detailed Report"
-        description={`Detailed report for ${PERIOD_LABELS[selectedPeriod]}`}
+        description={
+          reportCreatedAt && selectedPeriod
+            ? formatDateRange(reportCreatedAt, selectedPeriod)
+            : `Detailed report for ${PERIOD_LABELS[selectedPeriod]}`
+        }
       />
 
       <div className="flex items-center justify-between gap-4 mb-6">
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleBackToTopicSelection}
+          onClick={handleBackToList}
           className="gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          Change Topic
+          Back to Reports
         </Button>
 
         <div className="flex items-center gap-2">
@@ -555,48 +598,85 @@ export default function DetailedReportPage() {
           </div>
         </Card>
       ) : (
-        <div ref={reportRef} className="space-y-8">
-          {/* Section 1: Visibility Score */}
-          <ReportSection
-            title="Visibility Score"
-            data={reportData.visibilityScore}
-            brandName={brandName}
-            insight={insights?.visibility || "Generating insights..."}
-            isLoading={!insights}
-          />
+        <Card 
+          ref={reportRef} 
+          className="border-0 shadow-lg bg-gradient-to-br from-background via-background to-muted/20 overflow-hidden"
+        >
+          {/* Report Header */}
+          <div className="border-b bg-muted/30 px-8 py-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">{brandName}</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {reportCreatedAt && selectedPeriod
+                    ? formatDateRange(reportCreatedAt, selectedPeriod)
+                    : PERIOD_LABELS[selectedPeriod]}
+                  {selectedTopic && topics.find(t => t.id === selectedTopic) && (
+                    <span className="ml-2">
+                      • {topics.find(t => t.id === selectedTopic)?.name}
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Generated</p>
+                <p className="text-sm font-medium">
+                  {reportCreatedAt
+                    ? format(new Date(reportCreatedAt), "MMM dd, yyyy")
+                    : new Date().toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                </p>
+              </div>
+            </div>
+          </div>
 
-          {/* Section 2: Share of Voice */}
-          <ReportSection
-            title="Share of Voice"
-            data={reportData.shareOfVoice}
-            brandName={brandName}
-            insight={insights?.shareOfVoice || "Generating insights..."}
-            isLoading={!insights}
-          />
+          {/* Report Content */}
+          <div className="p-8 space-y-8">
+            {/* Section 1: Visibility Score */}
+            <ReportSection
+              title="Visibility Score"
+              data={reportData.visibilityScore}
+              brandName={brandName}
+              insight={insights?.visibility || "Generating insights..."}
+              isLoading={!insights}
+            />
 
-          {/* Section 3: Sentiment */}
-          <ReportSection
-            title="Sentiment"
-            data={reportData.sentiment}
-            brandName={brandName}
-            insight={insights?.sentiment || "Generating insights..."}
-            isLoading={!insights}
-          />
+            {/* Section 2: Share of Voice */}
+            <ReportSection
+              title="Share of Voice"
+              data={reportData.shareOfVoice}
+              brandName={brandName}
+              insight={insights?.shareOfVoice || "Generating insights..."}
+              isLoading={!insights}
+            />
 
-          {/* Section 4: Attributes */}
-          <AttributesSection
-            competitors={[]}
-            brandName={brandName}
-            isLoading={false}
-          />
+            {/* Section 3: Sentiment */}
+            <ReportSection
+              title="Sentiment"
+              data={reportData.sentiment}
+              brandName={brandName}
+              insight={insights?.sentiment || "Generating insights..."}
+              isLoading={!insights}
+            />
 
-          {/* Section 5: New Competitors on Radar */}
-          <NewCompetitorsSection
-            competitors={reportData.newCompetitors || []}
-            brandName={brandName}
-            isLoading={false}
-          />
-        </div>
+            {/* Section 4: Attributes */}
+            <AttributesSection
+              competitors={[]}
+              brandName={brandName}
+              isLoading={false}
+            />
+
+            {/* Section 5: New Competitors on Radar */}
+            <NewCompetitorsSection
+              competitors={reportData.newCompetitors || []}
+              brandName={brandName}
+              isLoading={false}
+            />
+          </div>
+        </Card>
       )}
     </div>
   );

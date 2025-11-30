@@ -112,9 +112,9 @@ const dataManagementItems = [
 
 const opportunitiesItems = [
   {
-    title: "Opportunities",
+    title: "High value sources",
     href: "/dashboard/opportunities",
-    icon: Target,
+    icon: Sparkles,
   },
 ];
 

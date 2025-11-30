@@ -7,7 +7,6 @@ import { MetricCard } from "@/components/citations/metric-card";
 import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
 import { CitationDRBreakdown } from "@/components/citations/citation-dr-breakdown";
 import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains-table";
-import { HighValueOpportunitiesTable } from "@/components/citations/high-value-opportunities-table";
 import { TopPerformingPagesTable } from "@/components/citations/top-performing-pages-table";
 import { CompetitiveTopicsTable } from "@/components/citations/competitive-topics-table";
 import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
@@ -22,7 +21,6 @@ import {
   getCitationsEvolution,
   getDRBreakdown,
   getMostCitedDomains,
-  getHighValueOpportunities,
   getTopPerformingPages,
   getCompetitiveTopicAnalysis,
   getCitationSources,
@@ -39,7 +37,6 @@ export default function CitationsPage() {
   const [quickMetrics, setQuickMetrics] = useState<any>(null);
   const [drBreakdown, setDRBreakdown] = useState<any>({ high: 0, medium: 0, low: 0, unverified: 0 });
   const [mostCitedDomains, setMostCitedDomains] = useState<any[]>([]);
-  const [opportunities, setOpportunities] = useState<any[]>([]);
   const [topPages, setTopPages] = useState<any[]>([]);
   const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
   const [citationSources, setCitationSources] = useState<any[]>([]);
@@ -204,14 +201,12 @@ export default function CitationsPage() {
             metricsData,
             drResult,
             domainsResult,
-            opportunitiesResult,
             pagesResult,
             topicsResult,
           ] = await Promise.all([
             getQuickLookMetrics(selectedProjectId, filtersPayload),
             getDRBreakdown(selectedProjectId, filtersPayload),
             getMostCitedDomains(selectedProjectId, 10, filtersPayload),
-            getHighValueOpportunities(selectedProjectId, 10, filtersPayload),
             getTopPerformingPages(selectedProjectId, 10, filtersPayload),
             getCompetitiveTopicAnalysis(selectedProjectId, filtersPayload),
           ]);
@@ -219,7 +214,6 @@ export default function CitationsPage() {
           setQuickMetrics(metricsData);
           setDRBreakdown(drResult);
           setMostCitedDomains(domainsResult);
-          setOpportunities(opportunitiesResult);
           setTopPages(pagesResult);
           setCompetitiveTopics(topicsResult);
         } catch (error) {
@@ -324,23 +318,18 @@ export default function CitationsPage() {
       />
 
       {/* Tabs for additional insights */}
-      <Tabs defaultValue="opportunities" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="opportunities">High-Value Opportunities</TabsTrigger>
-          <TabsTrigger value="pages">Top Performing Pages</TabsTrigger>
+      <Tabs defaultValue="topics" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="topics">Competitive Analysis</TabsTrigger>
+          <TabsTrigger value="pages">Top Performing Pages</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="opportunities" className="mt-6">
-          <HighValueOpportunitiesTable data={opportunities} />
+        <TabsContent value="topics" className="mt-6">
+          <CompetitiveTopicsTable data={competitiveTopics} />
         </TabsContent>
         
         <TabsContent value="pages" className="mt-6">
           <TopPerformingPagesTable data={topPages} />
-        </TabsContent>
-        
-        <TabsContent value="topics" className="mt-6">
-          <CompetitiveTopicsTable data={competitiveTopics} />
         </TabsContent>
       </Tabs>
     </div>

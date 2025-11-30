@@ -84,7 +84,7 @@ export default function OpportunitiesPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Opportunities"
+          title="High value sources"
           description="High-value domains where competitors are cited but you're not"
         />
         <div className="flex items-center justify-center h-96">
@@ -100,7 +100,7 @@ export default function OpportunitiesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Opportunities"
+        title="High value sources"
         description="High-value domains where competitors are cited but you're not - prime outreach targets"
       />
 
