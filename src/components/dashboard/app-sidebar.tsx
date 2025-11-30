@@ -22,6 +22,9 @@ import {
   Sparkles,
   HelpCircle,
   ListChecks,
+  LayoutDashboard,
+  Eye,
+  Database,
 } from "lucide-react";
 import {
   Sidebar,
@@ -195,11 +198,12 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Overview">
+                      <LayoutDashboard className="h-4 w-4" />
+                      <span>Overview</span>
                       <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform duration-200",
+                        "h-4 w-4 ml-auto transition-transform duration-200",
                         isOverviewExpanded && "rotate-90"
                       )} />
-                      <span>Overview</span>
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -228,11 +232,12 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Visibility & Presence">
+                      <Eye className="h-4 w-4" />
+                      <span>Visibility & Presence</span>
                       <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform duration-200",
+                        "h-4 w-4 ml-auto transition-transform duration-200",
                         isVisibilityExpanded && "rotate-90"
                       )} />
-                      <span>Visibility & Presence</span>
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -260,11 +265,12 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Brand Perception">
+                      <Heart className="h-4 w-4" />
+                      <span>Brand Perception</span>
                       <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform duration-200",
+                        "h-4 w-4 ml-auto transition-transform duration-200",
                         isBrandPerceptionExpanded && "rotate-90"
                       )} />
-                      <span>Brand Perception</span>
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -292,11 +298,12 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Data Management">
+                      <Database className="h-4 w-4" />
+                      <span>Data Management</span>
                       <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform duration-200",
+                        "h-4 w-4 ml-auto transition-transform duration-200",
                         isDataManagementExpanded && "rotate-90"
                       )} />
-                      <span>Data Management</span>
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -324,11 +331,12 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip="Opportunities & Actions">
+                      <Target className="h-4 w-4" />
+                      <span>Opportunities & Actions</span>
                       <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform duration-200",
+                        "h-4 w-4 ml-auto transition-transform duration-200",
                         isOpportunitiesExpanded && "rotate-90"
                       )} />
-                      <span>Opportunities & Actions</span>
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
