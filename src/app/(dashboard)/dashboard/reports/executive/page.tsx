@@ -85,7 +85,7 @@ export default function ExecutiveOverviewPage() {
         const supabase = (await import('@/lib/supabase/client')).createClient();
         const { data: project } = await supabase
           .from('projects')
-          .select('brand_name')
+          .select('brand_name, client_url')
           .eq('id', selectedProjectId)
           .single();
         
