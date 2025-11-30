@@ -104,9 +104,16 @@ export async function getSentimentScore(
 
     if (!metrics) return 50; // Default neutral
 
-    const positive = metrics.positivePercentage || 0;
-    const negative = metrics.negativePercentage || 0;
-    const neutral = metrics.neutralPercentage || 0;
+    // Calculate percentages from sentimentDistribution
+    const total = metrics.sentimentDistribution.positive + 
+                  metrics.sentimentDistribution.neutral + 
+                  metrics.sentimentDistribution.negative;
+    
+    if (total === 0) return 50; // Default neutral if no data
+
+    const positive = (metrics.sentimentDistribution.positive / total) * 100;
+    const negative = (metrics.sentimentDistribution.negative / total) * 100;
+    const neutral = (metrics.sentimentDistribution.neutral / total) * 100;
 
     // Calculate score: positive weighted more, negative weighted less
     const sentimentScore = positive * 1.2 + neutral * 0.5 - negative * 0.8;
@@ -212,22 +219,34 @@ export async function getWeeklyInsights(
       dateRange: { from: weekAgo, to: new Date() },
     });
 
-    if (recentMetrics && recentMetrics.positivePercentage > 60) {
-      insights.push({
-        id: "2",
-        title: "Strong Positive Sentiment",
-        description: `${recentMetrics.positivePercentage.toFixed(0)}% of mentions are positive this week.`,
-        type: "positive",
-        date: new Date().toISOString(),
-      });
-    } else if (recentMetrics && recentMetrics.negativePercentage > 40) {
-      insights.push({
-        id: "2",
-        title: "Negative Sentiment Alert",
-        description: `${recentMetrics.negativePercentage.toFixed(0)}% of mentions are negative. Consider reviewing your brand messaging.`,
-        type: "warning",
-        date: new Date().toISOString(),
-      });
+    if (recentMetrics) {
+      // Calculate percentages from sentimentDistribution
+      const total = recentMetrics.sentimentDistribution.positive + 
+                    recentMetrics.sentimentDistribution.neutral + 
+                    recentMetrics.sentimentDistribution.negative;
+      
+      if (total > 0) {
+        const positivePercentage = (recentMetrics.sentimentDistribution.positive / total) * 100;
+        const negativePercentage = (recentMetrics.sentimentDistribution.negative / total) * 100;
+        
+        if (positivePercentage > 60) {
+          insights.push({
+            id: "2",
+            title: "Strong Positive Sentiment",
+            description: `${positivePercentage.toFixed(0)}% of mentions are positive this week.`,
+            type: "positive",
+            date: new Date().toISOString(),
+          });
+        } else if (negativePercentage > 40) {
+          insights.push({
+            id: "2",
+            title: "Negative Sentiment Alert",
+            description: `${negativePercentage.toFixed(0)}% of mentions are negative. Consider reviewing your brand messaging.`,
+            type: "warning",
+            date: new Date().toISOString(),
+          });
+        }
+      }
     }
 
     // Insight 3: Share of voice position
