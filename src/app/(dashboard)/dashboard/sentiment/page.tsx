@@ -5,7 +5,6 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { subDays } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -16,9 +15,7 @@ import {
 } from "lucide-react";
 
 // Sentiment Analysis Components
-import { SentimentMetricCard } from "@/components/sentiment/sentiment-metric-card";
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
-import { EntitySentimentTable } from "@/components/sentiment/entity-sentiment-table";
 import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
 import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
@@ -285,30 +282,6 @@ export default function SentimentPage() {
         brandDomain={brandDomain}
         isLoading={isLoading}
       />
-
-      {/* Tabs for detailed insights */}
-      <Tabs defaultValue="entities" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="entities">Entity Analysis</TabsTrigger>
-          <TabsTrigger value="attributes">Attribute Details</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="entities" className="mt-6">
-          <EntitySentimentTable
-            entities={entities}
-            isLoading={isLoading}
-          />
-        </TabsContent>
-        
-        <TabsContent value="attributes" className="mt-6">
-          <AttributeBreakdown
-            brandAttributes={attributes?.brandAttributes || []}
-            competitorAttributes={attributes?.competitorAttributes || []}
-            isLoading={isLoading}
-            detailed={true}
-          />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

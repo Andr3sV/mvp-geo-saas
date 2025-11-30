@@ -35,10 +35,11 @@ interface BreadcrumbNavProps {
 }
 
 const PAGE_NAMES: Record<string, string> = {
-  "/dashboard/citations": "Citation Tracking",
-  "/dashboard/share-of-voice": "Share of Voice",
+  "/dashboard/citations": "Citation & domains",
+  "/dashboard/share-of-voice": "Share of mentions",
   "/dashboard/platforms": "Platform Breakdown",
   "/dashboard/sentiment": "Sentiment Analysis",
+  "/dashboard/attributes": "Attributes",
   "/dashboard/queries": "Query Patterns",
   "/dashboard/trending": "Trending Queries",
   "/dashboard/competitors": "Competitor Management",

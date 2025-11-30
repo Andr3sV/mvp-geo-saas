@@ -19,6 +19,9 @@ import {
   Target,
   Presentation,
   BookOpen,
+  Sparkles,
+  HelpCircle,
+  ListChecks,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,26 +43,21 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { ChevronRight } from "lucide-react";
 
-const navItems = [
+const visibilityItems = [
   {
-    title: "Citation Tracking",
-    href: "/dashboard/citations",
-    icon: BarChart3,
-  },
-  {
-    title: "Share of Voice",
+    title: "Share of mentions",
     href: "/dashboard/share-of-voice",
     icon: TrendingUp,
+  },
+  {
+    title: "Citation & domains",
+    href: "/dashboard/citations",
+    icon: BarChart3,
   },
   {
     title: "Platform Breakdown",
     href: "/dashboard/platforms",
     icon: Layers,
-  },
-  {
-    title: "Sentiment",
-    href: "/dashboard/sentiment",
-    icon: Heart,
   },
   {
     title: "Query Patterns",
@@ -73,14 +71,27 @@ const navItems = [
   },
 ];
 
-const configItems = [
+const brandPerceptionItems = [
   {
-    title: "Competitor Management",
+    title: "Sentiment",
+    href: "/dashboard/sentiment",
+    icon: Heart,
+  },
+  {
+    title: "Attributes",
+    href: "/dashboard/attributes",
+    icon: ListChecks,
+  },
+];
+
+const dataManagementItems = [
+  {
+    title: "Competitors",
     href: "/dashboard/competitors",
     icon: Users2,
   },
   {
-    title: "Prompt Management",
+    title: "Prompts",
     href: "/dashboard/prompts",
     icon: MessageSquare,
   },
@@ -96,14 +107,56 @@ const configItems = [
   },
 ];
 
+const opportunitiesItems = [
+  {
+    title: "Opportunities",
+    href: "/dashboard/opportunities",
+    icon: Target,
+  },
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
   const isOverviewOpen = pathname.startsWith("/dashboard/reports");
+  const isVisibilityOpen = pathname.startsWith("/dashboard/share-of-voice") ||
+    pathname.startsWith("/dashboard/citations") ||
+    pathname.startsWith("/dashboard/platforms") ||
+    pathname.startsWith("/dashboard/queries") ||
+    pathname.startsWith("/dashboard/trending");
+  const isBrandPerceptionOpen = pathname.startsWith("/dashboard/sentiment") ||
+    pathname.startsWith("/dashboard/attributes");
+  const isDataManagementOpen = pathname.startsWith("/dashboard/competitors") ||
+    pathname.startsWith("/dashboard/prompts") ||
+    pathname.startsWith("/dashboard/topics") ||
+    pathname.startsWith("/dashboard/analysis");
+  const isOpportunitiesOpen = pathname.startsWith("/dashboard/opportunities");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(isOverviewOpen);
+  const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(isVisibilityOpen);
+  const [isBrandPerceptionExpanded, setIsBrandPerceptionExpanded] = useState(isBrandPerceptionOpen);
+  const [isDataManagementExpanded, setIsDataManagementExpanded] = useState(isDataManagementOpen);
+  const [isOpportunitiesExpanded, setIsOpportunitiesExpanded] = useState(isOpportunitiesOpen);
 
   // Update expanded state when pathname changes
   useEffect(() => {
     setIsOverviewExpanded(pathname.startsWith("/dashboard/reports"));
+    setIsVisibilityExpanded(
+      pathname.startsWith("/dashboard/share-of-voice") ||
+      pathname.startsWith("/dashboard/citations") ||
+      pathname.startsWith("/dashboard/platforms") ||
+      pathname.startsWith("/dashboard/queries") ||
+      pathname.startsWith("/dashboard/trending")
+    );
+    setIsBrandPerceptionExpanded(
+      pathname.startsWith("/dashboard/sentiment") ||
+      pathname.startsWith("/dashboard/attributes")
+    );
+    setIsDataManagementExpanded(
+      pathname.startsWith("/dashboard/competitors") ||
+      pathname.startsWith("/dashboard/prompts") ||
+      pathname.startsWith("/dashboard/topics") ||
+      pathname.startsWith("/dashboard/analysis")
+    );
+    setIsOpportunitiesExpanded(pathname.startsWith("/dashboard/opportunities"));
   }, [pathname]);
 
   return (
@@ -135,7 +188,7 @@ export function AppSidebar() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(194,194,225,0.15),transparent_50%)] pointer-events-none z-0" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
         <SidebarContent className="relative z-10">
-        <SidebarGroup>
+        <SidebarGroup className="mt-4">
           <SidebarGroupContent>
             <SidebarMenu>
               <Collapsible asChild open={isOverviewExpanded} onOpenChange={setIsOverviewExpanded}>
@@ -155,7 +208,7 @@ export function AppSidebar() {
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/reports/executive"}>
                           <Link href="/dashboard/reports/executive">
                             <Presentation className="h-4 w-4" />
-                            <span>Executive Report</span>
+                            <span>Executive Overview</span>
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -171,88 +224,169 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Analytics</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.href}>
-                        <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
+              <Collapsible asChild open={isVisibilityExpanded} onOpenChange={setIsVisibilityExpanded}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Visibility & Presence">
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isVisibilityExpanded && "rotate-90"
+                      )} />
+                      <span>Visibility & Presence</span>
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {visibilityItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {configItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link href={item.href}>
-                        <Icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
+                        return (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActive}>
+                              <Link href={item.href}>
+                                <Icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+              <Collapsible asChild open={isBrandPerceptionExpanded} onOpenChange={setIsBrandPerceptionExpanded}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Brand Perception">
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isBrandPerceptionExpanded && "rotate-90"
+                      )} />
+                      <span>Brand Perception</span>
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {brandPerceptionItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Actions</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/opportunities"}>
-                  <Link href="/dashboard/opportunities">
-                    <Target className="h-4 w-4" />
-                    <span>Opportunities</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                        return (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActive}>
+                              <Link href={item.href}>
+                                <Icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+              <Collapsible asChild open={isDataManagementExpanded} onOpenChange={setIsDataManagementExpanded}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Data Management">
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isDataManagementExpanded && "rotate-90"
+                      )} />
+                      <span>Data Management</span>
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {dataManagementItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
-                  <Link href="/dashboard/settings">
-                    <Settings className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                        return (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActive}>
+                              <Link href={item.href}>
+                                <Icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+              <Collapsible asChild open={isOpportunitiesExpanded} onOpenChange={setIsOpportunitiesExpanded}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Opportunities & Actions">
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isOpportunitiesExpanded && "rotate-90"
+                      )} />
+                      <span>Opportunities & Actions</span>
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {opportunitiesItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+
+                        return (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActive}>
+                              <Link href={item.href}>
+                                <Icon className="h-4 w-4" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarGroup className="mb-6">
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
+                <Link href="/dashboard/settings">
+                  <Settings className="h-4 w-4" />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === "/dashboard/whats-new"}>
+                <Link href="/dashboard/whats-new">
+                  <Sparkles className="h-4 w-4" />
+                  <span>What's new</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === "/dashboard/support"}>
+                <Link href="/dashboard/support">
+                  <HelpCircle className="h-4 w-4" />
+                  <span>Support</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
 
       <SidebarFooter className="border-t p-4">
         <div className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">

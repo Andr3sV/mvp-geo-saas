@@ -9,6 +9,7 @@ import { TopicSelector, type TopicSelection } from "@/components/reports/topic-s
 import { ReportSection } from "@/components/reports/report-section";
 import { NewCompetitorsSection } from "@/components/reports/new-competitors-section";
 import { AttributesSection } from "@/components/reports/attributes-section";
+import { ReportsList, type SavedReport } from "@/components/reports/reports-list";
 import { getDetailedReportData } from "@/lib/queries/detailed-report";
 import { generateSectionInsights } from "@/lib/actions/insights";
 import { getProjectTopics } from "@/lib/actions/topics";
@@ -25,10 +26,16 @@ const PERIOD_LABELS: Record<ReportPeriod, string> = {
   "last-3-months": "the last 3 months",
 };
 
+type ViewMode = "list" | "create" | "view";
+
 export default function DetailedReportPage() {
   const { selectedProjectId } = useProject();
   const pathname = usePathname();
   const reportRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<ReportPeriod | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<TopicSelection>(null);
   const [topics, setTopics] = useState<Array<{ id: string; name: string; color?: string }>>([]);
@@ -44,7 +51,7 @@ export default function DetailedReportPage() {
   } | null>(null);
   const [brandName, setBrandName] = useState("");
 
-  // Fetch brand name and topics
+  // Fetch brand name, topics, and reports
   useEffect(() => {
     if (selectedProjectId) {
       const fetchBrandName = async () => {
@@ -76,6 +83,42 @@ export default function DetailedReportPage() {
         }
       };
       fetchTopics();
+
+      // Fetch saved reports
+      const fetchReports = async () => {
+        setIsLoadingReports(true);
+        try {
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("reports")
+            .select("id, period, topic_name, created_at, created_by")
+            .eq("project_id", selectedProjectId)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if (error) {
+            console.error("Error fetching reports:", error);
+            // Table might not exist yet, use empty array
+            setSavedReports([]);
+          } else {
+            setSavedReports(
+              (data || []).map((r) => ({
+                id: r.id,
+                period: r.period as ReportPeriod,
+                topicName: r.topic_name,
+                createdAt: r.created_at,
+                createdBy: r.created_by,
+              }))
+            );
+          }
+        } catch (error) {
+          console.error("Error fetching reports:", error);
+          setSavedReports([]);
+        } finally {
+          setIsLoadingReports(false);
+        }
+      };
+      fetchReports();
     }
   }, [selectedProjectId]);
 
@@ -106,12 +149,65 @@ export default function DetailedReportPage() {
         generateSectionInsights("sentiment", data.sentiment, brandName, periodLabel),
       ]);
 
-      setInsights({
+      const generatedInsights = {
         visibility: visibilityInsight,
         shareOfVoice: sovInsight,
         sentiment: sentimentInsight,
-      });
+      };
 
+      setInsights(generatedInsights);
+
+      // Save report to database
+      try {
+        const supabase = createClient();
+        const { data: userData } = await supabase.auth.getUser();
+        
+        if (userData?.user) {
+          const topicName = selectedTopic
+            ? topics.find((t) => t.id === selectedTopic)?.name || null
+            : null;
+
+          const { error: saveError } = await supabase.from("reports").insert({
+            project_id: selectedProjectId,
+            period: selectedPeriod,
+            topic_id: selectedTopic || null,
+            topic_name: topicName,
+            created_by: userData.user.id,
+            report_data: data,
+            insights: generatedInsights,
+          });
+
+          if (saveError) {
+            console.error("Error saving report:", saveError);
+            // Don't show error to user, report was generated successfully
+          } else {
+            // Refresh reports list
+            const { data: reportsData } = await supabase
+              .from("reports")
+              .select("id, period, topic_name, created_at, created_by")
+              .eq("project_id", selectedProjectId)
+              .order("created_at", { ascending: false })
+              .limit(50);
+
+            if (reportsData) {
+              setSavedReports(
+                reportsData.map((r) => ({
+                  id: r.id,
+                  period: r.period as ReportPeriod,
+                  topicName: r.topic_name,
+                  createdAt: r.created_at,
+                  createdBy: r.created_by,
+                }))
+              );
+            }
+          }
+        }
+      } catch (saveError) {
+        console.error("Error saving report:", saveError);
+        // Continue even if save fails
+      }
+
+      setViewMode("view");
       toast.success("Report generated successfully");
     } catch (error) {
       console.error("Error generating report:", error);
@@ -132,6 +228,79 @@ export default function DetailedReportPage() {
     setSelectedTopic(null);
     setReportData(null);
     setInsights(null);
+  };
+
+  const handleBackToList = () => {
+    setViewMode("list");
+    setSelectedPeriod(null);
+    setSelectedTopic(null);
+    setReportData(null);
+    setInsights(null);
+    setSelectedReportId(null);
+  };
+
+  const handleCreateNew = () => {
+    setViewMode("create");
+    setSelectedPeriod(null);
+    setSelectedTopic(null);
+    setReportData(null);
+    setInsights(null);
+    setSelectedReportId(null);
+  };
+
+  const handleViewReport = async (reportId: string) => {
+    setSelectedReportId(reportId);
+    setIsLoading(true);
+    
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("reports")
+        .select("period, topic_id, topic_name, report_data, insights")
+        .eq("id", reportId)
+        .single();
+
+      if (error || !data) {
+        toast.error("Report not found");
+        setIsLoading(false);
+        return;
+      }
+
+      setSelectedPeriod(data.period as ReportPeriod);
+      setSelectedTopic(data.topic_id || null);
+      setReportData(data.report_data);
+      setInsights(data.insights);
+      setViewMode("view");
+    } catch (error) {
+      console.error("Error loading report:", error);
+      toast.error("Error loading report");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("reports").delete().eq("id", reportId);
+
+      if (error) {
+        toast.error("Failed to delete report");
+        return;
+      }
+
+      // Remove from local state
+      setSavedReports((reports) => reports.filter((r) => r.id !== reportId));
+      toast.success("Report deleted successfully");
+
+      // If we're viewing this report, go back to list
+      if (selectedReportId === reportId) {
+        handleBackToList();
+      }
+    } catch (error) {
+      console.error("Error deleting report:", error);
+      toast.error("Failed to delete report");
+    }
   };
 
   const handlePeriodSelected = (period: ReportPeriod) => {
@@ -220,7 +389,7 @@ export default function DetailedReportPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Detailed Report"
+          title="Reports & Insights"
           description="Comprehensive analysis with in-depth metrics and breakdowns"
         />
         <Card className="p-6">
@@ -230,14 +399,44 @@ export default function DetailedReportPage() {
     );
   }
 
+  // Show reports list if in list mode
+  if (viewMode === "list") {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Reports & Insights"
+          description="View and manage your detailed reports"
+        />
+        <ReportsList
+          reports={savedReports}
+          onCreateNew={handleCreateNew}
+          onViewReport={handleViewReport}
+          onDeleteReport={handleDeleteReport}
+          isLoading={isLoadingReports}
+        />
+      </div>
+    );
+  }
+
   // Show period selector if no period selected
   if (!selectedPeriod) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Detailed Report"
+          title="Reports & Insights"
           description="Comprehensive analysis with in-depth metrics and breakdowns"
         />
+        <div className="flex items-center gap-4 mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleBackToList}
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Reports
+          </Button>
+        </div>
         <PeriodSelector
           selectedPeriod={selectedPeriod}
           onPeriodSelect={handlePeriodSelected}
@@ -252,7 +451,7 @@ export default function DetailedReportPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Detailed Report"
+          title="Reports & Insights"
           description="Comprehensive analysis with in-depth metrics and breakdowns"
         />
         <div className="flex items-center gap-4 mb-6">

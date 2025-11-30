@@ -176,7 +176,7 @@ export default function ShareOfVoicePage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Share of Voice"
+          title="Share of mentions"
           description="Compare your brand mentions against competitors in AI responses"
         />
         <div className="flex items-center justify-center h-96">
@@ -191,7 +191,7 @@ export default function ShareOfVoicePage() {
   return (
     <div className="space-y-6">
       <PageHeader 
-        title="Share of Voice"
+        title="Share of mentions"
         description="Compare your brand mentions against competitors in AI responses"
       />
 

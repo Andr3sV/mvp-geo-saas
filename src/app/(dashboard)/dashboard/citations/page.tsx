@@ -233,7 +233,7 @@ export default function CitationsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Citation Tracking"
+          title="Citation & domains"
           description="Monitor how AI platforms cite and reference your brand"
         />
         <div className="flex items-center justify-center h-96">
@@ -249,7 +249,7 @@ export default function CitationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Citation Tracking"
+        title="Citation & domains"
         description="Comprehensive analysis of your brand citations across AI platforms"
       />
 
