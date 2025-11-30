@@ -362,7 +362,7 @@ export default function DetailedReportPage() {
       const filename = `detailed-report-${brandName}-${periodLabel}-${topicLabel}-${new Date().toISOString().split("T")[0]}.pdf`;
 
       const opt = {
-        margin: [10, 10, 10, 10],
+        margin: [10, 10, 10, 10] as [number, number, number, number],
         filename,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { 
@@ -375,7 +375,7 @@ export default function DetailedReportPage() {
         pagebreak: { mode: ["avoid-all", "css", "legacy"] },
       };
 
-      await html2pdf().set(opt).from(element).save();
+      await html2pdf().set(opt as any).from(element).save();
       toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error("Error generating PDF:", error);
