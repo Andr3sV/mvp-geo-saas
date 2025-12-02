@@ -264,7 +264,7 @@ export async function callPerplexity(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'sonar-pro';
+  const model = config.model || 'sonar';
 
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
