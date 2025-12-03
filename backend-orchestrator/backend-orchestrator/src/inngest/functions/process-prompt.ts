@@ -40,7 +40,7 @@ export const processPrompt = inngest.createFunction(
 
     // 2. Determine Platforms
     // We want to run all available platforms
-    const platforms: AIProvider[] = ['openai', 'gemini', 'claude', 'perplexity'];
+    const platforms: AIProvider[] = ['openai', 'gemini', 'claude' /*, 'perplexity' - disabled temporarily */];
     const availablePlatforms = platforms.filter(p => getAPIKey(p) !== null);
     
     logInfo("process-prompt", `Available platforms: ${availablePlatforms.join(', ')}`);
@@ -182,17 +182,17 @@ export const processPrompt = inngest.createFunction(
           
           // Try to update error status - but don't fail if this fails
           try {
-            await supabase
-              .from("ai_responses")
-              .update({
-                status: "error",
+          await supabase
+            .from("ai_responses")
+            .update({
+              status: "error",
                 error_message: isRateLimit 
                   ? `Rate limit exceeded. ${err?.quotaLimit || 'Quota exceeded'}. Will retry on next run.`
                   : errorMessage,
-              })
-              .eq("prompt_tracking_id", prompt_tracking_id)
-              .eq("platform", platform)
-              .eq("status", "processing");
+            })
+            .eq("prompt_tracking_id", prompt_tracking_id)
+            .eq("platform", platform)
+            .eq("status", "processing");
           } catch (updateError: any) {
             logError("process-prompt", `Failed to update error status for ${platform}`, updateError);
           }
