@@ -100,7 +100,7 @@ export async function getQuickLookMetrics(
       p_topic_id: topicId
     }),
     
-    // My Pages Cited - total citations WITH URLs
+    // My Pages Cited - total citations WITH URLs and direct mentions
     applyTopicFilter(
       applyRegionFilter(
         applyPlatformFilter(
@@ -115,6 +115,7 @@ export async function getQuickLookMetrics(
                 )
               `, { count: "exact", head: true })
               .eq("project_id", projectId)
+              .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
               .not("cited_url", "is", null), // ✅ Only real citations with URLs
             filters
           ),
@@ -152,7 +153,7 @@ export async function getQuickLookMetrics(
       return applyDateFilter(query, filters);
     })(),
     
-    // Sentiments for rating calculation - only citations WITH URLs
+    // Sentiments for rating calculation - only citations WITH URLs and direct mentions
     applyTopicFilter(
       applyRegionFilter(
         applyPlatformFilter(
@@ -167,6 +168,7 @@ export async function getQuickLookMetrics(
                 )
               `)
               .eq("project_id", projectId)
+              .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
               .not("cited_url", "is", null) // ✅ Only real citations with URLs
               .limit(50000), // Increase limit to handle large datasets
             filters
@@ -238,11 +240,12 @@ export async function getCitationsOverTime(
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get citations grouped by date - only citations WITH URLs
+  // Get citations grouped by date - only citations WITH URLs and direct mentions
   const { data: citations } = await supabase
     .from("citations_detail")
     .select("created_at")
     .eq("project_id", projectId)
+    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
     .not("cited_url", "is", null) // ✅ Only real citations with URLs
     .gte("created_at", startDate.toISOString())
     .limit(10000); // Increase limit to handle large datasets
@@ -340,6 +343,7 @@ export async function getCitationsEvolution(
         )
       `)
       .eq("project_id", projectId)
+      .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
       .not("cited_url", "is", null) // ✅ Only real citations with URLs
       .gte("created_at", startDate.toISOString())
       .lte("created_at", endDate.toISOString())
@@ -505,7 +509,7 @@ export async function getDRBreakdown(
 ) {
   const supabase = await createClient();
 
-  // Get citations with platform info joined - only citations WITH URLs
+  // Get citations with platform info joined - only citations WITH URLs and direct mentions
   const { data: citationsWithPlatform } = await applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
@@ -521,6 +525,7 @@ export async function getDRBreakdown(
               )
             `)
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null) // ✅ Only real citations with URLs
             .limit(10000), // Increase limit to handle large datasets
           filters
@@ -581,7 +586,7 @@ export async function getMostCitedDomains(
 ) {
   const supabase = await createClient();
 
-  // Get citations with domain and platform info - only citations WITH URLs
+  // Get citations with domain and platform info - only citations WITH URLs and direct mentions
   const { data: citations } = await applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
@@ -599,6 +604,7 @@ export async function getMostCitedDomains(
               )
             `)
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null) // Only real citations with URLs
             .not("cited_domain", "is", null) // Only citations with domains
             .limit(10000), // Increase limit to handle large datasets
@@ -697,8 +703,8 @@ export async function getHighValueOpportunities(
   const supabase = await createClient();
 
   // Get brand citations WITH URLs only (domains where we ARE mentioned)
-  // IMPORTANT: Filter by citation_text IS NOT NULL to exclude URLs without brand mentions
-  // URLs without brand mentions have citation_text = NULL (they're just URLs saved from LLM)
+  // IMPORTANT: Filter by is_direct_mention = true to exclude URLs without brand mentions
+  // URLs without brand mentions have is_direct_mention = false (they're just URLs saved from LLM)
   const { data: brandCitations } = await applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
@@ -714,9 +720,9 @@ export async function getHighValueOpportunities(
               )
             `)
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null)
             .not("cited_domain", "is", null)
-            .not("citation_text", "is", null) // Only citations with brand mentions
             .limit(10000), // Increase limit to handle large datasets
           filters
         ),
@@ -946,7 +952,7 @@ export async function getTopPerformingPages(
     .split("/")[0]
     .toLowerCase();
 
-  // Get all citations with URLs, platform, and response info
+  // Get all citations with URLs, platform, and response info - only direct mentions
   const { data: citations } = await applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
@@ -965,6 +971,7 @@ export async function getTopPerformingPages(
               )
             `)
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null) // Only citations with URLs
             .limit(10000), // Increase limit to handle large datasets
           filters
@@ -1103,7 +1110,7 @@ export async function getCompetitiveTopicAnalysis(
         .eq("project_id", projectId)
         .eq("is_active", true),
       
-      // Get brand citations with prompt category - only citations WITH URLs
+      // Get brand citations with prompt category - only citations WITH URLs and direct mentions
       applyTopicFilter(
         applyRegionFilter(
           applyPlatformFilter(
@@ -1119,6 +1126,7 @@ export async function getCompetitiveTopicAnalysis(
                   )
                 `)
                 .eq("project_id", projectId)
+                .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
                 .not("cited_url", "is", null) // ✅ Only real citations with URLs
                 .limit(10000), // Increase limit to handle large datasets
               filters
@@ -1255,7 +1263,7 @@ export async function getCitationSources(
 
   const offset = (page - 1) * pageSize;
 
-  // Get total count for pagination
+  // Get total count for pagination - only direct mentions
   const { count } = await applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
@@ -1270,6 +1278,7 @@ export async function getCitationSources(
               )
             `, { count: "exact", head: true })
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null), // Only citations with URLs
           filters
         ),
@@ -1280,7 +1289,7 @@ export async function getCitationSources(
     filters
   );
 
-  // Get paginated citations with response_text from ai_responses
+  // Get paginated citations with response_text from ai_responses - only direct mentions
   // Note: We show response_text (full AI response) instead of citation_text (individual mention)
   const { data: citations } = await applyTopicFilter(
     applyRegionFilter(
@@ -1302,6 +1311,7 @@ export async function getCitationSources(
               )
             `)
             .eq("project_id", projectId)
+            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
             .not("cited_url", "is", null) // Only citations with URLs
             .order("created_at", { ascending: false })
             .range(offset, offset + pageSize - 1),

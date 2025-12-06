@@ -72,7 +72,7 @@ Almacena las respuestas pendientes de análisis de sentimiento:
 
 ### 5. Edge Function: `analyze-sentiment`
 
-**Propósito**: Analiza una respuesta específica usando Gemini 2.5 Flash Lite
+**Propósito**: Analiza una respuesta específica usando Gemini 2.0 Flash
 
 **Funcionamiento**:
 1. Obtiene la respuesta de `ai_responses`

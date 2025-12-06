@@ -51,6 +51,7 @@ BEGIN
     INNER JOIN ai_responses ar ON ar.id = cd.ai_response_id
     INNER JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
     WHERE cd.project_id = p_project_id
+      AND cd.is_direct_mention = true  -- ✅ Only count real mentions in text, not URLs without mentions
       AND cd.created_at >= v_start_date
       AND cd.created_at <= v_end_date
       AND (p_platform IS NULL OR p_platform = 'all' OR ar.platform = p_platform)

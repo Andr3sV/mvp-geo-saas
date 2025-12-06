@@ -103,7 +103,7 @@ REMINDER: "${brandName}" = brand (NOT competitor), all others = competitor
 `;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -250,7 +250,7 @@ async function main() {
           analyzed_text: result.analyzed_text,
           ai_reasoning: result.ai_reasoning,
           key_phrases: result.key_phrases,
-          model_used: 'gemini-2.5-flash-lite', // Updated to gemini-2.5-flash-lite
+          model_used: 'gemini-2.0-flash-exp', // Hardcoded as per edge function
           processing_time_ms: 0 // Not tracking real time here
         });
 

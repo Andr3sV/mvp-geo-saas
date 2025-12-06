@@ -3,7 +3,7 @@
  * 
  * Propósito: Worker que procesa la cola de análisis de sentimiento en lotes pequeños:
  * 1. Toma respuestas pendientes de la cola (sentiment_analysis_queue)
- * 2. Para cada respuesta, ejecuta análisis de sentimiento usando Gemini 2.5 Flash Lite
+ * 2. Para cada respuesta, ejecuta análisis de sentimiento usando Gemini 2.0 Flash
  * 3. Actualiza el estado de cada trabajo (completed/failed)
  * 4. Continúa procesando hasta que no haya más items pendientes
  * 

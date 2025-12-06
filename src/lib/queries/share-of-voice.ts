@@ -43,6 +43,7 @@ export async function getShareOfVoice(
 
   // Get brand citations in period with platform, region, and topic filters
   // Use count instead of fetching all rows to avoid Supabase's 1000 row limit
+  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
   let brandCitationsQuery = supabase
     .from("citations_detail")
     .select(`
@@ -53,6 +54,7 @@ export async function getShareOfVoice(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
+    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
 
@@ -243,6 +245,7 @@ export async function getShareOfVoiceTrends(
   const topicFilter = topicId && topicId !== "all";
 
   // Get current period data
+  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
   let currentBrandQuery = supabase
     .from("citations_detail")
     .select(`
@@ -253,6 +256,7 @@ export async function getShareOfVoiceTrends(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
+    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
     .gte("created_at", currentStartDate.toISOString())
     .lte("created_at", currentEndDate.toISOString());
 
@@ -304,6 +308,7 @@ export async function getShareOfVoiceTrends(
   ]);
 
   // Get previous period data
+  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
   let previousBrandQuery = supabase
     .from("citations_detail")
     .select(`
@@ -314,6 +319,7 @@ export async function getShareOfVoiceTrends(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
+    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
     .gte("created_at", previousStartDate.toISOString())
     .lte("created_at", previousEndDate.toISOString());
 

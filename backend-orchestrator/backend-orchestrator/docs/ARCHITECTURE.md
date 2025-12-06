@@ -132,7 +132,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### AI Clients
 
 - **OpenAI**: GPT-4 Turbo Preview
-- **Gemini**: Gemini 2.5 Flash Lite (with Google Search)
+- **Gemini**: Gemini 2.0 Flash Exp (with Google Search)
 - **Claude**: Claude Haiku 4.5
 - **Perplexity**: Sonar Pro (with web search)
 
