@@ -45,6 +45,13 @@ export async function callOpenAI(
     const executionTime = Date.now() - startTime;
     const tokensUsed = data.usage?.total_tokens || 0;
 
+    // Log raw JSON response for debugging (visible in Railway logs)
+    console.log('='.repeat(80));
+    console.log('[DEBUG] OPENAI RAW API RESPONSE');
+    console.log('='.repeat(80));
+    console.log(JSON.stringify(data, null, 2));
+    console.log('='.repeat(80));
+
     logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Time: ${executionTime}ms`);
 
     return {
@@ -69,7 +76,7 @@ export async function callGemini(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'gemini-2.5-flash-lite';
+  const model = config.model || 'gemini-2.0-flash-exp';
 
   try {
     const response = await fetch(
@@ -143,6 +150,16 @@ export async function callGemini(
 
     const data = await response.json();
     const executionTime = Date.now() - startTime;
+
+    // Log raw JSON response for debugging (visible in Railway logs)
+    console.log('='.repeat(80));
+    console.log('[DEBUG] GEMINI RAW API RESPONSE');
+    console.log('='.repeat(80));
+    console.log(JSON.stringify(data, null, 2));
+    console.log('='.repeat(80));
+    console.log('[DEBUG] GEMINI GROUNDING METADATA (extracted)');
+    console.log(JSON.stringify(data.candidates?.[0]?.groundingMetadata, null, 2));
+    console.log('='.repeat(80));
 
     // Extract text and grounding metadata
     const candidate = data.candidates?.[0];
@@ -264,7 +281,7 @@ export async function callPerplexity(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'sonar';
+  const model = config.model || 'sonar-pro';
 
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
