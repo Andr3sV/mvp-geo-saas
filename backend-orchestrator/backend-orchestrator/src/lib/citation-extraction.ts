@@ -227,10 +227,24 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
         outputItemsCount: outputItems.length
       });
 
-      // First, extract web search queries from web_search_call items
+      // First, extract and sanitize web search queries from web_search_call items
       // According to OpenAI docs: web_search_call.action contains action (search, open_page, find_in_page)
       // and search actions may include query and domains
       const webSearchQueries: string[] = [];
+
+      // Simple sanitizer: trim, remove surrounding quotes, strip notes in parentheses/brackets
+      const sanitizeQuery = (q?: string) => {
+        if (!q || typeof q !== 'string') return undefined;
+        let s = q.trim();
+        // remove surrounding quotes
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+          s = s.slice(1, -1);
+        }
+        // strip trailing notes in parentheses or brackets (e.g., "query (note...)" or "query [note]")
+        s = s.replace(/\\s*[\\(\\[].*[\\)\\]]\\s*$/, '').trim();
+        return s || undefined;
+      };
+
       for (const item of outputItems) {
         if (item.type === 'web_search_call') {
           logInfo('citation-extraction', 'Found web_search_call item', {
@@ -245,16 +259,23 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
           if (item.action && typeof item.action === 'object') {
             // action.action can be 'search', 'open_page', or 'find_in_page'
             if (item.action.action === 'search' && item.action.query) {
-              webSearchQueries.push(item.action.query);
+              const sanitized = sanitizeQuery(item.action.query);
+              if (sanitized) webSearchQueries.push(sanitized);
             }
             // Also check if query is directly in action object
             if (item.action.query && !webSearchQueries.includes(item.action.query)) {
-              webSearchQueries.push(item.action.query);
+              const sanitized = sanitizeQuery(item.action.query);
+              if (sanitized && !webSearchQueries.includes(sanitized)) {
+                webSearchQueries.push(sanitized);
+              }
             }
           }
           // Also check if query is directly in the item (fallback)
           if (item.query && !webSearchQueries.includes(item.query)) {
-            webSearchQueries.push(item.query);
+            const sanitized = sanitizeQuery(item.query);
+            if (sanitized && !webSearchQueries.includes(sanitized)) {
+              webSearchQueries.push(sanitized);
+            }
           }
         }
       }
