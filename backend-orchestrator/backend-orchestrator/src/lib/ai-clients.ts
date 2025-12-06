@@ -21,23 +21,29 @@ export async function callOpenAI(
 
   try {
     // Use Responses API with web_search tool (recommended for web search citations)
+    // IMPORTANT: Do not send max_tokens or temperature for models that reject them
+    const responseBody: Record<string, any> = {
+      model,
+      tools: [{ type: 'web_search' }],
+      input: prompt,
+    };
+
+    // Only include temperature / max_tokens if explicitly provided AND model supports it
+    // To avoid "Unknown parameter" errors, we exclude by default
+    if (config.temperature !== undefined) {
+      responseBody.temperature = config.temperature;
+    }
+    if (config.maxTokens !== undefined) {
+      responseBody.max_output_tokens = config.maxTokens; // Responses API uses max_output_tokens for some models
+    }
+
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        tools: [
-          { type: 'web_search' },
-        ],
-        input: prompt,
-        // Note: temperature and max_tokens may not be supported in Responses API
-        // Only include if model supports them
-        ...(config.temperature && { temperature: config.temperature }),
-        ...(config.maxTokens && { max_tokens: config.maxTokens }),
-      }),
+      body: JSON.stringify(responseBody),
     });
 
     if (!response.ok) {
