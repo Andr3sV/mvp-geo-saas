@@ -108,8 +108,9 @@ export interface AICompletionResult {
   model: string;
   cost: number;
   execution_time_ms: number;
-  citations?: string[]; // URLs from web search results
+  citations?: string[]; // URLs from web search results (for backward compatibility)
   has_web_search?: boolean; // Whether this model used web search
+  citationsData?: CitationData[]; // Structured citation data with complete metadata
 }
 
 export interface AIClientError {
@@ -138,5 +139,56 @@ export interface CitationAnalysisResult {
   overall_sentiment: SentimentType;
   total_mentions: number;
   brand_mentioned: boolean;
+}
+
+// =============================================
+// STRUCTURED CITATION TYPES
+// =============================================
+
+/**
+ * Structured citation data extracted from AI API responses
+ * Used for storing complete citation metadata in the citations table
+ */
+export interface CitationData {
+  web_search_query?: string; // Web search query used (from Gemini webSearchQueries)
+  uri?: string; // Original URI from Vertex (Gemini) or similar
+  url?: string; // Real URL after transforming URI if needed
+  domain?: string; // Domain extracted from title (Gemini) or URL
+  start_index?: number; // Start index of cited text fragment
+  end_index?: number; // End index of cited text fragment
+  text?: string; // Text fragment that was cited
+  metadata?: Record<string, any>; // Additional platform-specific metadata
+}
+
+/**
+ * Gemini-specific citation structure from groundingMetadata
+ */
+export interface GeminiGroundingCitation {
+  groundingChunk: {
+    web?: {
+      uri?: string;
+      title?: string;
+    };
+  };
+  groundingSupport: {
+    segment?: {
+      startIndex?: number;
+      endIndex?: number;
+      text?: string;
+    };
+    groundingChunkIndices?: number[];
+  };
+  webSearchQueries?: string[];
+}
+
+/**
+ * OpenAI-specific citation structure from annotations
+ */
+export interface OpenAICitation {
+  type: 'url_citation';
+  start_index: number;
+  end_index: number;
+  url: string;
+  title?: string;
 }
 

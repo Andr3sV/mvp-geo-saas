@@ -4,6 +4,7 @@
 
 import type { AIProvider, AICompletionResult, AIClientConfig } from './types';
 import { calculateCost, logError, logInfo } from './utils';
+import { extractGeminiCitations, extractOpenAICitations } from './citation-extraction';
 
 // =============================================
 // OPENAI CLIENT
@@ -14,9 +15,13 @@ export async function callOpenAI(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  const model = config.model || 'gpt-4-turbo-preview';
+  // Use web search model by default to enable web search citations
+  // Options: gpt-5-search-api, gpt-4o-search-preview, gpt-4o-mini-search-preview
+  // Or use Responses API with web_search tool
+  const model = config.model || 'gpt-4o-search-preview';
 
   try {
+    // Use Chat Completions API with web search model (simpler than Responses API)
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -52,14 +57,31 @@ export async function callOpenAI(
     console.log(JSON.stringify(data, null, 2));
     console.log('='.repeat(80));
 
-    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Time: ${executionTime}ms`);
+    const responseText = data.choices[0]?.message?.content || '';
+
+    // Extract structured citations if available
+    // Note: OpenAI Chat Completions API doesn't return annotations in the same format
+    // as Responses API. For now, we'll check if there's a different structure
+    // or if we need to use Responses API for web search citations
+    let citationsData: any[] | undefined;
+    try {
+      // Try to extract from current response structure
+      // If using Responses API, data structure will be different
+      citationsData = extractOpenAICitations(data, responseText);
+    } catch (error) {
+      logError('OpenAI', 'Failed to extract citations', error);
+      citationsData = undefined;
+    }
+
+    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Structured Citations: ${citationsData?.length || 0}, Time: ${executionTime}ms`);
 
     return {
-      text: data.choices[0]?.message?.content || '',
+      text: responseText,
       tokens_used: tokensUsed,
       model,
       cost: calculateCost('openai', tokensUsed),
       execution_time_ms: executionTime,
+      citationsData: citationsData && citationsData.length > 0 ? citationsData : undefined,
     };
   } catch (error) {
     logError('OpenAI', 'API call failed', error);
@@ -199,7 +221,10 @@ export async function callGemini(
       return !invalidPatterns.some(pattern => lowerUrl.includes(pattern));
     });
 
-    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${cleanedCitations.length}, Time: ${executionTime}ms`);
+    // Extract structured citations using new extraction function
+    const citationsData = extractGeminiCitations(data);
+
+    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${cleanedCitations.length}, Structured Citations: ${citationsData.length}, Time: ${executionTime}ms`);
 
     return {
       text,
@@ -209,6 +234,7 @@ export async function callGemini(
       execution_time_ms: executionTime,
       citations: cleanedCitations.length > 0 ? cleanedCitations : undefined,
       has_web_search: true,
+      citationsData: citationsData.length > 0 ? citationsData : undefined,
     };
   } catch (error) {
     logError('Gemini', 'API call failed', error);

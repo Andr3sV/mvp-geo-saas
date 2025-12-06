@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { createSupabaseClient, logInfo, logError } from "../../lib/utils";
 import { callAI, getAPIKey } from "../../lib/ai-clients";
 import { triggerCitationProcessing } from "../../lib/citation-processing";
+import { saveCitations } from "../../lib/citation-storage";
 import { waitForRateLimit } from "../../lib/rate-limiter";
 import type { AIProvider } from "../../lib/types";
 
@@ -146,7 +147,51 @@ export const processPrompt = inngest.createFunction(
             tokensUsed: result.tokens_used
           });
 
+          // Save structured citations to citations table
+          logInfo("process-prompt", `Checking citationsData for ${platform}`, {
+            aiResponseId: aiResponse.id,
+            platform,
+            hasCitationsData: !!result.citationsData,
+            citationsDataLength: result.citationsData?.length || 0
+          });
+
+          if (result.citationsData && result.citationsData.length > 0) {
+            try {
+              logInfo("process-prompt", `Attempting to save ${result.citationsData.length} citations for ${platform}`, {
+                aiResponseId: aiResponse.id,
+                platform,
+                sampleCitation: result.citationsData[0]
+              });
+
+              const citationsSaved = await saveCitations(
+                supabase,
+                aiResponse.id,
+                result.citationsData
+              );
+              logInfo("process-prompt", `Saved ${citationsSaved} structured citations for ${platform}`, {
+                aiResponseId: aiResponse.id,
+                platform,
+                expected: result.citationsData.length
+              });
+            } catch (citationError: any) {
+              logError("process-prompt", `Failed to save structured citations for ${platform}`, {
+                error: citationError.message,
+                stack: citationError.stack,
+                aiResponseId: aiResponse.id,
+                platform
+              });
+              // Don't throw - citation saving is not critical for the main flow
+            }
+          } else {
+            logInfo("process-prompt", `No citationsData to save for ${platform}`, {
+              aiResponseId: aiResponse.id,
+              platform,
+              hasWebSearch: result.has_web_search
+            });
+          }
+
           // Process Citations (Async but awaited here to ensure completion)
+          // This handles sentiment analysis and brand mentions (citations_detail table)
           await triggerCitationProcessing(
             supabase,
             aiResponse.id,
