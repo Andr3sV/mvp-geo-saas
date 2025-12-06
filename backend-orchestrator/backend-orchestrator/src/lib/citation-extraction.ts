@@ -232,16 +232,43 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
       // and search actions may include query and domains
       const webSearchQueries: string[] = [];
 
-      // Simple sanitizer: trim, remove surrounding quotes, strip notes in parentheses/brackets
+      // Sanitizer: decode Unicode escapes, remove surrounding quotes, strip "Note:" and everything after
       const sanitizeQuery = (q?: string) => {
         if (!q || typeof q !== 'string') return undefined;
-        let s = q.trim();
-        // remove surrounding quotes
+        
+        // Decode Unicode escape sequences (e.g., \u00bf -> ¿, \u00e9 -> é)
+        let s = q;
+        try {
+          // Replace Unicode escapes with actual characters
+          s = s.replace(/\\u([0-9a-fA-F]{4})/g, (match, code) => {
+            return String.fromCharCode(parseInt(code, 16));
+          });
+        } catch (e) {
+          // If decoding fails, continue with original string
+        }
+        
+        // Remove "Note:" and everything after (can be on same line or newline)
+        const noteIndex = s.toLowerCase().indexOf('\n\nnote:');
+        if (noteIndex !== -1) {
+          s = s.substring(0, noteIndex);
+        } else {
+          // Also check for "Note:" on same line
+          const noteIndexInline = s.toLowerCase().indexOf(' note:');
+          if (noteIndexInline !== -1) {
+            s = s.substring(0, noteIndexInline);
+          }
+        }
+        
+        s = s.trim();
+        
+        // Remove surrounding quotes
         if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
           s = s.slice(1, -1);
         }
-        // strip trailing notes in parentheses or brackets (e.g., "query (note...)" or "query [note]")
-        s = s.replace(/\\s*[\\(\\[].*[\\)\\]]\\s*$/, '').trim();
+        
+        // Remove trailing notes in parentheses or brackets
+        s = s.replace(/\s*[\(\[].*[\)\]]\s*$/, '').trim();
+        
         return s || undefined;
       };
 
