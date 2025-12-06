@@ -15,14 +15,13 @@ export async function callOpenAI(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  // Use web search model by default to enable web search citations
-  // Options: gpt-5-search-api, gpt-4o-search-preview, gpt-4o-mini-search-preview
-  // Or use Responses API with web_search tool
-  const model = config.model || 'gpt-4o-search-preview';
+  // Use Responses API with web_search tool for proper citation support
+  // Model options: gpt-5, o4-mini, o4, etc. (not gpt-4o-search-preview)
+  const model = config.model || 'o4-mini';
 
   try {
-    // Use Chat Completions API with web search model (simpler than Responses API)
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Use Responses API with web_search tool (recommended for web search citations)
+    const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -30,14 +29,14 @@ export async function callOpenAI(
       },
       body: JSON.stringify({
         model,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
+        tools: [
+          { type: 'web_search' },
         ],
-        temperature: config.temperature || 0.7,
-        max_tokens: config.maxTokens || 2000,
+        input: prompt,
+        // Note: temperature and max_tokens may not be supported in Responses API
+        // Only include if model supports them
+        ...(config.temperature && { temperature: config.temperature }),
+        ...(config.maxTokens && { max_tokens: config.maxTokens }),
       }),
     });
 
@@ -48,7 +47,6 @@ export async function callOpenAI(
 
     const data = await response.json();
     const executionTime = Date.now() - startTime;
-    const tokensUsed = data.usage?.total_tokens || 0;
 
     // Log raw JSON response for debugging (visible in Railway logs)
     console.log('='.repeat(80));
@@ -57,16 +55,33 @@ export async function callOpenAI(
     console.log(JSON.stringify(data, null, 2));
     console.log('='.repeat(80));
 
-    const responseText = data.choices[0]?.message?.content || '';
+    // Responses API structure: find message output item with text
+    const outputItems = data.output || [];
+    let responseText = '';
+    let tokensUsed = 0;
 
-    // Extract structured citations if available
-    // Note: OpenAI Chat Completions API doesn't return annotations in the same format
-    // as Responses API. For now, we'll check if there's a different structure
-    // or if we need to use Responses API for web search citations
+    // Extract text from message output item
+    for (const item of outputItems) {
+      if (item.type === 'message' && item.content) {
+        for (const content of item.content) {
+          if (content.type === 'output_text') {
+            responseText = content.text || '';
+            break;
+          }
+        }
+      }
+    }
+
+    // Extract token usage if available (Responses API may structure this differently)
+    if (data.usage) {
+      tokensUsed = data.usage.total_tokens || 0;
+    } else if (data.usage_info) {
+      tokensUsed = (data.usage_info.input_tokens || 0) + (data.usage_info.output_tokens || 0);
+    }
+
+    // Extract structured citations
     let citationsData: any[] | undefined;
     try {
-      // Try to extract from current response structure
-      // If using Responses API, data structure will be different
       citationsData = extractOpenAICitations(data, responseText);
     } catch (error) {
       logError('OpenAI', 'Failed to extract citations', error);
@@ -77,11 +92,12 @@ export async function callOpenAI(
 
     return {
       text: responseText,
-      tokens_used: tokensUsed,
+      tokens_used: tokensUsed || Math.ceil(responseText.length / 4), // Estimate if not available
       model,
-      cost: calculateCost('openai', tokensUsed),
+      cost: calculateCost('openai', tokensUsed || Math.ceil(responseText.length / 4)),
       execution_time_ms: executionTime,
       citationsData: citationsData && citationsData.length > 0 ? citationsData : undefined,
+      has_web_search: citationsData && citationsData.length > 0,
     };
   } catch (error) {
     logError('OpenAI', 'API call failed', error);

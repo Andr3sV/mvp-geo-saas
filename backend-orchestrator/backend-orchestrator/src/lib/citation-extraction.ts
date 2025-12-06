@@ -223,12 +223,44 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
     
     if (outputItems.length > 0) {
       // Responses API format
+      logInfo('citation-extraction', 'Processing OpenAI Responses API format', {
+        outputItemsCount: outputItems.length
+      });
+
+      // First, extract web search queries from web_search_call items
+      const webSearchQueries: string[] = [];
+      for (const item of outputItems) {
+        if (item.type === 'web_search_call') {
+          // Check if action exists and is an object with query property
+          if (item.action && typeof item.action === 'object') {
+            if (item.action.action === 'search' && item.action.query) {
+              webSearchQueries.push(item.action.query);
+            }
+            // Also check if query is directly in action
+            if (item.action.query && !webSearchQueries.includes(item.action.query)) {
+              webSearchQueries.push(item.action.query);
+            }
+          }
+          // Also check if query is directly in the item
+          if (item.query && !webSearchQueries.includes(item.query)) {
+            webSearchQueries.push(item.query);
+          }
+        }
+      }
+
+      logInfo('citation-extraction', `Found ${webSearchQueries.length} web search queries`, {
+        queries: webSearchQueries
+      });
+
+      // Extract citations from message output items
       for (const item of outputItems) {
         if (item.type === 'message' && item.content) {
           for (const content of item.content) {
             if (content.type === 'output_text' && content.annotations) {
               const annotations = content.annotations || [];
               
+              logInfo('citation-extraction', `Found ${annotations.length} annotations in message`);
+
               for (const annotation of annotations) {
                 if (annotation.type === 'url_citation') {
                   const startIndex = annotation.start_index;
@@ -238,43 +270,43 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
 
                   // Skip if no URL
                   if (!url) {
+                    logInfo('citation-extraction', 'Skipping annotation (no URL)', { annotation });
                     continue;
                   }
 
                   // Extract text fragment using indices
-                  const text = responseText.substring(startIndex, endIndex);
+                  const text = startIndex !== undefined && endIndex !== undefined 
+                    ? responseText.substring(startIndex, endIndex)
+                    : undefined;
 
                   // Extract domain from URL
                   const domain = extractDomainFromTitleOrUrl(title, url);
 
-                  citations.push({
+                  const citation: CitationData = {
                     url: url,
                     domain: domain || undefined,
                     start_index: startIndex,
                     end_index: endIndex,
                     text: text || undefined,
+                    web_search_query: webSearchQueries[0] || undefined,
                     metadata: {
                       title: title || undefined,
                       platform: 'openai',
                       api_type: 'responses',
                     },
+                  };
+
+                  logInfo('citation-extraction', 'Adding OpenAI citation', {
+                    url: citation.url,
+                    domain: citation.domain,
+                    startIndex: citation.start_index,
+                    endIndex: citation.end_index
                   });
+
+                  citations.push(citation);
                 }
               }
             }
-          }
-        }
-      }
-
-      // Also check for web_search_call to get queries
-      for (const item of outputItems) {
-        if (item.type === 'web_search_call' && item.action === 'search') {
-          const query = item.query;
-          // Associate query with citations (use first query for all citations)
-          if (query && citations.length > 0 && !citations[0].web_search_query) {
-            citations.forEach(citation => {
-              citation.web_search_query = query;
-            });
           }
         }
       }
