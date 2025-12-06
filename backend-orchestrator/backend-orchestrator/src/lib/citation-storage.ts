@@ -58,8 +58,9 @@ export async function saveCitations(
     const records = validCitations.map(citation => ({
       ai_response_id: aiResponseId,
       web_search_query: citation.web_search_query || null,
-      uri: citation.uri || null,
-      url: citation.url || null,
+      // If uri is missing, backfill with url to avoid nulls for OpenAI citations
+      uri: citation.uri || citation.url || null,
+      url: citation.url || citation.uri || null,
       domain: citation.domain || null,
       start_index: citation.start_index ?? null,
       end_index: citation.end_index ?? null,
