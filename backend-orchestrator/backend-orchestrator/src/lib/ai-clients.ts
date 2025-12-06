@@ -15,22 +15,26 @@ export async function callOpenAI(
   config: AIClientConfig
 ): Promise<AICompletionResult> {
   const startTime = Date.now();
-  // Use Responses API with web_search tool for proper citation support
-  // Model options: gpt-5, o4-mini, o4, etc. (not gpt-4o-search-preview)
-  const model = config.model || 'o4-mini';
+  // Use Responses API with web_search tool (structured citations, deterministic tool use)
+  // Non-reasoning, más barato/rápido: gpt-4.1-mini (si soporta web_search en Responses)
+  const model = config.model || 'gpt-4.1-mini';
 
   try {
-    // Use Responses API with web_search tool (recommended for web search citations)
-    // IMPORTANT: Responses API does not support max_tokens, max_output_tokens, or temperature
-    // These parameters cause "Unknown parameter" errors - do not include them
+    // Cap defensivo del prompt para evitar uso excesivo de tokens
+    const MAX_PROMPT_CHARS = 6000;
+    const cappedPrompt =
+      prompt && prompt.length > MAX_PROMPT_CHARS
+        ? prompt.slice(0, MAX_PROMPT_CHARS)
+        : prompt;
+
+    // Responses API body con web_search tool; no incluir max_tokens/temperature para evitar errores
+    // tool_choice: "required" fuerza uso de la herramienta de búsqueda
     const responseBody: Record<string, any> = {
       model,
       tools: [{ type: 'web_search' }],
-      input: prompt,
+      tool_choice: 'required',
+      input: cappedPrompt,
     };
-
-    // Responses API does not support these parameters - omitting to avoid errors
-    // Note: Some models may have default limits, but we cannot control them via API parameters
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -51,7 +55,7 @@ export async function callOpenAI(
 
     // Log raw JSON response for debugging (visible in Railway logs)
     console.log('='.repeat(80));
-    console.log('[DEBUG] OPENAI RAW API RESPONSE');
+    console.log('[DEBUG] OPENAI RAW API RESPONSE (Responses API)');
     console.log('='.repeat(80));
     console.log(JSON.stringify(data, null, 2));
     console.log('='.repeat(80));
@@ -59,9 +63,6 @@ export async function callOpenAI(
     // Responses API structure: find message output item with text
     const outputItems = data.output || [];
     let responseText = '';
-    let tokensUsed = 0;
-
-    // Extract text from message output item
     for (const item of outputItems) {
       if (item.type === 'message' && item.content) {
         for (const content of item.content) {
@@ -71,14 +72,15 @@ export async function callOpenAI(
           }
         }
       }
+      if (responseText) break;
     }
 
-    // Extract token usage if available (Responses API may structure this differently)
-    if (data.usage) {
-      tokensUsed = data.usage.total_tokens || 0;
-    } else if (data.usage_info) {
-      tokensUsed = (data.usage_info.input_tokens || 0) + (data.usage_info.output_tokens || 0);
-    }
+    // Token usage (Responses API)
+    const tokensUsed =
+      data.usage?.total_tokens ??
+      (data.usage_info
+        ? (data.usage_info.input_tokens || 0) + (data.usage_info.output_tokens || 0)
+        : Math.ceil(responseText.length / 4));
 
     // Extract structured citations
     let citationsData: any[] | undefined;
@@ -89,11 +91,15 @@ export async function callOpenAI(
       citationsData = undefined;
     }
 
-    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Structured Citations: ${citationsData?.length || 0}, Time: ${executionTime}ms`);
+    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Structured Citations: ${citationsData?.length || 0}, Time: ${executionTime}ms`, {
+      model,
+      promptChars: cappedPrompt?.length || 0,
+      usage: data.usage || data.usage_info || null,
+    });
 
     return {
       text: responseText,
-      tokens_used: tokensUsed || Math.ceil(responseText.length / 4), // Estimate if not available
+      tokens_used: tokensUsed || Math.ceil(responseText.length / 4),
       model,
       cost: calculateCost('openai', tokensUsed || Math.ceil(responseText.length / 4)),
       execution_time_ms: executionTime,
