@@ -40,7 +40,7 @@ export const processPrompt = inngest.createFunction(
 
     // 2. Determine Platforms
     // We want to run all available platforms
-    const platforms: AIProvider[] = ['openai', 'gemini', 'claude' /*, 'perplexity' - disabled temporarily */];
+    const platforms: AIProvider[] = ['openai', 'gemini' /*, 'claude' - disabled temporarily */, /* 'perplexity' - disabled temporarily */];
     const availablePlatforms = platforms.filter(p => getAPIKey(p) !== null);
     
     logInfo("process-prompt", `Available platforms: ${availablePlatforms.join(', ')}`);
