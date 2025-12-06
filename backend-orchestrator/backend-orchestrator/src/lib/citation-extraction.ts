@@ -228,20 +228,31 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
       });
 
       // First, extract web search queries from web_search_call items
+      // According to OpenAI docs: web_search_call.action contains action (search, open_page, find_in_page)
+      // and search actions may include query and domains
       const webSearchQueries: string[] = [];
       for (const item of outputItems) {
         if (item.type === 'web_search_call') {
+          logInfo('citation-extraction', 'Found web_search_call item', {
+            itemId: item.id,
+            status: item.status,
+            hasAction: !!item.action,
+            actionType: item.action?.action,
+            actionKeys: item.action ? Object.keys(item.action) : []
+          });
+
           // Check if action exists and is an object with query property
           if (item.action && typeof item.action === 'object') {
+            // action.action can be 'search', 'open_page', or 'find_in_page'
             if (item.action.action === 'search' && item.action.query) {
               webSearchQueries.push(item.action.query);
             }
-            // Also check if query is directly in action
+            // Also check if query is directly in action object
             if (item.action.query && !webSearchQueries.includes(item.action.query)) {
               webSearchQueries.push(item.action.query);
             }
           }
-          // Also check if query is directly in the item
+          // Also check if query is directly in the item (fallback)
           if (item.query && !webSearchQueries.includes(item.query)) {
             webSearchQueries.push(item.query);
           }
@@ -253,63 +264,89 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
       });
 
       // Extract citations from message output items
+      let messageItemsFound = 0;
+      let messageItemsWithAnnotations = 0;
       for (const item of outputItems) {
         if (item.type === 'message' && item.content) {
+          messageItemsFound++;
           for (const content of item.content) {
-            if (content.type === 'output_text' && content.annotations) {
-              const annotations = content.annotations || [];
-              
-              logInfo('citation-extraction', `Found ${annotations.length} annotations in message`);
+            if (content.type === 'output_text') {
+              if (content.annotations) {
+                messageItemsWithAnnotations++;
+                const annotations = content.annotations || [];
+                
+                logInfo('citation-extraction', `Found ${annotations.length} annotations in message`, {
+                  messageId: item.id,
+                  textLength: content.text?.length || 0
+                });
 
-              for (const annotation of annotations) {
-                if (annotation.type === 'url_citation') {
-                  const startIndex = annotation.start_index;
-                  const endIndex = annotation.end_index;
-                  const url = annotation.url;
-                  const title = annotation.title;
+                for (const annotation of annotations) {
+                  if (annotation.type === 'url_citation') {
+                    const startIndex = annotation.start_index;
+                    const endIndex = annotation.end_index;
+                    const url = annotation.url;
+                    const title = annotation.title;
 
-                  // Skip if no URL
-                  if (!url) {
-                    logInfo('citation-extraction', 'Skipping annotation (no URL)', { annotation });
-                    continue;
+                    // Skip if no URL
+                    if (!url) {
+                      logInfo('citation-extraction', 'Skipping annotation (no URL)', { annotation });
+                      continue;
+                    }
+
+                    // Extract text fragment using indices
+                    const text = startIndex !== undefined && endIndex !== undefined 
+                      ? responseText.substring(startIndex, endIndex)
+                      : undefined;
+
+                    // Extract domain from URL
+                    const domain = extractDomainFromTitleOrUrl(title, url);
+
+                    const citation: CitationData = {
+                      url: url,
+                      domain: domain || undefined,
+                      start_index: startIndex,
+                      end_index: endIndex,
+                      text: text || undefined,
+                      web_search_query: webSearchQueries[0] || undefined,
+                      metadata: {
+                        title: title || undefined,
+                        platform: 'openai',
+                        api_type: 'responses',
+                      },
+                    };
+
+                    logInfo('citation-extraction', 'Adding OpenAI citation', {
+                      url: citation.url,
+                      domain: citation.domain,
+                      startIndex: citation.start_index,
+                      endIndex: citation.end_index
+                    });
+
+                    citations.push(citation);
+                  } else {
+                    logInfo('citation-extraction', 'Skipping annotation (not url_citation type)', {
+                      type: annotation.type
+                    });
                   }
-
-                  // Extract text fragment using indices
-                  const text = startIndex !== undefined && endIndex !== undefined 
-                    ? responseText.substring(startIndex, endIndex)
-                    : undefined;
-
-                  // Extract domain from URL
-                  const domain = extractDomainFromTitleOrUrl(title, url);
-
-                  const citation: CitationData = {
-                    url: url,
-                    domain: domain || undefined,
-                    start_index: startIndex,
-                    end_index: endIndex,
-                    text: text || undefined,
-                    web_search_query: webSearchQueries[0] || undefined,
-                    metadata: {
-                      title: title || undefined,
-                      platform: 'openai',
-                      api_type: 'responses',
-                    },
-                  };
-
-                  logInfo('citation-extraction', 'Adding OpenAI citation', {
-                    url: citation.url,
-                    domain: citation.domain,
-                    startIndex: citation.start_index,
-                    endIndex: citation.end_index
-                  });
-
-                  citations.push(citation);
                 }
+              } else {
+                logInfo('citation-extraction', 'Message has output_text but no annotations', {
+                  messageId: item.id,
+                  textLength: content.text?.length || 0
+                });
               }
             }
           }
         }
       }
+      
+      logInfo('citation-extraction', `OpenAI Responses API citation extraction summary`, {
+        totalOutputItems: outputItems.length,
+        messageItemsFound,
+        messageItemsWithAnnotations,
+        citationsExtracted: citations.length,
+        webSearchQueriesFound: webSearchQueries.length
+      });
     } else {
       // Chat Completions API format (web search models like gpt-4o-search-preview)
       // Check if message has citations in content
