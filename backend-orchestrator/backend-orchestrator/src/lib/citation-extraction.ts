@@ -247,15 +247,22 @@ export function extractOpenAICitations(openaiResponse: any, responseText: string
           // If decoding fails, continue with original string
         }
         
-        // Remove "Note:" and everything after (can be on same line or newline)
-        const noteIndex = s.toLowerCase().indexOf('\n\nnote:');
-        if (noteIndex !== -1) {
-          s = s.substring(0, noteIndex);
+        // Remove literal "\n\nNote:" and everything after (handles both escaped and actual newlines)
+        // First check for literal string "\n\nNote:" (escaped newlines as text)
+        const noteIndexEscaped = s.indexOf('\\n\\nNote:');
+        if (noteIndexEscaped !== -1) {
+          s = s.substring(0, noteIndexEscaped);
         } else {
-          // Also check for "Note:" on same line
-          const noteIndexInline = s.toLowerCase().indexOf(' note:');
-          if (noteIndexInline !== -1) {
-            s = s.substring(0, noteIndexInline);
+          // Check for actual newlines "\n\nNote:"
+          const noteIndex = s.toLowerCase().indexOf('\n\nnote:');
+          if (noteIndex !== -1) {
+            s = s.substring(0, noteIndex);
+          } else {
+            // Also check for "Note:" on same line
+            const noteIndexInline = s.toLowerCase().indexOf(' note:');
+            if (noteIndexInline !== -1) {
+              s = s.substring(0, noteIndexInline);
+            }
           }
         }
         
