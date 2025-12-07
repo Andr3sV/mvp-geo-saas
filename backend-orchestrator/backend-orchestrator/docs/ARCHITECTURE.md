@@ -401,6 +401,7 @@ We use OpenAI's **Responses API** with the `web_search` tool to get structured c
 ```
 
 **Important Parameters**:
+
 - `tool_choice: "required"` ensures web search is always used
 - Prompt is capped at 6000 characters to control token usage
 - `max_tokens` and `temperature` are NOT included (Responses API doesn't support them)
@@ -451,11 +452,13 @@ The Responses API returns an array of `output` items:
 #### Citation Extraction Process
 
 1. **Extract Web Search Queries**:
+
    - Look for `web_search_call` items in `output` array
    - Extract `action.query` from search actions
    - Sanitize queries: decode Unicode escapes, remove "Note:" sections
 
 2. **Extract Citations**:
+
    - Find `message` items with `output_text` content
    - Extract `annotations` array (type: `url_citation`)
    - For each annotation:
@@ -495,27 +498,26 @@ Each citation is stored with:
 
 ```typescript
 // 1. API Call
-const response = await fetch('https://api.openai.com/v1/responses', {
-  method: 'POST',
+const response = await fetch("https://api.openai.com/v1/responses", {
+  method: "POST",
   headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
   },
   body: JSON.stringify({
-    model: 'gpt-4.1-mini',
-    tools: [{ type: 'web_search' }],
-    tool_choice: 'required',
-    input: truncatedPrompt
-  })
+    model: "gpt-4.1-mini",
+    tools: [{ type: "web_search" }],
+    tool_choice: "required",
+    input: truncatedPrompt,
+  }),
 });
 
 // 2. Extract Response Text
 const outputItems = data.output || [];
-const responseText = outputItems
-  .find(item => item.type === 'message')
-  ?.content
-  ?.find(content => content.type === 'output_text')
-  ?.text || '';
+const responseText =
+  outputItems
+    .find((item) => item.type === "message")
+    ?.content?.find((content) => content.type === "output_text")?.text || "";
 
 // 3. Extract Citations
 const citations = extractOpenAICitations(data, responseText);
@@ -605,12 +607,14 @@ We use Gemini's `generateContent` API with `google_search` tool to enable web se
 #### Citation Extraction Process
 
 1. **Extract Grounding Metadata**:
+
    - Access `candidates[0].groundingMetadata`
    - Extract `webSearchQueries` array
    - Extract `groundingChunks` (sources)
    - Extract `groundingSupports` (text segments with source links)
 
 2. **Create Citations (One per Fragment+Source)**:
+
    - For each `groundingSupport`:
      - Get `segment` (text fragment with indices)
      - For each `groundingChunkIndex`:
@@ -651,11 +655,13 @@ Each citation represents one text fragment linked to one source:
 Gemini returns URIs in Vertex AI format (`gs://vertexaisearch...`). We transform them to real URLs:
 
 1. If URI contains `vertexaisearch`:
+
    - Use `title` to construct URL
    - If title doesn't start with `http`, prepend `https://`
    - If no title available, skip the citation
 
 2. If URI is already a real URL:
+
    - Return as-is (if not Vertex URI)
    - Otherwise apply transformation
 
@@ -671,22 +677,22 @@ Gemini returns URIs in Vertex AI format (`gs://vertexaisearch...`). We transform
 const response = await fetch(
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
   {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 2000
+        maxOutputTokens: 2000,
       },
-      tools: [{ google_search: {} }]
-    })
+      tools: [{ google_search: {} }],
+    }),
   }
 );
 
 // 2. Extract Response
 const candidate = data.candidates?.[0];
-const text = candidate?.content?.parts?.[0]?.text || '';
+const text = candidate?.content?.parts?.[0]?.text || "";
 const groundingMetadata = candidate?.groundingMetadata;
 
 // 3. Extract Citations
@@ -699,6 +705,7 @@ await saveCitations(supabase, aiResponseId, citations);
 #### Rate Limiting
 
 Gemini has strict rate limits:
+
 - **Limit**: 10 requests per minute per model
 - **Error Handling**: 429 errors include `RetryInfo` with retry delay
 - **Error Structure**:
@@ -737,18 +744,18 @@ Citations are stored in the `citations` table:
 CREATE TABLE citations (
   id UUID PRIMARY KEY,
   ai_response_id UUID NOT NULL REFERENCES ai_responses(id),
-  
+
   web_search_query TEXT,
   uri TEXT,
   url TEXT,
   domain TEXT,
-  
+
   start_index INTEGER,
   end_index INTEGER,
   text TEXT,
-  
+
   metadata JSONB DEFAULT '{}',
-  
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -765,41 +772,41 @@ CREATE TABLE citations (
 
 ```typescript
 // 1. Filter valid citations
-const validCitations = citationsData.filter(citation => 
-  citation.url || citation.uri
+const validCitations = citationsData.filter(
+  (citation) => citation.url || citation.uri
 );
 
 // 2. Prepare records
-const records = validCitations.map(citation => ({
+const records = validCitations.map((citation) => ({
   ai_response_id: aiResponseId,
   web_search_query: citation.web_search_query || null,
-  uri: citation.uri || citation.url || null,  // Backfill
-  url: citation.url || citation.uri || null,  // Backfill
+  uri: citation.uri || citation.url || null, // Backfill
+  url: citation.url || citation.uri || null, // Backfill
   domain: citation.domain || null,
   start_index: citation.start_index ?? null,
   end_index: citation.end_index ?? null,
   text: citation.text || null,
-  metadata: citation.metadata || {}
+  metadata: citation.metadata || {},
 }));
 
 // 3. Insert into database
-await supabase.from('citations').insert(records);
+await supabase.from("citations").insert(records);
 ```
 
 ---
 
 ### Key Differences: OpenAI vs Gemini
 
-| Aspect | OpenAI (Responses API) | Gemini (Generate Content) |
-|--------|------------------------|---------------------------|
-| **API Type** | Responses API | Generate Content API |
-| **Web Search Tool** | `{ type: "web_search" }` | `{ google_search: {} }` |
-| **Model** | `gpt-4.1-mini` | `gemini-2.0-flash-exp` |
-| **Citation Source** | `output[].annotations` | `groundingMetadata.groundingSupports` |
-| **Query Source** | `web_search_call.action.query` | `groundingMetadata.webSearchQueries` |
-| **Citation Model** | One citation per annotation | One citation per fragment+source |
-| **URL Format** | Direct URLs | May need URI→URL transformation |
-| **Query Sanitization** | Unicode decode, remove "Note:" | None (queries already clean) |
+| Aspect                 | OpenAI (Responses API)         | Gemini (Generate Content)             |
+| ---------------------- | ------------------------------ | ------------------------------------- |
+| **API Type**           | Responses API                  | Generate Content API                  |
+| **Web Search Tool**    | `{ type: "web_search" }`       | `{ google_search: {} }`               |
+| **Model**              | `gpt-4.1-mini`                 | `gemini-2.0-flash-exp`                |
+| **Citation Source**    | `output[].annotations`         | `groundingMetadata.groundingSupports` |
+| **Query Source**       | `web_search_call.action.query` | `groundingMetadata.webSearchQueries`  |
+| **Citation Model**     | One citation per annotation    | One citation per fragment+source      |
+| **URL Format**         | Direct URLs                    | May need URI→URL transformation       |
+| **Query Sanitization** | Unicode decode, remove "Note:" | None (queries already clean)          |
 
 ---
 

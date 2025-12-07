@@ -192,3 +192,76 @@ export interface OpenAICitation {
   title?: string;
 }
 
+// =============================================
+// BRAND ANALYSIS TYPES
+// =============================================
+
+/**
+ * Brand analysis result from Groq AI
+ */
+export interface BrandAnalysisResult {
+  client_brand_mentioned: boolean;
+  mentioned_competitors: string[];
+  client_brand_sentiment: 'positive' | 'negative' | 'neutral' | 'not_mentioned';
+  client_brand_sentiment_rating: number; // -1 to 1
+  client_brand_sentiment_ratio: number; // 0 to 1
+  competitor_sentiments: CompetitorSentiment[];
+  client_brand_attributes: {
+    positive: string[];
+    negative: string[];
+  };
+  competitor_attributes: CompetitorAttributes[];
+  other_brands_detected: string[];
+}
+
+export interface CompetitorSentiment {
+  competitor: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  sentiment_rating: number; // -1 to 1
+  sentiment_ratio: number; // 0 to 1
+}
+
+export interface CompetitorAttributes {
+  competitor: string;
+  positive: string[];
+  negative: string[];
+}
+
+/**
+ * Brand mention data for database storage
+ */
+export interface BrandMentionData {
+  brand_type: 'client' | 'competitor';
+  competitor_id?: string;
+  entity_name: string;
+  mentioned_text: string;
+  start_index?: number;
+  end_index?: number;
+  confidence_score: number;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Brand sentiment attributes data for database storage
+ */
+export interface BrandSentimentAttributesData {
+  brand_type: 'client' | 'competitor';
+  competitor_id?: string;
+  entity_name: string;
+  sentiment: 'positive' | 'negative' | 'neutral' | 'not_mentioned';
+  sentiment_rating: number;
+  sentiment_ratio: number;
+  positive_attributes: string[];
+  negative_attributes: string[];
+  analyzed_text: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Potential competitor data for database storage
+ */
+export interface PotentialCompetitorData {
+  brand_name: string;
+  context?: string;
+}
+
