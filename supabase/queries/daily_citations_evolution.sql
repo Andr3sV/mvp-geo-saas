@@ -301,7 +301,7 @@ SELECT
   ROUND(
     CASE 
       WHEN COALESCE(dr.respuestas_exitosas, 0) > 0 
-      THEN (COALESCE(dc.respaciones_con_citaciones, 0)::NUMERIC / dr.respuestas_exitosas * 100)
+      THEN (COALESCE(dc.respuestas_con_citaciones, 0)::NUMERIC / dr.respuestas_exitosas * 100)
       ELSE 0
     END, 2
   ) AS porcentaje_respuestas_con_citaciones,
