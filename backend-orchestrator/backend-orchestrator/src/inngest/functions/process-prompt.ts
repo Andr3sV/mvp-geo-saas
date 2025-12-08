@@ -4,7 +4,55 @@ import { callAI, getAPIKey } from "../../lib/ai-clients";
 import { triggerCitationProcessing } from "../../lib/citation-processing";
 import { saveCitations } from "../../lib/citation-storage";
 import { waitForRateLimit } from "../../lib/rate-limiter";
-import type { AIProvider } from "../../lib/types";
+import type { AIProvider, AICompletionResult, AIClientConfig } from "../../lib/types";
+
+/**
+ * Call AI with automatic retry for rate limits
+ * Retries up to maxRetries times if rate limit is hit
+ */
+async function callAIWithRetry(
+  platform: AIProvider,
+  prompt: string,
+  config: AIClientConfig,
+  maxRetries: number = 3
+): Promise<AICompletionResult> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Wait for rate limit before calling AI
+      const waitTime = await waitForRateLimit(platform);
+      if (waitTime > 0 && attempt === 1) {
+        logInfo("process-prompt", `Waited ${Math.round(waitTime / 1000)}s for ${platform} rate limit`, {
+          platform,
+          attempt
+        });
+      }
+
+      // Call AI
+      return await callAI(platform, prompt, config);
+    } catch (err: any) {
+      const isRateLimit = err?.isRateLimit || err?.statusCode === 429;
+      
+      if (isRateLimit && attempt < maxRetries) {
+        const waitTime = err?.retryAfter || 60000; // Default 60s if not specified
+        logInfo("process-prompt", `Rate limit hit for ${platform}, waiting ${Math.round(waitTime / 1000)}s before retry ${attempt + 1}/${maxRetries}`, {
+          platform,
+          attempt,
+          retryAfter: waitTime,
+          quotaLimit: err?.quotaLimit
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue; // Retry
+      }
+      
+      // Re-throw if not rate limit or max retries reached
+      throw err;
+    }
+  }
+  
+  // Should never reach here, but TypeScript needs it
+  throw new Error(`Failed to call ${platform} after ${maxRetries} attempts`);
+}
 
 export const processPrompt = inngest.createFunction(
   { 
@@ -40,13 +88,29 @@ export const processPrompt = inngest.createFunction(
     const promptRegion = promptData.region || 'GLOBAL';
 
     // 2. Determine Platforms
-    // We want to run all available platforms
+    // Use platforms_to_process from event if provided, otherwise use all available platforms
     const platforms: AIProvider[] = ['openai', 'gemini' /*, 'claude' - disabled temporarily */, /* 'perplexity' - disabled temporarily */];
-    const availablePlatforms = platforms.filter(p => getAPIKey(p) !== null);
+    const allAvailablePlatforms = platforms.filter(p => getAPIKey(p) !== null);
     
-    logInfo("process-prompt", `Available platforms: ${availablePlatforms.join(', ')}`);
+    // If platforms_to_process is provided in event, use only those (filtered by availability)
+    const requestedPlatforms = event.data.platforms_to_process as string[] | undefined;
+    const availablePlatforms = requestedPlatforms
+      ? requestedPlatforms.filter((p): p is AIProvider => 
+          allAvailablePlatforms.includes(p as AIProvider)
+        )
+      : allAvailablePlatforms;
+    
+    logInfo("process-prompt", `Platforms to process: ${availablePlatforms.join(', ')}`, {
+      requested: requestedPlatforms?.join(', ') || 'all',
+      available: allAvailablePlatforms.join(', ')
+    });
+    
     if (availablePlatforms.length === 0) {
-      throw new Error('No API keys configured for any AI platform');
+      logInfo("process-prompt", "No platforms to process (all already completed or no API keys)");
+      return { 
+        message: "No platforms to process",
+        results: []
+      };
     }
 
     // 3. Create Analysis Job Record
@@ -81,6 +145,31 @@ export const processPrompt = inngest.createFunction(
         try {
           logInfo("process-prompt", `Starting ${platform}...`);
           
+          // Double-check: Verify if already has successful response TODAY (race condition protection)
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
+          const endOfToday = new Date();
+          endOfToday.setHours(23, 59, 59, 999);
+          
+          const { data: existingResponse } = await supabase
+            .from("ai_responses")
+            .select("id")
+            .eq("prompt_tracking_id", prompt_tracking_id)
+            .eq("platform", platform)
+            .eq("status", "success")
+            .gte("created_at", startOfToday.toISOString())
+            .lte("created_at", endOfToday.toISOString())
+            .maybeSingle();
+
+          if (existingResponse) {
+            logInfo("process-prompt", `Skipping ${platform} - already has successful response today`, {
+              aiResponseId: existingResponse.id,
+              platform,
+              prompt_tracking_id
+            });
+            return { platform, status: "skipped", reason: "already_exists_today" };
+          }
+          
           // Create pending AI response
           const { data: aiResponse, error: insertError } = await supabase
             .from("ai_responses")
@@ -102,22 +191,18 @@ export const processPrompt = inngest.createFunction(
           const apiKey = getAPIKey(platform);
           if (!apiKey) throw new Error(`Missing API key for ${platform}`);
 
-          // Wait for rate limit before calling AI
-          const waitTime = await waitForRateLimit(platform);
-          if (waitTime > 0) {
-            logInfo("process-prompt", `Waited ${Math.round(waitTime / 1000)}s for ${platform} rate limit`, {
-              platform,
-              prompt_tracking_id
-            });
-          }
-
-          // Call AI
-          const result = await callAI(platform, enrichedPrompt, {
-            apiKey,
-            temperature: 0.7,
-            maxTokens: 2000,
-            region: promptRegion,
-          });
+          // Call AI with automatic retry for rate limits
+          const result = await callAIWithRetry(
+            platform,
+            enrichedPrompt,
+            {
+              apiKey,
+              temperature: 0.7,
+              maxTokens: 2000,
+              region: promptRegion,
+            },
+            3 // maxRetries
+          );
 
           // Update Response
           const updateResult = await supabase
@@ -258,6 +343,7 @@ export const processPrompt = inngest.createFunction(
     await step.run("update-job-status", async () => {
       const successCount = results.filter(r => r.status === "success").length;
       const failureCount = results.filter(r => r.status === "failed").length;
+      const skippedCount = results.filter(r => r.status === "skipped").length;
       const jobStatus = failureCount === availablePlatforms.length ? "failed" : "completed";
 
       await supabase
@@ -270,7 +356,7 @@ export const processPrompt = inngest.createFunction(
         })
         .eq("id", job.id);
         
-      return { successCount, failureCount, jobStatus };
+      return { successCount, failureCount, skippedCount, jobStatus };
     });
 
     return { 

@@ -13,7 +13,7 @@ export const RATE_LIMITS: Record<AIProvider, { rpm: number; tpm?: number }> = {
     tpm: 450000 // Token limit varies by model
   },
   gemini: { 
-    rpm: 10, // Gemini 2.0 Flash Exp: 10 RPM (Free tier) - matches error message
+    rpm: 8, // More conservative: 8 RPM (leaving margin of 2 req/min for safety)
     tpm: 250000
   },
   claude: { 
@@ -55,6 +55,25 @@ export async function waitForRateLimit(platform: AIProvider): Promise<number> {
   const limits = RATE_LIMITS[platform];
   const currentRequests = requestTimestamps[platform].length;
   
+  // For Gemini, ensure minimum delay between requests (7.5 seconds = 8 req/min)
+  if (platform === 'gemini' && currentRequests > 0) {
+    const lastRequest = Math.max(...requestTimestamps[platform]);
+    const timeSinceLast = Date.now() - lastRequest;
+    const minDelay = 7500; // 7.5 seconds = 8 req/min
+    
+    if (timeSinceLast < minDelay) {
+      const additionalWait = minDelay - timeSinceLast;
+      logInfo('rate-limiter', `Gemini: Ensuring minimum ${Math.round(additionalWait / 1000)}s delay between requests`, {
+        platform,
+        timeSinceLast,
+        minDelay,
+        additionalWait
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, additionalWait));
+    }
+  }
+  
   // If we're under the limit, add this request and proceed
   if (currentRequests < limits.rpm) {
     requestTimestamps[platform].push(Date.now());
@@ -71,7 +90,8 @@ export async function waitForRateLimit(platform: AIProvider): Promise<number> {
       platform,
       currentRequests,
       limit: limits.rpm,
-      waitTimeMs: waitTime
+      waitTimeMs: waitTime,
+      oldestRequestAge: Math.round(timeSinceOldest / 1000)
     });
     
     await new Promise(resolve => setTimeout(resolve, waitTime));

@@ -113,8 +113,12 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Schedule**: `0 2 * * *` (2:00 AM daily)
 - **Steps**:
   1. Fetch active prompts (paginated)
-  2. Generate batch ID
-  3. Send `analysis/process-prompt` events
+  2. For each prompt, check which platforms already have successful responses TODAY
+  3. Only send events for platforms that don't have successful responses today
+  4. Generate batch ID
+  5. Send `analysis/process-prompt` events with `platforms_to_process` field
+- **Duplicate Prevention**: Verifies existing successful responses from today to avoid processing platforms that already succeeded
+- **Event Structure**: Includes `platforms_to_process` array to specify which platforms need processing
 
 #### process-single-prompt
 
@@ -123,11 +127,16 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Concurrency**: 5
 - **Steps**:
   1. Fetch prompt data
-  2. Create analysis job record
-  3. Process with multiple AI platforms (parallel)
-  4. Save AI responses
-  5. Process citations
-  6. Update job status
+  2. Determine platforms to process (from event `platforms_to_process` or all available)
+  3. For each platform, double-check if already has successful response TODAY (race condition protection)
+  4. Create analysis job record
+  5. Process with multiple AI platforms (parallel) using `callAIWithRetry`
+  6. Save AI responses
+  7. Process citations
+  8. Update job status
+- **Retry Logic**: Automatically retries up to 3 times if rate limit is hit, waiting for the time specified by the API
+- **Duplicate Prevention**: Double-checks for existing successful responses before processing each platform
+- **Rate Limit Handling**: Uses `callAIWithRetry` which automatically handles rate limit errors with exponential backoff
 
 #### analyze-brands-batch
 
@@ -170,13 +179,17 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### Rate Limiter
 
 - **Location**: `src/lib/rate-limiter.ts`
-- **Method**: In-memory timestamp tracking
-- **Behavior**: Waits when rate limit approached
+- **Method**: In-memory timestamp tracking (per instance)
+- **Behavior**:
+  - Waits when rate limit approached
+  - For Gemini: Ensures minimum 7.5 seconds between requests (8 RPM conservative limit)
+  - Detailed logging when rate limits are hit
 - **Limits**:
   - OpenAI: 5,000 RPM
-  - Gemini: 10 RPM
+  - Gemini: 8 RPM (conservative, leaving 2 req/min margin for safety)
   - Claude: 50 RPM
   - Perplexity: 50 RPM
+- **Note**: Rate limiter is per-instance. For distributed systems with multiple instances, consider Redis-based rate limiting in the future.
 
 #### AI Clients
 
@@ -197,11 +210,15 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 3. Query prompt_tracking (is_active = true)
    ↓
 4. For each prompt:
-   - Emit "analysis/process-prompt" event
+   - Check which platforms have successful responses TODAY
+   - Only emit "analysis/process-prompt" event for missing platforms
+   - Include platforms_to_process in event data
    ↓
 5. Inngest queues events
    ↓
 6. process-single-prompt functions execute (max 5 parallel)
+   - Double-check for existing responses (race condition protection)
+   - Use callAIWithRetry for automatic retry on rate limits
 ```
 
 #### Single Prompt Processing Flow
@@ -211,12 +228,14 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
    ↓
 2. Fetch prompt data from prompt_tracking
    ↓
-3. Create analysis_jobs record
+3. Determine platforms to process (from event.platforms_to_process or all available)
    ↓
-4. For each platform (OpenAI, Gemini, Claude, Perplexity):
-   a. Apply rate limiting
+4. For each platform:
+   a. Double-check if already has successful response TODAY (skip if exists)
    b. Create ai_responses record (status: "processing")
-   c. Call AI API
+   c. Apply rate limiting (with automatic retry via callAIWithRetry)
+   d. Call AI API (with automatic retry up to 3 times on rate limit)
+   e. Update ai_responses record (status: "success" or "error")
    d. Update ai_responses (status: "success"/"error")
    e. Trigger citation processing
    ↓
