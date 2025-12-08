@@ -14,6 +14,9 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │ - prompt_tracking
 │ - ai_responses  │
 │ - analysis_jobs │
+│ - brand_mentions│
+│ - brand_sentiment_attributes
+│ - potential_competitors
 └────────┬────────┘
          │
          │ (queries)
@@ -41,6 +44,18 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  │  process-single-prompt           │  │  │
 │  │  │  (Concurrency: 5)                │  │  │
 │  │  └──────────┬───────────────────────┘  │  │
+│  │             │                           │  │
+│  │  ┌──────────┴───────────────────────┐  │  │
+│  │  │  analyze-brands-batch           │  │  │
+│  │  │  (Cron: 3 AM daily)              │  │  │
+│  │  └──────────┬───────────────────────┘  │  │
+│  │             │                           │  │
+│  │             │ emits events              │  │
+│  │             │                           │  │
+│  │  ┌──────────▼───────────────────────┐  │  │
+│  │  │  analyze-single-response         │  │  │
+│  │  │  (Concurrency: 5)                │  │  │
+│  │  └──────────┬───────────────────────┘  │  │
 │  └─────────────┼───────────────────────────┘  │
 │                │                               │
 │  ┌─────────────▼─────────────────────────┐   │
@@ -57,10 +72,10 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
                  │
       ┌──────────┼──────────┐
       │          │          │
-┌─────▼─────┐ ┌─▼──────┐ ┌─▼──────────┐
-│  OpenAI   │ │ Gemini │ │  Claude    │
-│  API      │ │  API   │ │  API       │
-└───────────┘ └────────┘ └────────────┘
+┌─────▼─────┐ ┌─▼──────┐ ┌─▼──────────┐ ┌─▼──────┐
+│  OpenAI   │ │ Gemini │ │  Claude    │ │  Groq  │
+│  API      │ │  API   │ │  API       │ │  API   │
+└───────────┘ └────────┘ └────────────┘ └────────┘
 ```
 
 ## Component Details
@@ -98,19 +113,41 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Steps**:
   1. Fetch active prompts (paginated)
   2. Generate batch ID
-  3. Emit events for each prompt
+  3. Send `analysis/process-prompt` events
 
 #### process-single-prompt
 
-- **Type**: Event-driven
-- **Event**: `analysis/process-prompt`
-- **Concurrency**: 5 (configurable)
-- **Retries**: 3
+- **Type**: Event-Driven
+- **Trigger**: `analysis/process-prompt` event
+- **Concurrency**: 5
 - **Steps**:
   1. Fetch prompt data
   2. Create analysis job record
-  3. Execute AI calls (parallel)
-  4. Update job status
+  3. Process with multiple AI platforms (parallel)
+  4. Save AI responses
+  5. Process citations
+  6. Update job status
+
+#### analyze-brands-batch
+
+- **Type**: Scheduled (Cron)
+- **Schedule**: `0 3 * * *` (3:00 AM daily)
+- **Concurrency**: 5
+- **Steps**:
+  1. Fetch pending AI responses (not yet analyzed)
+  2. Filter out already-analyzed responses
+  3. Send `brand/analyze-response` events
+
+#### analyze-single-response
+
+- **Type**: Event-Driven
+- **Trigger**: `brand/analyze-response` event
+- **Concurrency**: 5
+- **Steps**:
+  1. Fetch response and project data
+  2. Check if already analyzed (idempotent)
+  3. Analyze brands via Groq API
+  4. Save results to brand analysis tables
 
 ### 3. AI Clients Layer
 
@@ -807,6 +844,343 @@ await supabase.from("citations").insert(records);
 | **Citation Model**     | One citation per annotation    | One citation per fragment+source      |
 | **URL Format**         | Direct URLs                    | May need URI→URL transformation       |
 | **Query Sanitization** | Unicode decode, remove "Note:" | None (queries already clean)          |
+
+---
+
+## Brand Analysis Architecture
+
+### Overview
+
+The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses and extract structured data about brand mentions, competitor mentions, sentiment, attributes, and potential competitors. This replaces the previous simple text-based search approach with a more sophisticated semantic analysis.
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AI Response Generated                     │
+│              (stored in ai_responses table)                 │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        │
+        ┌───────────────┴───────────────┐
+        │                               │
+        │                               │
+┌───────▼────────┐            ┌─────────▼──────────┐
+│  Batch Process │            │  Event-Driven      │
+│  (Scheduled)   │            │  (Real-time)      │
+│                │            │                    │
+│ analyze-brands-│            │ analyze-single-   │
+│ batch          │            │ response           │
+│                │            │                    │
+│ Cron: 3:00 AM  │            │ Event: brand/      │
+│                │            │ analyze-response   │
+└───────┬────────┘            └─────────┬──────────┘
+        │                               │
+        │                               │
+        └───────────────┬───────────────┘
+                        │
+                        │
+            ┌───────────▼───────────┐
+            │   Groq API Client     │
+            │   (gpt-oss-20b)       │
+            │                       │
+            │ - Brand detection     │
+            │ - Sentiment analysis  │
+            │ - Attribute extraction│
+            └───────────┬───────────┘
+                        │
+                        │ JSON Response
+                        │
+            ┌───────────▼───────────┐
+            │  Brand Storage Layer  │
+            │                       │
+            │ - brand_mentions      │
+            │ - brand_sentiment_    │
+            │   attributes          │
+            │ - potential_          │
+            │   competitors         │
+            └───────────────────────┘
+```
+
+### Inngest Functions
+
+#### analyze-brands-batch
+
+**Type**: Scheduled (Cron)  
+**Schedule**: `0 3 * * *` (3:00 AM daily)  
+**Concurrency**: 5  
+**Purpose**: Process all pending AI responses that haven't been analyzed yet
+
+**Steps**:
+
+1. **Fetch Pending Responses**
+   - Query `ai_responses` table for responses with `status = 'success'`
+   - Filter out responses that already have entries in `brand_mentions` table
+   - Paginate through results (100 per batch)
+
+2. **Send Events**
+   - For each pending response, emit `brand/analyze-response` event
+   - Events are sent in batches of 50 to avoid payload limits
+
+**Configuration**:
+- Runs daily at 3:00 AM (after AI responses are generated at 2:00 AM)
+- Processes responses in order of creation (newest first)
+- Automatically skips already-analyzed responses
+
+**Example Event**:
+```json
+{
+  "name": "brand/analyze-response",
+  "data": {
+    "ai_response_id": "uuid-here",
+    "project_id": "uuid-here"
+  }
+}
+```
+
+#### analyze-single-response
+
+**Type**: Event-Driven  
+**Trigger**: `brand/analyze-response` event  
+**Concurrency**: 5 (matches Inngest plan limit)  
+**Purpose**: Analyze a single AI response for brand mentions, sentiment, and attributes
+
+**Steps**:
+
+1. **Fetch Response Data**
+   - Get AI response from `ai_responses` table
+   - Verify response is successful and has text content
+   - Fetch project to get brand name
+   - Fetch active competitors for the project
+
+2. **Check if Already Analyzed**
+   - Query `brand_mentions` to see if analysis already exists
+   - Skip if already analyzed (idempotent)
+
+3. **Analyze Brands** (via Groq)
+   - Build prompt with brand name, competitor list, and response text
+   - Call Groq API with `gpt-oss-20b` model
+   - Parse JSON response with validation
+
+4. **Save Analysis Results**
+   - Save brand mentions to `brand_mentions` table
+   - Save sentiment and attributes to `brand_sentiment_attributes` table
+   - Save/update potential competitors in `potential_competitors` table
+
+**Error Handling**:
+- If Groq API fails, returns empty/default result (graceful degradation)
+- Logs detailed error information for debugging
+- Does not throw errors to prevent blocking batch processing
+
+### Groq API Integration
+
+**Model**: `openai/gpt-oss-20b`  
+**Endpoint**: `https://api.groq.com/openai/v1/chat/completions`  
+**Configuration**:
+- `temperature`: 0.2 (very low for consistent JSON)
+- `max_tokens`: 2500
+- `response_format`: `{ type: 'json_object' }` (forces JSON output)
+
+**Prompt Structure**:
+The prompt follows a specific format that works reliably with Groq:
+1. Role definition
+2. Instructions for analysis
+3. Brand & Competitor Detection rules
+4. Sentiment Analysis rules
+5. Contextual Sentiment Inference rules
+6. Attribute Extraction rules
+7. Output Format (JSON schema)
+8. Client Data (brand name and competitor list)
+9. Answer to Analyze (the AI response text)
+
+**Response Format**:
+```json
+{
+  "client_brand_mentioned": true,
+  "mentioned_competitors": ["Competitor1", "Competitor2"],
+  "client_brand_sentiment": "positive",
+  "client_brand_sentiment_rating": 0.7,
+  "client_brand_sentiment_ratio": 0.8,
+  "competitor_sentiments": [
+    {
+      "competitor": "Competitor1",
+      "sentiment": "neutral",
+      "sentiment_rating": 0.0,
+      "sentiment_ratio": 0.5
+    }
+  ],
+  "client_brand_attributes": {
+    "positive": ["premium", "quality"],
+    "negative": []
+  },
+  "competitor_attributes": [
+    {
+      "competitor": "Competitor1",
+      "positive": ["popular"],
+      "negative": []
+    }
+  ],
+  "other_brands_detected": ["Unknown Brand"]
+}
+```
+
+### Database Schema
+
+#### brand_mentions
+
+Stores all mentions of client brand and competitors found in AI responses.
+
+**Key Fields**:
+- `brand_type`: 'client' | 'competitor'
+- `competitor_id`: UUID reference (NULL for client brand)
+- `entity_name`: Name of the brand mentioned
+- `mentioned_text`: Text fragment where mention appears
+- `confidence_score`: AI confidence (0-1)
+
+**Indexes**:
+- `ai_response_id` (for fast lookups)
+- `project_id` (for project-level queries)
+- `brand_type` (for filtering)
+- `competitor_id` (for competitor-specific queries)
+
+#### brand_sentiment_attributes
+
+Stores sentiment analysis and attributes for each brand mentioned.
+
+**Key Fields**:
+- `brand_type`: 'client' | 'competitor'
+- `sentiment`: 'positive' | 'negative' | 'neutral' | 'not_mentioned'
+- `sentiment_rating`: Numeric score from -1 to 1
+- `sentiment_ratio`: Intensity from 0 to 1
+- `positive_attributes`: JSONB array of positive attributes
+- `negative_attributes`: JSONB array of negative attributes
+- `analyzed_text`: The text that was analyzed
+- `model_used`: 'openai/gpt-oss-20b' (Groq)
+
+**Indexes**:
+- Composite index on `(project_id, brand_type, sentiment)` for common queries
+- `ai_response_id` for response-level queries
+
+#### potential_competitors
+
+Stores brands detected in responses that are not the client brand or known competitors.
+
+**Key Fields**:
+- `brand_name`: Name of the potential competitor
+- `mention_count`: How many times this brand has been mentioned
+- `first_detected_at`: When first detected
+- `last_detected_at`: When last detected
+- `context`: Context where brand was mentioned
+
+**Unique Constraint**: `(project_id, brand_name)` to prevent duplicates
+
+### Data Flow
+
+#### Batch Processing Flow
+
+```
+1. Cron triggers analyze-brands-batch at 3:00 AM
+   ↓
+2. Query ai_responses for pending responses
+   ↓
+3. Filter out already-analyzed responses
+   ↓
+4. For each pending response:
+   - Emit brand/analyze-response event
+   ↓
+5. analyze-single-response processes each event
+   ↓
+6. Results saved to brand_mentions, brand_sentiment_attributes, potential_competitors
+```
+
+#### Event-Driven Flow
+
+```
+1. AI response saved to ai_responses (status = 'success')
+   ↓
+2. Optionally: Emit brand/analyze-response event immediately
+   ↓
+3. analyze-single-response processes the event
+   ↓
+4. Results saved to database
+```
+
+### Integration Points
+
+#### With Existing System
+
+1. **After AI Response Generation**
+   - `process-single-prompt` saves AI response
+   - Optionally triggers `brand/analyze-response` event
+   - Or waits for batch processing
+
+2. **Data Sources**
+   - Reads from `ai_responses` table
+   - Reads from `projects` table (for brand name)
+   - Reads from `competitors` table (for competitor list)
+
+3. **Data Output**
+   - Writes to `brand_mentions`
+   - Writes to `brand_sentiment_attributes`
+   - Writes to `potential_competitors`
+
+### Error Handling
+
+**Groq API Failures**:
+- Returns empty/default result structure
+- Logs detailed error information
+- Does not block batch processing
+- Allows retry on next batch run
+
+**JSON Parsing Failures**:
+- Attempts to clean JSON (removes markdown code blocks)
+- Validates all fields with defaults
+- Throws error if JSON is completely invalid
+- Returns default structure on error
+
+**Database Failures**:
+- Logs error but continues processing
+- Individual record failures don't block batch
+- Uses transactions where appropriate
+
+### Performance Considerations
+
+**Batch Processing**:
+- Processes 100 responses per query batch
+- Sends events in batches of 50
+- Concurrency limit of 5 prevents overload
+
+**Groq API**:
+- Very fast inference (typically < 2 seconds)
+- Low cost (gpt-oss-20b is economical)
+- Rate limits handled by Groq (generous for free tier)
+
+**Database**:
+- Indexes on all foreign keys
+- Composite indexes for common queries
+- Efficient filtering of already-analyzed responses
+
+### Cost Optimization
+
+1. **Batch Processing**: Processes all responses once daily instead of real-time
+2. **Idempotency**: Skips already-analyzed responses
+3. **Groq Model**: Uses cost-effective `gpt-oss-20b` instead of expensive models
+4. **Low Temperature**: 0.2 reduces token usage by generating more consistent outputs
+
+### Monitoring
+
+**Key Metrics**:
+- Number of responses analyzed per day
+- Groq API success rate
+- Average analysis time
+- Number of brands detected
+- Number of potential competitors found
+
+**Logs to Watch**:
+- `[brand-analysis]` - Analysis process logs
+- `[groq-client]` - Groq API calls
+- `[brand-storage]` - Database operations
+- `[analyze-single-response]` - Function execution
 
 ---
 
