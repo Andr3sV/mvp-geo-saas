@@ -47,7 +47,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │             │                           │  │
 │  │  ┌──────────┴───────────────────────┐  │  │
 │  │  │  analyze-brands-batch           │  │  │
-│  │  │  (Cron: 3 AM daily)              │  │  │
+│  │  │  (Cron: 4 AM & 6 AM daily)        │  │  │
 │  │  └──────────┬───────────────────────┘  │  │
 │  │             │                           │  │
 │  │             │ emits events              │  │
@@ -132,12 +132,23 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### analyze-brands-batch
 
 - **Type**: Scheduled (Cron)
-- **Schedule**: `0 3 * * *` (3:00 AM daily)
+- **Schedule**: `0 4 * * *` (4:00 AM daily)
 - **Concurrency**: 5
 - **Steps**:
   1. Fetch pending AI responses (not yet analyzed)
   2. Filter out already-analyzed responses
   3. Send `brand/analyze-response` events
+
+#### analyze-brands-batch-6am
+
+- **Type**: Scheduled (Cron)
+- **Schedule**: `0 6 * * *` (6:00 AM daily)
+- **Concurrency**: 5
+- **Steps**:
+  1. Fetch pending AI responses (not yet analyzed)
+  2. Filter out already-analyzed responses
+  3. Send `brand/analyze-response` events
+- **Purpose**: Catches any responses that were generated after the 4 AM batch
 
 #### analyze-single-response
 
@@ -872,8 +883,8 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 │                │            │                    │
 │ analyze-brands-│            │ analyze-single-   │
 │ batch          │            │ response           │
-│                │            │                    │
-│ Cron: 3:00 AM  │            │ Event: brand/      │
+│ (4 AM & 6 AM)  │            │                    │
+│                │            │ Event: brand/      │
 │                │            │ analyze-response   │
 └───────┬────────┘            └─────────┬──────────┘
         │                               │
@@ -908,7 +919,7 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 #### analyze-brands-batch
 
 **Type**: Scheduled (Cron)  
-**Schedule**: `0 3 * * *` (3:00 AM daily)  
+**Schedule**: `0 4 * * *` (4:00 AM daily)  
 **Concurrency**: 5  
 **Purpose**: Process all pending AI responses that haven't been analyzed yet
 
@@ -926,9 +937,35 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 
 **Configuration**:
 
-- Runs daily at 3:00 AM (after AI responses are generated at 2:00 AM)
+- Runs daily at 4:00 AM (after AI responses are generated at 2:00 AM)
 - Processes responses in order of creation (newest first)
 - Automatically skips already-analyzed responses
+
+#### analyze-brands-batch-6am
+
+**Type**: Scheduled (Cron)  
+**Schedule**: `0 6 * * *` (6:00 AM daily)  
+**Concurrency**: 5  
+**Purpose**: Catch any AI responses that were generated after the 4:00 AM batch
+
+**Steps**:
+
+1. **Fetch Pending Responses**
+
+   - Query `ai_responses` table for responses with `status = 'success'`
+   - Filter out responses that already have entries in `brand_mentions` table
+   - Paginate through results (100 per batch)
+
+2. **Send Events**
+   - For each pending response, emit `brand/analyze-response` event
+   - Events are sent in batches of 50 to avoid payload limits
+
+**Configuration**:
+
+- Runs daily at 6:00 AM (catches late responses from the 2:00 AM generation)
+- Processes responses in order of creation (newest first)
+- Automatically skips already-analyzed responses
+- Acts as a safety net for responses that took longer to generate
 
 **Example Event**:
 
@@ -1095,7 +1132,7 @@ Stores brands detected in responses that are not the client brand or known compe
 #### Batch Processing Flow
 
 ```
-1. Cron triggers analyze-brands-batch at 3:00 AM
+1. Cron triggers analyze-brands-batch at 4:00 AM
    ↓
 2. Query ai_responses for pending responses
    ↓
@@ -1107,6 +1144,10 @@ Stores brands detected in responses that are not the client brand or known compe
 5. analyze-single-response processes each event
    ↓
 6. Results saved to brand_mentions, brand_sentiment_attributes, potential_competitors
+   ↓
+7. Cron triggers analyze-brands-batch-6am at 6:00 AM (safety net)
+   ↓
+8. Repeat steps 2-6 for any responses missed in the 4 AM batch
 ```
 
 #### Event-Driven Flow

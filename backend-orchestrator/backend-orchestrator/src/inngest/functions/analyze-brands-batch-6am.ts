@@ -1,5 +1,5 @@
 // =============================================
-// BATCH BRAND ANALYSIS WORKFLOW
+// BATCH BRAND ANALYSIS WORKFLOW (6 AM)
 // =============================================
 
 import { inngest } from '../client';
@@ -7,22 +7,22 @@ import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 
 /**
  * Batch function to analyze brands in AI responses
- * Runs daily at 4:00 AM to process pending analyses
+ * Runs daily at 6:00 AM to catch any responses that were generated after 4 AM
  */
-export const analyzeBrandsBatch = inngest.createFunction(
+export const analyzeBrandsBatch6AM = inngest.createFunction(
   {
-    id: 'analyze-brands-batch',
-    name: 'Analyze Brands Batch (4 AM)',
+    id: 'analyze-brands-batch-6am',
+    name: 'Analyze Brands Batch (6 AM)',
     concurrency: {
       limit: 5, // Process 5 responses concurrently
     },
     retries: 3,
   },
-  { cron: '0 4 * * *' }, // Runs at 4:00 AM daily (after AI responses are generated)
+  { cron: '0 6 * * *' }, // Runs at 6:00 AM daily (catches late responses)
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
-    logInfo('analyze-brands-batch', 'Starting batch brand analysis');
+    logInfo('analyze-brands-batch-6am', 'Starting batch brand analysis (6 AM)');
 
     // 1. Fetch AI responses that need brand analysis
     // Only process successful responses that haven't been analyzed yet
@@ -44,7 +44,7 @@ export const analyzeBrandsBatch = inngest.createFunction(
           .order('created_at', { ascending: false });
 
         if (error) {
-          logError('analyze-brands-batch', 'Failed to fetch pending responses', error);
+          logError('analyze-brands-batch-6am', 'Failed to fetch pending responses', error);
           throw new Error(`Failed to fetch responses: ${error.message}`);
         }
 
@@ -75,12 +75,12 @@ export const analyzeBrandsBatch = inngest.createFunction(
         }
       }
 
-      logInfo('analyze-brands-batch', `Found ${allResponses.length} pending responses for brand analysis`);
+      logInfo('analyze-brands-batch-6am', `Found ${allResponses.length} pending responses for brand analysis`);
       return allResponses;
     });
 
     if (pendingResponses.length === 0) {
-      logInfo('analyze-brands-batch', 'No pending responses found');
+      logInfo('analyze-brands-batch-6am', 'No pending responses found');
       return { message: 'No pending responses found for brand analysis' };
     }
 
@@ -103,7 +103,7 @@ export const analyzeBrandsBatch = inngest.createFunction(
       eventsSent += chunk.length;
     }
 
-    logInfo('analyze-brands-batch', `Scheduled ${eventsSent} responses for brand analysis`);
+    logInfo('analyze-brands-batch-6am', `Scheduled ${eventsSent} responses for brand analysis`);
 
     return {
       message: `Scheduled ${eventsSent} responses for brand analysis`,
