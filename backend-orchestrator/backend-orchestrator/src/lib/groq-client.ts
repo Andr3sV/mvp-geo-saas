@@ -53,8 +53,8 @@ export async function callGroq(
             content: cappedPrompt,
           },
         ],
-        temperature: config.temperature ?? 0.7,
-        max_tokens: config.maxTokens ?? 2000,
+        temperature: config.temperature ?? 0.2, // Very low temperature for consistent JSON
+        max_tokens: config.maxTokens ?? 2500, // More tokens for complex responses
         response_format: { type: 'json_object' }, // Force JSON response for structured output
       }),
     });

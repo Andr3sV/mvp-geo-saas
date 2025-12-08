@@ -18,9 +18,9 @@ function buildBrandAnalysisPrompt(
     ? competitorList.join(', ')
     : '(no competitors defined)';
 
-  return `Role:
+  return `You are a JSON data extraction assistant. Your task is to analyze an AI-generated answer and extract structured data about brand mentions, competitor mentions, sentiment, sentiment scoring, contextual sentiment, attributes, and unlisted brands.
 
-You are an information-extraction assistant. Your task is to analyze an AI-generated answer and extract structured data about brand mentions, competitor mentions, sentiment, sentiment scoring, contextual sentiment, attributes, and unlisted brands.
+CRITICAL: You MUST respond with ONLY valid JSON. No explanations, no markdown, no code blocks. Just pure JSON.
 
 Instructions:
 
@@ -124,7 +124,9 @@ OUTPUT FORMAT (JSON)
 
 -----------------------------------------
 
-Return only valid JSON with the following structure:
+You MUST return ONLY valid JSON. No markdown, no code blocks, no explanations. Start directly with { and end with }.
+
+Required JSON structure (all fields are required, use empty arrays/strings if no data):
 
 {
   "client_brand_mentioned": true,
@@ -132,27 +134,20 @@ Return only valid JSON with the following structure:
   "client_brand_sentiment": "neutral",
   "client_brand_sentiment_rating": 0,
   "client_brand_sentiment_ratio": 0.0,
-  "competitor_sentiments": [
-    {
-      "competitor": "",
-      "sentiment": "",
-      "sentiment_rating": 0,
-      "sentiment_ratio": 0.0
-    }
-  ],
+  "competitor_sentiments": [],
   "client_brand_attributes": {
     "positive": [],
     "negative": []
   },
-  "competitor_attributes": [
-    {
-      "competitor": "",
-      "positive": [],
-      "negative": []
-    }
-  ],
+  "competitor_attributes": [],
   "other_brands_detected": []
 }
+
+IMPORTANT: 
+- All numbers must be valid numbers (not strings)
+- All arrays must be valid JSON arrays (use [] if empty)
+- All strings must be properly quoted
+- Do not include any text before or after the JSON
 
 -----------------------------------------
 
@@ -160,13 +155,9 @@ CLIENT DATA
 
 -----------------------------------------
 
-Client's brand:
+Client's brand: ${brandName}
 
-${brandName}
-
-Client's predefined competitor list:
-
-${competitorsListText}
+Client's predefined competitor list: ${competitorsListText}
 
 -----------------------------------------
 
@@ -176,7 +167,7 @@ ${responseText}
 
 -----------------------------------------
 
-Remember: Return ONLY valid JSON, no additional text or explanation.`;
+Now analyze the answer above and return ONLY the JSON object. Start with { and end with }.`;
 }
 
 /**
@@ -276,8 +267,8 @@ export async function analyzeBrandMentions(
     const groqConfig: GroqConfig = {
       apiKey,
       model: config?.model || 'openai/gpt-oss-20b',
-      temperature: config?.temperature ?? 0.3, // Lower temperature for more consistent extraction
-      maxTokens: config?.maxTokens ?? 2000,
+      temperature: config?.temperature ?? 0.2, // Very low temperature for consistent JSON
+      maxTokens: config?.maxTokens ?? 2500, // More tokens for complex responses
     };
 
     logInfo('brand-analysis', 'Calling Groq API', {
@@ -304,7 +295,19 @@ export async function analyzeBrandMentions(
 
     return analysis;
   } catch (error: any) {
-    logError('brand-analysis', 'Brand analysis failed', error);
+    logError('brand-analysis', 'Brand analysis failed', {
+      error: error.message,
+      errorType: error.type || 'unknown',
+      errorCode: error.code || 'unknown',
+      failedGeneration: (error as any).failed_generation || 'none',
+    });
+    
+    // If it's a JSON validation error, log more details
+    if (error.code === 'json_validate_failed' || error.message?.includes('validate JSON')) {
+      logError('brand-analysis', 'Groq JSON validation failed - this may indicate the prompt needs adjustment', {
+        errorDetails: error,
+      });
+    }
     
     // Return default/empty result on error
     return {
