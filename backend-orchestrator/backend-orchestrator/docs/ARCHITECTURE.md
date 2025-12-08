@@ -914,6 +914,7 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 **Steps**:
 
 1. **Fetch Pending Responses**
+
    - Query `ai_responses` table for responses with `status = 'success'`
    - Filter out responses that already have entries in `brand_mentions` table
    - Paginate through results (100 per batch)
@@ -923,11 +924,13 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
    - Events are sent in batches of 50 to avoid payload limits
 
 **Configuration**:
+
 - Runs daily at 3:00 AM (after AI responses are generated at 2:00 AM)
 - Processes responses in order of creation (newest first)
 - Automatically skips already-analyzed responses
 
 **Example Event**:
+
 ```json
 {
   "name": "brand/analyze-response",
@@ -948,16 +951,19 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 **Steps**:
 
 1. **Fetch Response Data**
+
    - Get AI response from `ai_responses` table
    - Verify response is successful and has text content
    - Fetch project to get brand name
    - Fetch active competitors for the project
 
 2. **Check if Already Analyzed**
+
    - Query `brand_mentions` to see if analysis already exists
    - Skip if already analyzed (idempotent)
 
 3. **Analyze Brands** (via Groq)
+
    - Build prompt with brand name, competitor list, and response text
    - Call Groq API with `gpt-oss-20b` model
    - Parse JSON response with validation
@@ -968,6 +974,7 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
    - Save/update potential competitors in `potential_competitors` table
 
 **Error Handling**:
+
 - If Groq API fails, returns empty/default result (graceful degradation)
 - Logs detailed error information for debugging
 - Does not throw errors to prevent blocking batch processing
@@ -977,12 +984,14 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 **Model**: `openai/gpt-oss-20b`  
 **Endpoint**: `https://api.groq.com/openai/v1/chat/completions`  
 **Configuration**:
+
 - `temperature`: 0.2 (very low for consistent JSON)
 - `max_tokens`: 2500
 - `response_format`: `{ type: 'json_object' }` (forces JSON output)
 
 **Prompt Structure**:
 The prompt follows a specific format that works reliably with Groq:
+
 1. Role definition
 2. Instructions for analysis
 3. Brand & Competitor Detection rules
@@ -994,6 +1003,7 @@ The prompt follows a specific format that works reliably with Groq:
 9. Answer to Analyze (the AI response text)
 
 **Response Format**:
+
 ```json
 {
   "client_brand_mentioned": true,
@@ -1031,6 +1041,7 @@ The prompt follows a specific format that works reliably with Groq:
 Stores all mentions of client brand and competitors found in AI responses.
 
 **Key Fields**:
+
 - `brand_type`: 'client' | 'competitor'
 - `competitor_id`: UUID reference (NULL for client brand)
 - `entity_name`: Name of the brand mentioned
@@ -1038,6 +1049,7 @@ Stores all mentions of client brand and competitors found in AI responses.
 - `confidence_score`: AI confidence (0-1)
 
 **Indexes**:
+
 - `ai_response_id` (for fast lookups)
 - `project_id` (for project-level queries)
 - `brand_type` (for filtering)
@@ -1048,6 +1060,7 @@ Stores all mentions of client brand and competitors found in AI responses.
 Stores sentiment analysis and attributes for each brand mentioned.
 
 **Key Fields**:
+
 - `brand_type`: 'client' | 'competitor'
 - `sentiment`: 'positive' | 'negative' | 'neutral' | 'not_mentioned'
 - `sentiment_rating`: Numeric score from -1 to 1
@@ -1058,6 +1071,7 @@ Stores sentiment analysis and attributes for each brand mentioned.
 - `model_used`: 'openai/gpt-oss-20b' (Groq)
 
 **Indexes**:
+
 - Composite index on `(project_id, brand_type, sentiment)` for common queries
 - `ai_response_id` for response-level queries
 
@@ -1066,6 +1080,7 @@ Stores sentiment analysis and attributes for each brand mentioned.
 Stores brands detected in responses that are not the client brand or known competitors.
 
 **Key Fields**:
+
 - `brand_name`: Name of the potential competitor
 - `mention_count`: How many times this brand has been mentioned
 - `first_detected_at`: When first detected
@@ -1110,11 +1125,13 @@ Stores brands detected in responses that are not the client brand or known compe
 #### With Existing System
 
 1. **After AI Response Generation**
+
    - `process-single-prompt` saves AI response
    - Optionally triggers `brand/analyze-response` event
    - Or waits for batch processing
 
 2. **Data Sources**
+
    - Reads from `ai_responses` table
    - Reads from `projects` table (for brand name)
    - Reads from `competitors` table (for competitor list)
@@ -1127,18 +1144,21 @@ Stores brands detected in responses that are not the client brand or known compe
 ### Error Handling
 
 **Groq API Failures**:
+
 - Returns empty/default result structure
 - Logs detailed error information
 - Does not block batch processing
 - Allows retry on next batch run
 
 **JSON Parsing Failures**:
+
 - Attempts to clean JSON (removes markdown code blocks)
 - Validates all fields with defaults
 - Throws error if JSON is completely invalid
 - Returns default structure on error
 
 **Database Failures**:
+
 - Logs error but continues processing
 - Individual record failures don't block batch
 - Uses transactions where appropriate
@@ -1146,16 +1166,19 @@ Stores brands detected in responses that are not the client brand or known compe
 ### Performance Considerations
 
 **Batch Processing**:
+
 - Processes 100 responses per query batch
 - Sends events in batches of 50
 - Concurrency limit of 5 prevents overload
 
 **Groq API**:
+
 - Very fast inference (typically < 2 seconds)
 - Low cost (gpt-oss-20b is economical)
 - Rate limits handled by Groq (generous for free tier)
 
 **Database**:
+
 - Indexes on all foreign keys
 - Composite indexes for common queries
 - Efficient filtering of already-analyzed responses
@@ -1170,6 +1193,7 @@ Stores brands detected in responses that are not the client brand or known compe
 ### Monitoring
 
 **Key Metrics**:
+
 - Number of responses analyzed per day
 - Groq API success rate
 - Average analysis time
@@ -1177,6 +1201,7 @@ Stores brands detected in responses that are not the client brand or known compe
 - Number of potential competitors found
 
 **Logs to Watch**:
+
 - `[brand-analysis]` - Analysis process logs
 - `[groq-client]` - Groq API calls
 - `[brand-storage]` - Database operations
