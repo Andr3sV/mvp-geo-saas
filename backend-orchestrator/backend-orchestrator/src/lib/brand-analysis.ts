@@ -18,9 +18,9 @@ function buildBrandAnalysisPrompt(
     ? competitorList.join(', ')
     : '(no competitors defined)';
 
-  return `You are a JSON data extraction assistant. Your task is to analyze an AI-generated answer and extract structured data about brand mentions, competitor mentions, sentiment, sentiment scoring, contextual sentiment, attributes, and unlisted brands.
+  return `Role:
 
-CRITICAL: You MUST respond with ONLY valid JSON. No explanations, no markdown, no code blocks. Just pure JSON.
+You are an information-extraction assistant. Your task is to analyze an AI-generated answer and extract structured data about brand mentions, competitor mentions, sentiment, sentiment scoring, contextual sentiment, attributes, and unlisted brands.
 
 Instructions:
 
@@ -124,9 +124,7 @@ OUTPUT FORMAT (JSON)
 
 -----------------------------------------
 
-You MUST return ONLY valid JSON. No markdown, no code blocks, no explanations. Start directly with { and end with }.
-
-Required JSON structure (all fields are required, use empty arrays/strings if no data):
+Return only valid JSON with the following structure:
 
 {
   "client_brand_mentioned": true,
@@ -134,20 +132,27 @@ Required JSON structure (all fields are required, use empty arrays/strings if no
   "client_brand_sentiment": "neutral",
   "client_brand_sentiment_rating": 0,
   "client_brand_sentiment_ratio": 0.0,
-  "competitor_sentiments": [],
+  "competitor_sentiments": [
+    {
+      "competitor": "",
+      "sentiment": "",
+      "sentiment_rating": 0,
+      "sentiment_ratio": 0.0
+    }
+  ],
   "client_brand_attributes": {
     "positive": [],
     "negative": []
   },
-  "competitor_attributes": [],
+  "competitor_attributes": [
+    {
+      "competitor": "",
+      "positive": [],
+      "negative": []
+    }
+  ],
   "other_brands_detected": []
 }
-
-IMPORTANT: 
-- All numbers must be valid numbers (not strings)
-- All arrays must be valid JSON arrays (use [] if empty)
-- All strings must be properly quoted
-- Do not include any text before or after the JSON
 
 -----------------------------------------
 
@@ -155,19 +160,19 @@ CLIENT DATA
 
 -----------------------------------------
 
-Client's brand: ${brandName}
+Client's brand:
 
-Client's predefined competitor list: ${competitorsListText}
+${brandName}
+
+Client's predefined competitor list:
+
+${competitorsListText}
 
 -----------------------------------------
 
 ANSWER TO ANALYZE:
 
-${responseText}
-
------------------------------------------
-
-Now analyze the answer above and return ONLY the JSON object. Start with { and end with }.`;
+${responseText}`;
 }
 
 /**
