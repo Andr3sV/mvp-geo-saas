@@ -17,7 +17,7 @@ export const analyzeSingleResponse = inngest.createFunction(
     id: 'analyze-single-response',
     name: 'Analyze Single Response Brands',
     concurrency: {
-      limit: 10, // Can process more concurrently as Groq is fast
+      limit: 5, // Matches Inngest plan limit
     },
     retries: 3,
   },
