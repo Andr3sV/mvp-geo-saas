@@ -65,6 +65,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  - Gemini Client                      │   │
 │  │  - Claude Client                      │   │
 │  │  - Perplexity Client                  │   │
+│  │  - Groq Client (Brand Analysis)       │   │
 │  └─────────────┬─────────────────────────┘   │
 └────────────────┼───────────────────────────────┘
                  │
