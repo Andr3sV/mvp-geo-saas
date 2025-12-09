@@ -26,8 +26,9 @@ export const analyzeBrandsBatch6AM = inngest.createFunction(
 
     // 1. Fetch AI responses that need brand analysis
     // Only process successful responses that haven't been analyzed yet
+    // Note: We don't select response_text here to avoid output_too_large errors in Inngest
     const pendingResponses = await step.run('fetch-pending-responses', async () => {
-      let allResponses: { id: string; project_id: string; response_text: string }[] = [];
+      let allResponses: { id: string; project_id: string }[] = [];
       let from = 0;
       const limit = 100;
       let hasMore = true;
@@ -35,9 +36,10 @@ export const analyzeBrandsBatch6AM = inngest.createFunction(
       while (hasMore) {
         // Get responses that are successful and don't have brand analysis yet
         // We check if brand_mentions exists for this ai_response_id
+        // Only select id and project_id to avoid exceeding Inngest output size limits
         const { data, error } = await supabase
           .from('ai_responses')
-          .select('id, project_id, response_text')
+          .select('id, project_id')
           .eq('status', 'success')
           .not('response_text', 'is', null)
           .range(from, from + limit - 1)

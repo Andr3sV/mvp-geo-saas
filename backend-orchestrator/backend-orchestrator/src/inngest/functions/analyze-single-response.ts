@@ -29,28 +29,47 @@ export const analyzeSingleResponse = inngest.createFunction(
     logInfo('analyze-single-response', `Starting brand analysis for response ${ai_response_id}`);
 
     // 1. Fetch AI response and project data
+    // Use two separate queries to avoid JSON serialization issues with large response_text
     const responseData = await step.run('fetch-response-data', async () => {
-      const { data: response, error: responseError } = await supabase
+      // Query 1: Get metadata without response_text to avoid serialization issues
+      const { data: responseMeta, error: metaError } = await supabase
         .from('ai_responses')
-        .select('id, project_id, response_text, status')
+        .select('id, project_id, status')
         .eq('id', ai_response_id)
         .single();
 
-      if (responseError) {
-        throw new Error(`Failed to fetch AI response: ${responseError.message}`);
+      if (metaError) {
+        throw new Error(`Failed to fetch AI response metadata: ${metaError.message}`);
       }
 
-      if (!response) {
+      if (!responseMeta) {
         throw new Error(`AI response not found: ${ai_response_id}`);
       }
 
-      if (response.status !== 'success') {
-        throw new Error(`AI response not successful (status: ${response.status})`);
+      if (responseMeta.status !== 'success') {
+        throw new Error(`AI response not successful (status: ${responseMeta.status})`);
       }
 
-      if (!response.response_text) {
+      // Query 2: Get only response_text separately to avoid JSON serialization issues
+      const { data: responseTextData, error: textError } = await supabase
+        .from('ai_responses')
+        .select('response_text')
+        .eq('id', ai_response_id)
+        .single();
+
+      if (textError) {
+        throw new Error(`Failed to fetch AI response text: ${textError.message}`);
+      }
+
+      if (!responseTextData?.response_text) {
         throw new Error(`AI response has no text content`);
       }
+
+      // Combine metadata and text
+      const response = {
+        ...responseMeta,
+        response_text: responseTextData.response_text,
+      };
 
       // Fetch project to get brand name
       const { data: project, error: projectError } = await supabase
@@ -91,6 +110,7 @@ export const analyzeSingleResponse = inngest.createFunction(
       brandName,
       competitorCount: competitorNames.length,
       responseLength: responseText.length,
+      responseTextSizeKB: Math.round(responseText.length / 1024), // Log size in KB for monitoring
     });
 
     // 2. Check if already analyzed
