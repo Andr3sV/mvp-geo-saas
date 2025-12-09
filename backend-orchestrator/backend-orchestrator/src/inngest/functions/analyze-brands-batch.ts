@@ -41,6 +41,7 @@ export const analyzeBrandsBatch = inngest.createFunction(
           .from('ai_responses')
           .select('id, project_id')
           .eq('status', 'success')
+          .or('brand_analysis_status.is.null,brand_analysis_status.eq.pending,brand_analysis_status.eq.error')
           .not('response_text', 'is', null)
           .range(from, from + limit - 1)
           .order('created_at', { ascending: false });

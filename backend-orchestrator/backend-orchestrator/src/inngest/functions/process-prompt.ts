@@ -180,6 +180,7 @@ export const processPrompt = inngest.createFunction(
               model_version: "auto",
               prompt_text: promptText,
               status: "processing",
+              brand_analysis_status: "pending",
             })
             .select()
             .single();
@@ -214,6 +215,8 @@ export const processPrompt = inngest.createFunction(
               cost: result.cost,
               execution_time_ms: result.execution_time_ms,
               status: "success",
+              brand_analysis_status: "pending", // ready for brand analysis
+              brand_analysis_error: null,
               metadata: {
                 has_web_search: result.has_web_search || false,
                 citations_count: result.citations?.length || 0,
@@ -286,6 +289,17 @@ export const processPrompt = inngest.createFunction(
             result.citations || []
           );
 
+          // Trigger brand analysis event
+          await step.sendEvent("brand-analysis-single", [
+            {
+              name: "brand/analyze-response",
+              data: {
+                ai_response_id: aiResponse.id,
+                project_id,
+              },
+            },
+          ]);
+
           return { platform, status: "success" };
 
         } catch (err: any) {
@@ -316,6 +330,8 @@ export const processPrompt = inngest.createFunction(
             .from("ai_responses")
             .update({
               status: "error",
+              brand_analysis_status: "error",
+              brand_analysis_error: errorMessage,
                 error_message: isRateLimit 
                   ? `Rate limit exceeded. ${err?.quotaLimit || 'Quota exceeded'}. Will retry on next run.`
                   : errorMessage,

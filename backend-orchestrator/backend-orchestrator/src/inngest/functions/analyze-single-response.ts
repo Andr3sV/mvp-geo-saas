@@ -28,29 +28,38 @@ export const analyzeSingleResponse = inngest.createFunction(
 
     logInfo('analyze-single-response', `Starting brand analysis for response ${ai_response_id}`);
 
-    // 1. Fetch AI response and project data
-    // Use two separate queries with limit(1) to avoid JSON serialization issues with large response_text
+    // 1. Fetch AI response and project data with retries for missing rows
     const responseData = await step.run('fetch-response-data', async () => {
-      // Query 1: Get metadata without response_text to avoid serialization issues
-      // Use limit(1) instead of single() to avoid serialization problems
-      const { data: responseMetaArray, error: metaError } = await supabase
-        .from('ai_responses')
-        .select('id, project_id, status')
-        .eq('id', ai_response_id)
-        .limit(1);
+      const MAX_ATTEMPTS = 2;
+      let responseMeta: { id: string; project_id: string; status: string } | null = null;
 
-      if (metaError) {
-        throw new Error(`Failed to fetch AI response metadata: ${metaError.message}`);
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const { data: responseMetaArray, error: metaError } = await supabase
+          .from('ai_responses')
+          .select('id, project_id, status')
+          .eq('id', ai_response_id)
+          .limit(1);
+
+        if (metaError) {
+          throw new Error(`Failed to fetch AI response metadata: ${metaError.message}`);
+        }
+
+        if (responseMetaArray && responseMetaArray.length > 0) {
+          responseMeta = responseMetaArray[0];
+          break;
+        }
+
+        if (attempt < MAX_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
       }
 
-      if (!responseMetaArray || responseMetaArray.length === 0) {
-        throw new Error(`AI response not found: ${ai_response_id}`);
+      if (!responseMeta) {
+        return { missing: true };
       }
-
-      const responseMeta = responseMetaArray[0];
 
       if (responseMeta.status !== 'success') {
-        throw new Error(`AI response not successful (status: ${responseMeta.status})`);
+        return { missing: false, notSuccessful: true, status: responseMeta.status };
       }
 
       // Query 2: Get only response_text separately to avoid JSON serialization issues
@@ -66,7 +75,7 @@ export const analyzeSingleResponse = inngest.createFunction(
       }
 
       if (!responseTextArray || responseTextArray.length === 0 || !responseTextArray[0]?.response_text) {
-        throw new Error(`AI response has no text content`);
+        return { missing: false, notSuccessful: true, status: 'no_text' };
       }
 
       const responseTextData = responseTextArray[0];
@@ -107,16 +116,44 @@ export const analyzeSingleResponse = inngest.createFunction(
       }
 
       return {
+        missing: false,
+        notSuccessful: false,
         response,
         project,
         competitors: competitors || [],
       };
     });
 
-    const { response, project, competitors } = responseData;
+    if (responseData.missing) {
+      logInfo('analyze-single-response', 'AI response not found after retries, skipping', {
+        aiResponseId: ai_response_id,
+      });
+      return { message: 'AI response not found, skipped', skipped: true };
+    }
+
+    if (responseData.notSuccessful) {
+      const status = (responseData as any).status;
+      logInfo('analyze-single-response', 'AI response not successful, skipping analysis', {
+        aiResponseId: ai_response_id,
+        status,
+      });
+
+      // Mark brand analysis as error to avoid re-processing
+      await supabase
+        .from('ai_responses')
+        .update({
+          brand_analysis_status: 'error',
+          brand_analysis_error: `Response status not successful (${status})`,
+        })
+        .eq('id', ai_response_id);
+
+      return { message: 'AI response not successful, skipped', skipped: true };
+    }
+
+    const { response, project, competitors } = responseData as any;
     const responseText = response.response_text!;
     const brandName = project.brand_name || project.name;
-    const competitorNames = competitors.map((c) => c.name);
+    const competitorNames = competitors.map((c: any) => c.name);
 
     logInfo('analyze-single-response', 'Fetched response data', {
       aiResponseId: ai_response_id,
@@ -192,6 +229,16 @@ export const analyzeSingleResponse = inngest.createFunction(
           error: error.message,
           aiResponseId: ai_response_id,
         });
+
+        // Mark brand analysis as error
+        await supabase
+          .from('ai_responses')
+          .update({
+            brand_analysis_status: 'error',
+            brand_analysis_error: error.message?.slice(0, 500) || 'Brand analysis failed',
+          })
+          .eq('id', ai_response_id);
+
         throw error;
       }
     });
@@ -214,6 +261,15 @@ export const analyzeSingleResponse = inngest.createFunction(
           sentimentSaved: result.sentimentSaved,
           potentialCompetitorsSaved: result.potentialCompetitorsSaved,
         });
+
+        // Mark brand analysis as success
+        await supabase
+          .from('ai_responses')
+          .update({
+            brand_analysis_status: 'success',
+            brand_analysis_error: null,
+          })
+          .eq('id', ai_response_id);
 
         return result;
       } catch (error: any) {
