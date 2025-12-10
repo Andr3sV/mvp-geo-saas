@@ -289,18 +289,8 @@ export const processPrompt = inngest.createFunction(
             result.citations || []
           );
 
-          // Trigger brand analysis event
-          await step.sendEvent("brand-analysis-single", [
-            {
-              name: "brand/analyze-response",
-              data: {
-                ai_response_id: aiResponse.id,
-                project_id,
-              },
-            },
-          ]);
-
-          return { platform, status: "success" };
+          // Return aiResponseId so we can dispatch brand analysis events outside this step
+          return { platform, status: "success", aiResponseId: aiResponse.id };
 
         } catch (err: any) {
           const errorMessage = err?.message || String(err);
@@ -353,6 +343,33 @@ export const processPrompt = inngest.createFunction(
       });
 
       return await Promise.all(platformPromises);
+    });
+
+    // 4.5. Dispatch brand analysis events (outside of execute-ai-models step)
+    // This ensures brand analysis is fully async and doesn't block process-prompt
+    const brandAnalysisEvents = await step.run("dispatch-brand-analysis", async () => {
+      const successfulResponses = results
+        .filter((r: any) => r.status === "success" && r.aiResponseId)
+        .map((r: any) => ({
+          name: "brand/analyze-response",
+          data: {
+            ai_response_id: r.aiResponseId,
+            project_id,
+          },
+        }));
+
+      if (successfulResponses.length > 0) {
+        await step.sendEvent(`dispatch-brand-analysis-${job.id}`, successfulResponses);
+        logInfo("process-prompt", `Dispatched ${successfulResponses.length} brand analysis events`, {
+          prompt_tracking_id,
+          project_id,
+          aiResponseIds: results
+            .filter((r: any) => r.status === "success" && r.aiResponseId)
+            .map((r: any) => r.aiResponseId),
+        });
+      }
+
+      return { eventsDispatched: successfulResponses.length };
     });
 
     // 5. Update Job Status

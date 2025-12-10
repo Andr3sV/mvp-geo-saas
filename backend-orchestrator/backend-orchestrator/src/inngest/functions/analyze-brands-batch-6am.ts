@@ -7,18 +7,20 @@ import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 
 /**
  * Batch function to analyze brands in AI responses
- * Runs daily at 6:00 AM to catch any responses that were generated after 4 AM
+ * TEMPORARILY DISABLED: This function is no longer needed since individual events handle brand analysis
+ * Kept for potential future use or manual triggering
+ * Original purpose: Catch responses generated after 4 AM batch
  */
 export const analyzeBrandsBatch6AM = inngest.createFunction(
   {
     id: 'analyze-brands-batch-6am',
-    name: 'Analyze Brands Batch (6 AM)',
+    name: 'Analyze Brands Batch (6 AM) - Disabled',
     concurrency: {
       limit: 5, // Process 5 responses concurrently
     },
     retries: 3,
   },
-  { cron: '0 6 * * *' }, // Runs at 6:00 AM daily (catches late responses)
+  // { cron: '0 6 * * *' }, // DISABLED - Individual events now handle brand analysis
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
