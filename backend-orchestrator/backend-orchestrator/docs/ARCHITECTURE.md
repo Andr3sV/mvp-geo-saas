@@ -42,7 +42,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │             │                           │  │
 │  │  ┌──────────▼───────────────────────┐  │  │
 │  │  │  process-single-prompt           │  │  │
-│  │  │  (Concurrency: 2)                │  │  │
+│  │  │  (Concurrency: 5)                │  │  │
 │  │  └──────────┬───────────────────────┘  │  │
 │  │             │                           │  │
 │  │  ┌──────────┴───────────────────────┐  │  │
@@ -124,28 +124,27 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 
 - **Type**: Event-Driven
 - **Trigger**: `analysis/process-prompt` event
-- **Concurrency**: **2** (reduced from 5 for Gemini Tier 1 safety)
-- **Processing Mode**: **SEQUENTIAL** (to respect Gemini Tier 1 rate limits)
+- **Concurrency**: **5** (standard for efficient parallel processing)
+- **Processing Mode**: **PARALLEL** (all platforms processed simultaneously)
 - **Steps**:
   1. Fetch prompt data
   2. Determine platforms to process (from event `platforms_to_process` or all available)
-  3. For each platform, double-check if already has successful response TODAY (race condition protection)
-  4. Create analysis job record
-  5. **Process platforms SEQUENTIALLY** (OpenAI first, then Gemini) using `callAIWithRetry`
-     - **Why Sequential?** Gemini Tier 1 has strict rate limits (8 RPM)
-     - **Why Concurrency 2?** Edge case: when OpenAI already has responses, functions skip OpenAI and call Gemini immediately
-     - With 2 concurrent functions: max 2 Gemini calls/min << 8 RPM limit ✅
-     - Sequential processing spaces calls naturally: OpenAI (~10s) → Gemini (~10s)
-     - This prevents rate limit saturation across concurrent instances
-  6. Save AI responses
-  7. Process citations
-  8. Dispatch brand analysis events (asynchronously)
-  9. Update job status
+  3. Create analysis job record
+  4. **Process platforms in PARALLEL** using `Promise.all()` and `callAIWithRetry`:
+     - For each platform simultaneously:
+       - Double-check if already has successful response TODAY (race condition protection)
+       - Create ai_responses record (status: "processing")
+       - Apply rate limiting via `waitForRateLimit()`
+       - Call AI API with automatic retry (up to 3 times on rate limit)
+       - Update ai_responses (status: "success"/"error")
+       - Save citations
+       - Trigger citation processing
+     - Result: Fast processing (~2 hours for 1,500 prompts with 2 platforms)
+  5. Dispatch brand analysis events (asynchronously)
+  6. Update job status
 - **Retry Logic**: Automatically retries up to 3 times if rate limit is hit, waiting for the time specified by the API
 - **Duplicate Prevention**: Double-checks for existing successful responses before processing each platform
 - **Rate Limit Handling**: Uses `callAIWithRetry` which automatically handles rate limit errors with exponential backoff
-- **Trade-off**: Slower processing (~2.5x) but guarantees 0 rate limit errors
-- **Future Optimization**: When upgraded to Gemini Tier 2+ (1000+ RPM), increase concurrency to 5 and use commented PARALLEL code
 
 #### analyze-brands-batch
 
@@ -191,33 +190,13 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Method**: In-memory timestamp tracking (per instance)
 - **Behavior**:
   - Waits when rate limit approached
-  - For Gemini: Ensures minimum 7.5 seconds between requests (8 RPM conservative limit)
   - Detailed logging when rate limits are hit
 - **Limits**:
   - OpenAI: 5,000 RPM
-  - **Gemini: 8 RPM** (conservative, leaving 2 req/min margin for safety)
-    - **Tier 1 (Current)**: 8 RPM, 250K TPM, 5 RPD
-    - **Tier 2** (requires >$250 USD invested): 1000+ RPM
-    - **Tier 3** (requires >$1000 USD invested): 2000+ RPM
+  - **Gemini: 10 RPM** (Tier 1 standard limit)
   - Claude: 50 RPM
   - Perplexity: 50 RPM
 - **Note**: Rate limiter is per-instance. For distributed systems with multiple instances, consider Redis-based rate limiting in the future.
-
-##### Gemini Rate Limit Strategy
-
-**Problem**: With concurrent `process-single-prompt` functions and parallel platform processing, Gemini receives simultaneous requests, exceeding the 8 RPM limit.
-
-**Solution**: Two-layer approach:
-1. **Reduced Concurrency**: Limit to 2 concurrent functions (down from 5)
-   - Handles edge case: when OpenAI already has responses, functions skip OpenAI
-   - Max 2 Gemini calls simultaneously << 8 RPM limit ✅
-2. **Sequential Processing**: Process OpenAI first (~10s), then Gemini (~10s)
-   - Further spaces Gemini calls across concurrent instances
-   - Result: ~2 Gemini calls/minute (well within 8 RPM limit)
-
-**Trade-off**: Slower processing (~2.5x) but guarantees 0 rate limit errors for Gemini Tier 1
-
-**Future**: When upgraded to Gemini Tier 2+ (1000+ RPM), increase concurrency back to 5 and switch to parallel processing (code is commented in `process-prompt.ts`).
 
 #### AI Clients
 
@@ -258,36 +237,24 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
    ↓
 3. Determine platforms to process (from event.platforms_to_process or all available)
    ↓
-4. SEQUENTIAL processing for each platform (to respect Gemini Tier 1 limits):
-   a. Process OpenAI first (~10 seconds):
-      - Double-check if already has successful response TODAY (skip if exists)
-      - Create ai_responses record (status: "processing")
-      - Apply rate limiting (with automatic retry via callAIWithRetry)
-      - Call OpenAI API (with automatic retry up to 3 times on rate limit)
-      - Update ai_responses (status: "success"/"error")
-      - Save citations
-      - Trigger citation processing
-   
-   b. Then process Gemini (~10 seconds):
-      - Double-check if already has successful response TODAY (skip if exists)
-      - Create ai_responses record (status: "processing")
-      - Apply rate limiting (with automatic retry via callAIWithRetry)
-      - Call Gemini API (with automatic retry up to 3 times on rate limit)
-      - Update ai_responses (status: "success"/"error")
-      - Save citations
-      - Trigger citation processing
-   
-   c. Reduced concurrency + Sequential spacing prevents rate limit saturation:
-      - 2 concurrent functions (reduced from 5 for Gemini Tier 1 safety)
-      - Each function: 1 Gemini call every ~20s (or immediately if OpenAI already processed)
-      - Results in max ~2 Gemini calls/minute (well within 8 RPM limit)
+4. Create analysis job record
    ↓
-5. Dispatch brand analysis events (asynchronously)
+5. PARALLEL processing for all platforms simultaneously:
+   - Create platformPromises array
+   - Each platform processes independently:
+     - Double-check if already has successful response TODAY (skip if exists)
+     - Create ai_responses record (status: "processing")
+     - Apply rate limiting via waitForRateLimit()
+     - Call AI API (with automatic retry up to 3 times on rate limit via callAIWithRetry)
+     - Update ai_responses (status: "success"/"error")
+     - Save citations
+     - Trigger citation processing
+   - Use Promise.all() to execute all platforms in parallel
+   - Result: Faster processing (~2 hours for 1,500 prompts)
    ↓
-6. Update analysis_jobs (status: "completed"/"failed")
-
-Note: When upgraded to Gemini Tier 2+ (1000+ RPM), switch to PARALLEL 
-processing for faster execution (see commented code in process-prompt.ts)
+6. Dispatch brand analysis events (asynchronously)
+   ↓
+7. Update analysis_jobs (status: "completed"/"failed")
 ```
 
 ## Data Models

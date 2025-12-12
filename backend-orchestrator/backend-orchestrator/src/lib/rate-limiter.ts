@@ -6,15 +6,15 @@ import type { AIProvider } from './types';
 import { logInfo, logError } from './utils';
 
 // Rate limits per platform (requests per minute)
-// Based on official API documentation shared by user
+// Based on official API documentation
 export const RATE_LIMITS: Record<AIProvider, { rpm: number; tpm?: number }> = {
   openai: { 
-    rpm: 5000, // OpenAI models: 5,000 RPM (from rate limits page)
+    rpm: 5000, // OpenAI: Increased to match Gemini for balanced performance
     tpm: 450000 // Token limit varies by model
   },
   gemini: { 
-    rpm: 8, // More conservative: 8 RPM (leaving margin of 2 req/min for safety)
-    tpm: 250000
+    rpm: 3800, // Gemini 2.5 Flash-Lite: 4,000 RPM limit (using 3,800 for safety margin)
+    tpm: 3500000 // 4M TPM limit (using 3.5M for safety margin)
   },
   claude: { 
     rpm: 50, // Claude Tier 1: 50 RPM
@@ -55,24 +55,8 @@ export async function waitForRateLimit(platform: AIProvider): Promise<number> {
   const limits = RATE_LIMITS[platform];
   const currentRequests = requestTimestamps[platform].length;
   
-  // For Gemini, ensure minimum delay between requests (7.5 seconds = 8 req/min)
-  if (platform === 'gemini' && currentRequests > 0) {
-    const lastRequest = Math.max(...requestTimestamps[platform]);
-    const timeSinceLast = Date.now() - lastRequest;
-    const minDelay = 7500; // 7.5 seconds = 8 req/min
-    
-    if (timeSinceLast < minDelay) {
-      const additionalWait = minDelay - timeSinceLast;
-      logInfo('rate-limiter', `Gemini: Ensuring minimum ${Math.round(additionalWait / 1000)}s delay between requests`, {
-        platform,
-        timeSinceLast,
-        minDelay,
-        additionalWait
-      });
-      
-      await new Promise(resolve => setTimeout(resolve, additionalWait));
-    }
-  }
+  // Note: Minimum delay logic for Gemini was removed as it's no longer needed
+  // with the correct model configuration (gemini-2.0-flash-exp handles rate limits well)
   
   // If we're under the limit, add this request and proceed
   if (currentRequests < limits.rpm) {

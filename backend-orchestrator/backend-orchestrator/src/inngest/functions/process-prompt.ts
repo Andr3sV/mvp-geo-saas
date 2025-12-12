@@ -58,12 +58,8 @@ export const processPrompt = inngest.createFunction(
   { 
     id: "process-single-prompt",
     name: "Process Single Prompt",
-    // Configure concurrency to respect Gemini Tier 1 rate limits (8 RPM)
-    // Reduced to 2 to handle edge case: when OpenAI already has responses,
-    // functions skip OpenAI and call Gemini simultaneously
-    // 2 concurrent = max 2 Gemini calls/min << 8 RPM limit ✅
     concurrency: {
-      limit: 2, // Reduced from 5 for Gemini Tier 1 safety
+      limit: 5, // Restored to original for efficient parallel processing
     },
     // Automatic retries on failure
     retries: 3
@@ -137,16 +133,11 @@ export const processPrompt = inngest.createFunction(
       return data;
     });
 
-    // 4. Run AI Analysis for Each Platform SEQUENTIALLY
-    // IMPORTANT: Sequential processing is used to respect Gemini Tier 1 rate limits (8 RPM)
-    // When upgraded to Gemini Tier 2+ (>$250 USD invested), switch to PARALLEL processing
-    // for faster execution (see commented PARALLEL code at bottom of this step.run)
+    // 4. Run AI Analysis for Each Platform in PARALLEL
     
     const results = await step.run("execute-ai-models", async () => {
-      // SEQUENTIAL PROCESSING - Current implementation for Gemini Tier 1
-      const results: Array<{platform: string; status: string; aiResponseId?: string; error?: string; isRateLimit?: boolean; reason?: string}> = [];
-      
-      for (const platform of availablePlatforms) {
+      // PARALLEL PROCESSING - All platforms processed simultaneously for efficiency
+      const platformPromises = availablePlatforms.map(async (platform) => {
         try {
           logInfo("process-prompt", `Starting ${platform}...`);
           
@@ -172,11 +163,9 @@ export const processPrompt = inngest.createFunction(
               platform,
               prompt_tracking_id
             });
-            results.push({ platform, status: "skipped", reason: "already_exists_today" });
-            continue; // Skip to next platform
+            return { platform, status: "skipped", reason: "already_exists_today" };
           }
           
-          // Create pending AI response
           const { data: aiResponse, error: insertError } = await supabase
             .from("ai_responses")
             .insert({
@@ -203,10 +192,10 @@ export const processPrompt = inngest.createFunction(
             platform,
             enrichedPrompt,
             {
-              apiKey,
-              temperature: 0.7,
-              maxTokens: 2000,
-              region: promptRegion,
+            apiKey,
+            temperature: 0.7,
+            maxTokens: 2000,
+            region: promptRegion,
             },
             3 // maxRetries
           );
@@ -284,8 +273,6 @@ export const processPrompt = inngest.createFunction(
             });
           }
 
-          // Process Citations (Async but awaited here to ensure completion)
-          // This handles sentiment analysis and brand mentions (citations_detail table)
           await triggerCitationProcessing(
             supabase,
             aiResponse.id,
@@ -295,8 +282,7 @@ export const processPrompt = inngest.createFunction(
             result.citations || []
           );
 
-          // Add successful result
-          results.push({ platform, status: "success", aiResponseId: aiResponse.id });
+          return { platform, status: "success", aiResponseId: aiResponse.id };
 
         } catch (err: any) {
           const errorMessage = err?.message || String(err);
@@ -320,14 +306,13 @@ export const processPrompt = inngest.createFunction(
             });
           }
           
-          // Try to update error status - but don't fail if this fails
           try {
           await supabase
             .from("ai_responses")
             .update({
               status: "error",
-              brand_analysis_status: "error",
-              brand_analysis_error: errorMessage,
+                brand_analysis_status: "error",
+                brand_analysis_error: errorMessage,
                 error_message: isRateLimit 
                   ? `Rate limit exceeded. ${err?.quotaLimit || 'Quota exceeded'}. Will retry on next run.`
                   : errorMessage,
@@ -339,234 +324,16 @@ export const processPrompt = inngest.createFunction(
             logError("process-prompt", `Failed to update error status for ${platform}`, updateError);
           }
 
-          results.push({ 
+          return { 
             platform, 
             status: "failed", 
             error: errorMessage,
             isRateLimit: isRateLimit || false
-          });
+          };
         }
-      }
-      
-      return results;
-      
-      /* ============================================================================
-       * PARALLEL PROCESSING - Use when upgraded to Gemini Tier 2+ (>$250 USD spent)
-       * ============================================================================
-       * 
-       * CURRENT: Sequential processing (Gemini Tier 1: 8 RPM limit)
-       * FUTURE: Parallel processing (Gemini Tier 2+: 1000+ RPM)
-       * 
-       * To enable PARALLEL processing after upgrading Gemini:
-       * 1. Comment out the SEQUENTIAL for loop above (lines 149-348)
-       * 2. Uncomment the PARALLEL code block below
-       * 3. Update ARCHITECTURE.md to reflect parallel processing
-       * 4. Test thoroughly and monitor Inngest dashboard
-       * 
-       * WHY SEQUENTIAL?
-       * - With 5 concurrent process-prompt functions running
-       * - Each calling Gemini simultaneously in parallel mode
-       * - Results in ~5-10 Gemini calls within seconds
-       * - Exceeds Gemini Tier 1 limit of 8 RPM
-       * - Sequential spacing: OpenAI first (~10s) → then Gemini (~10s)
-       * - This naturally spaces Gemini calls across the 5 concurrent functions
-       * 
-       * PARALLEL CODE (for Tier 2+):
-       * 
-       * const platformPromises = availablePlatforms.map(async (platform) => {
-       *   try {
-       *     logInfo("process-prompt", `Starting ${platform}...`);
-       *     
-       *     // Double-check: Verify if already has successful response TODAY
-       *     const startOfToday = new Date();
-       *     startOfToday.setHours(0, 0, 0, 0);
-       *     const endOfToday = new Date();
-       *     endOfToday.setHours(23, 59, 59, 999);
-       *     
-       *     const { data: existingResponse } = await supabase
-       *       .from("ai_responses")
-       *       .select("id")
-       *       .eq("prompt_tracking_id", prompt_tracking_id)
-       *       .eq("platform", platform)
-       *       .eq("status", "success")
-       *       .gte("created_at", startOfToday.toISOString())
-       *       .lte("created_at", endOfToday.toISOString())
-       *       .maybeSingle();
-       *
-       *     if (existingResponse) {
-       *       logInfo("process-prompt", `Skipping ${platform} - already has successful response today`, {
-       *         aiResponseId: existingResponse.id,
-       *         platform,
-       *         prompt_tracking_id
-       *       });
-       *       return { platform, status: "skipped", reason: "already_exists_today" };
-       *     }
-       *     
-       *     const { data: aiResponse, error: insertError } = await supabase
-       *       .from("ai_responses")
-       *       .insert({
-       *         prompt_tracking_id,
-       *         project_id,
-       *         platform,
-       *         model_version: "auto",
-       *         prompt_text: promptText,
-       *         status: "processing",
-       *         brand_analysis_status: "pending",
-       *       })
-       *       .select()
-       *       .single();
-       *
-       *     if (insertError) throw new Error(`Failed to create AI response: ${insertError.message}`);
-       *
-       *     const enrichedPrompt = enrichPromptWithRegion(promptText, promptRegion);
-       *     const apiKey = getAPIKey(platform);
-       *     if (!apiKey) throw new Error(`Missing API key for ${platform}`);
-       *
-       *     const result = await callAIWithRetry(
-       *       platform,
-       *       enrichedPrompt,
-       *       {
-       *         apiKey,
-       *         temperature: 0.7,
-       *         maxTokens: 2000,
-       *         region: promptRegion,
-       *       },
-       *       3
-       *     );
-       *
-       *     const updateResult = await supabase
-       *       .from("ai_responses")
-       *       .update({
-       *         response_text: result.text,
-       *         model_version: result.model,
-       *         tokens_used: result.tokens_used,
-       *         cost: result.cost,
-       *         execution_time_ms: result.execution_time_ms,
-       *         status: "success",
-       *         brand_analysis_status: "pending",
-       *         brand_analysis_error: null,
-       *         metadata: {
-       *           has_web_search: result.has_web_search || false,
-       *           citations_count: result.citations?.length || 0,
-       *         },
-       *       })
-       *       .eq("id", aiResponse.id);
-       *
-       *     if (updateResult.error) {
-       *       logError("process-prompt", `Failed to update AI response for ${platform}`, updateResult.error);
-       *       throw new Error(`Failed to update response: ${updateResult.error.message}`);
-       *     }
-       *     
-       *     logInfo("process-prompt", `${platform} saved successfully to ai_responses`, {
-       *       aiResponseId: aiResponse.id,
-       *       model: result.model,
-       *       tokensUsed: result.tokens_used
-       *     });
-       *
-       *     logInfo("process-prompt", `Checking citationsData for ${platform}`, {
-       *       aiResponseId: aiResponse.id,
-       *       platform,
-       *       hasCitationsData: !!result.citationsData,
-       *       citationsDataLength: result.citationsData?.length || 0
-       *     });
-       *
-       *     if (result.citationsData && result.citationsData.length > 0) {
-       *       try {
-       *         logInfo("process-prompt", `Attempting to save ${result.citationsData.length} citations for ${platform}`, {
-       *           aiResponseId: aiResponse.id,
-       *           platform,
-       *           sampleCitation: result.citationsData[0]
-       *         });
-       *
-       *         const citationsSaved = await saveCitations(
-       *           supabase,
-       *           aiResponse.id,
-       *           result.citationsData
-       *         );
-       *         logInfo("process-prompt", `Saved ${citationsSaved} structured citations for ${platform}`, {
-       *           aiResponseId: aiResponse.id,
-       *           platform,
-       *           expected: result.citationsData.length
-       *         });
-       *       } catch (citationError: any) {
-       *         logError("process-prompt", `Failed to save structured citations for ${platform}`, {
-       *           error: citationError.message,
-       *           stack: citationError.stack,
-       *           aiResponseId: aiResponse.id,
-       *           platform
-       *         });
-       *       }
-       *     } else {
-       *       logInfo("process-prompt", `No citationsData to save for ${platform}`, {
-       *         aiResponseId: aiResponse.id,
-       *         platform,
-       *         hasWebSearch: result.has_web_search
-       *       });
-       *     }
-       *
-       *     await triggerCitationProcessing(
-       *       supabase,
-       *       aiResponse.id,
-       *       job.id,
-       *       project_id,
-       *       result.text,
-       *       result.citations || []
-       *     );
-       *
-       *     return { platform, status: "success", aiResponseId: aiResponse.id };
-       *
-       *   } catch (err: any) {
-       *     const errorMessage = err?.message || String(err);
-       *     const errorStack = err?.stack || '';
-       *     const isRateLimit = err?.isRateLimit || err?.statusCode === 429;
-       *     
-       *     if (isRateLimit) {
-       *       logError("process-prompt", `${platform} rate limit exceeded: ${errorMessage}`, {
-       *         platform,
-       *         prompt_tracking_id,
-       *         retryAfter: err?.retryAfter,
-       *         quotaLimit: err?.quotaLimit
-       *       });
-       *     } else {
-       *       logError("process-prompt", `${platform} failed: ${errorMessage}`, {
-       *         platform,
-       *         prompt_tracking_id,
-       *         error: errorMessage,
-       *         stack: errorStack
-       *       });
-       *     }
-       *     
-       *     try {
-       *       await supabase
-       *         .from("ai_responses")
-       *         .update({
-       *           status: "error",
-       *           brand_analysis_status: "error",
-       *           brand_analysis_error: errorMessage,
-       *           error_message: isRateLimit 
-       *             ? `Rate limit exceeded. ${err?.quotaLimit || 'Quota exceeded'}. Will retry on next run.`
-       *             : errorMessage,
-       *         })
-       *         .eq("prompt_tracking_id", prompt_tracking_id)
-       *         .eq("platform", platform)
-       *         .eq("status", "processing");
-       *     } catch (updateError: any) {
-       *       logError("process-prompt", `Failed to update error status for ${platform}`, updateError);
-       *     }
-       *
-       *     return { 
-       *       platform, 
-       *       status: "failed", 
-       *       error: errorMessage,
-       *       isRateLimit: isRateLimit || false
-       *     };
-       *   }
-       * });
-       *
-       * return await Promise.all(platformPromises);
-       * 
-       * ============================================================================
-       */
+      });
+
+      return await Promise.all(platformPromises);
     });
 
     // 4.5. Dispatch brand analysis events (outside of execute-ai-models step)
