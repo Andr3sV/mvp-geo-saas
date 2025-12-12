@@ -58,9 +58,12 @@ export const processPrompt = inngest.createFunction(
   { 
     id: "process-single-prompt",
     name: "Process Single Prompt",
-    // Configure concurrency to avoid rate limits
+    // Configure concurrency to respect Gemini Tier 1 rate limits (8 RPM)
+    // Reduced to 2 to handle edge case: when OpenAI already has responses,
+    // functions skip OpenAI and call Gemini simultaneously
+    // 2 concurrent = max 2 Gemini calls/min << 8 RPM limit ✅
     concurrency: {
-      limit: 5, // Matches Inngest plan limit
+      limit: 2, // Reduced from 5 for Gemini Tier 1 safety
     },
     // Automatic retries on failure
     retries: 3

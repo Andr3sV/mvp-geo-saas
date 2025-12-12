@@ -42,7 +42,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │             │                           │  │
 │  │  ┌──────────▼───────────────────────┐  │  │
 │  │  │  process-single-prompt           │  │  │
-│  │  │  (Concurrency: 5)                │  │  │
+│  │  │  (Concurrency: 2)                │  │  │
 │  │  └──────────┬───────────────────────┘  │  │
 │  │             │                           │  │
 │  │  ┌──────────┴───────────────────────┐  │  │
@@ -124,7 +124,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 
 - **Type**: Event-Driven
 - **Trigger**: `analysis/process-prompt` event
-- **Concurrency**: 5
+- **Concurrency**: **2** (reduced from 5 for Gemini Tier 1 safety)
 - **Processing Mode**: **SEQUENTIAL** (to respect Gemini Tier 1 rate limits)
 - **Steps**:
   1. Fetch prompt data
@@ -133,7 +133,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   4. Create analysis job record
   5. **Process platforms SEQUENTIALLY** (OpenAI first, then Gemini) using `callAIWithRetry`
      - **Why Sequential?** Gemini Tier 1 has strict rate limits (8 RPM)
-     - With 5 concurrent functions, parallel processing would cause ~5-10 Gemini calls/second
+     - **Why Concurrency 2?** Edge case: when OpenAI already has responses, functions skip OpenAI and call Gemini immediately
+     - With 2 concurrent functions: max 2 Gemini calls/min << 8 RPM limit ✅
      - Sequential processing spaces calls naturally: OpenAI (~10s) → Gemini (~10s)
      - This prevents rate limit saturation across concurrent instances
   6. Save AI responses
@@ -143,7 +144,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Retry Logic**: Automatically retries up to 3 times if rate limit is hit, waiting for the time specified by the API
 - **Duplicate Prevention**: Double-checks for existing successful responses before processing each platform
 - **Rate Limit Handling**: Uses `callAIWithRetry` which automatically handles rate limit errors with exponential backoff
-- **Future Optimization**: Code includes commented PARALLEL implementation for when Gemini is upgraded to Tier 2+ (>$250 USD invested, 1000+ RPM)
+- **Trade-off**: Slower processing (~2.5x) but guarantees 0 rate limit errors
+- **Future Optimization**: When upgraded to Gemini Tier 2+ (1000+ RPM), increase concurrency to 5 and use commented PARALLEL code
 
 #### analyze-brands-batch
 
@@ -203,15 +205,19 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 
 ##### Gemini Rate Limit Strategy
 
-**Problem**: With 5 concurrent `process-single-prompt` functions and parallel platform processing, Gemini receives ~5-10 simultaneous requests, exceeding the 8 RPM limit.
+**Problem**: With concurrent `process-single-prompt` functions and parallel platform processing, Gemini receives simultaneous requests, exceeding the 8 RPM limit.
 
-**Solution**: Sequential platform processing within each function:
-1. Process OpenAI first (~10 seconds)
-2. Then process Gemini (~10 seconds)
-3. This naturally spaces Gemini calls across the 5 concurrent instances
-4. Result: ~6-8 Gemini calls/minute (within limit)
+**Solution**: Two-layer approach:
+1. **Reduced Concurrency**: Limit to 2 concurrent functions (down from 5)
+   - Handles edge case: when OpenAI already has responses, functions skip OpenAI
+   - Max 2 Gemini calls simultaneously << 8 RPM limit ✅
+2. **Sequential Processing**: Process OpenAI first (~10s), then Gemini (~10s)
+   - Further spaces Gemini calls across concurrent instances
+   - Result: ~2 Gemini calls/minute (well within 8 RPM limit)
 
-**Future**: When upgraded to Gemini Tier 2+, switch back to parallel processing for faster execution (code is commented in `process-prompt.ts`).
+**Trade-off**: Slower processing (~2.5x) but guarantees 0 rate limit errors for Gemini Tier 1
+
+**Future**: When upgraded to Gemini Tier 2+ (1000+ RPM), increase concurrency back to 5 and switch to parallel processing (code is commented in `process-prompt.ts`).
 
 #### AI Clients
 
@@ -271,9 +277,10 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
       - Save citations
       - Trigger citation processing
    
-   c. Sequential spacing prevents rate limit saturation:
-      - 5 concurrent functions × 1 Gemini call every ~20s
-      - Results in ~6-8 Gemini calls/minute (within 8 RPM limit)
+   c. Reduced concurrency + Sequential spacing prevents rate limit saturation:
+      - 2 concurrent functions (reduced from 5 for Gemini Tier 1 safety)
+      - Each function: 1 Gemini call every ~20s (or immediately if OpenAI already processed)
+      - Results in max ~2 Gemini calls/minute (well within 8 RPM limit)
    ↓
 5. Dispatch brand analysis events (asynchronously)
    ↓
