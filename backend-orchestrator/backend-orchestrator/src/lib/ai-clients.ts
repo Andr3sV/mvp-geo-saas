@@ -414,6 +414,7 @@ export function getAPIKey(provider: AIProvider): string | null {
     gemini: process.env.GEMINI_API_KEY ?? '',
     claude: process.env.CLAUDE_API_KEY ?? '',
     perplexity: process.env.PERPLEXITY_API_KEY ?? '',
+    groq: process.env.GROQ_API_KEY ?? '', // For brand analysis
   };
 
   const key = keyMap[provider];
