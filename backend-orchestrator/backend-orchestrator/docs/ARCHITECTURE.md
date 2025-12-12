@@ -193,9 +193,12 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   - Detailed logging when rate limits are hit
 - **Limits**:
   - OpenAI: 5,000 RPM
-  - **Gemini: 10 RPM** (Tier 1 standard limit)
+  - **Gemini: 3,800 RPM** (Tier 1: 4,000 limit)
   - Claude: 50 RPM
   - Perplexity: 50 RPM
+  - **Groq: 950 RPM** (Paid tier: 1K limit, using 950 for safety)
+    - TPM: 240,000 (Paid tier: 250K limit)
+    - RPD: 500,000 (Paid tier limit)
 - **Note**: Rate limiter is per-instance. For distributed systems with multiple instances, consider Redis-based rate limiting in the future.
 
 #### AI Clients

@@ -3,6 +3,7 @@
 // =============================================
 
 import { logError, logInfo } from './utils';
+import { waitForRateLimit } from './rate-limiter';
 
 export interface GroqConfig {
   apiKey: string;
@@ -31,6 +32,15 @@ export async function callGroq(
   const model = config.model || 'openai/gpt-oss-20b';
 
   try {
+    // Apply rate limiting BEFORE making the API call
+    const waitTime = await waitForRateLimit('groq');
+    if (waitTime > 0) {
+      logInfo('groq-client', `Waited ${Math.round(waitTime / 1000)}s for Groq rate limit`, {
+        model,
+        waitTime
+      });
+    }
+
     // Cap prompt length to avoid excessive token usage
     const MAX_PROMPT_CHARS = 8000;
     const cappedPrompt =

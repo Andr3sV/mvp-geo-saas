@@ -9,7 +9,7 @@ import { logInfo, logError } from './utils';
 // Based on official API documentation
 export const RATE_LIMITS: Record<AIProvider, { rpm: number; tpm?: number }> = {
   openai: { 
-    rpm: 5000, // OpenAI: Increased to match Gemini for balanced performance
+    rpm: 5000, // OpenA
     tpm: 450000 // Token limit varies by model
   },
   gemini: { 
@@ -24,6 +24,10 @@ export const RATE_LIMITS: Record<AIProvider, { rpm: number; tpm?: number }> = {
     rpm: 50, // Perplexity Tier 0: 50 RPM for most models
     tpm: undefined
   },
+  groq: {
+    rpm: 950, // Conservador: 950 RPM (límite paid tier 1K, margen de seguridad ~5%)
+    tpm: 240000 // Conservador: 240K TPM (límite paid tier 250K, margen de seguridad)
+  },
 };
 
 // Track request timestamps per platform (in-memory)
@@ -33,6 +37,7 @@ const requestTimestamps: Record<AIProvider, number[]> = {
   gemini: [],
   claude: [],
   perplexity: [],
+  groq: [],
 };
 
 // Clean up old timestamps (older than 1 minute)

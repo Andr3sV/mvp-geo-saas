@@ -2,7 +2,7 @@
 // SHARED TYPES
 // =============================================
 
-export type AIProvider = 'openai' | 'gemini' | 'claude' | 'perplexity';
+export type AIProvider = 'openai' | 'gemini' | 'claude' | 'perplexity' | 'groq';
 
 export type AnalysisJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
