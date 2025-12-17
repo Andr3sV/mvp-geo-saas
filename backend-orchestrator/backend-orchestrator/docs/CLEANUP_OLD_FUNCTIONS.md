@@ -2,23 +2,36 @@
 
 This guide helps you safely remove the old Edge Functions that have been replaced by the Inngest orchestrator service.
 
-## Functions to Remove
+## Functions Removed ✅
 
-The following Edge Functions are **obsolete** and can be safely removed:
+The following Edge Functions have been **successfully migrated and removed**:
 
+### Prompt Analysis Functions (Migrated to Inngest)
 1. ✅ `trigger-daily-analysis` - Replaced by `schedule-daily-analysis` (Inngest cron)
 2. ✅ `process-queue` - Replaced by `process-single-prompt` (Inngest workflow)
 3. ✅ `analyze-prompt` - Logic integrated into `process-single-prompt`
 
+### Sentiment Analysis Functions (Migrated to Inngest + Groq)
+4. ✅ `analyze-sentiment` - Replaced by `analyze-single-response` (Inngest + Groq)
+5. ✅ `daily-sentiment-analysis` - Replaced by `analyze-brands-batch` (Inngest + Groq)
+6. ✅ `process-sentiment-queue` - No longer needed (direct event processing in Inngest)
+7. ✅ `trigger-sentiment-analysis` - No longer needed (automatic event triggers in Inngest)
+
+**Migration Date**: December 2024
+
+**New System**:
+- Brand analysis using Groq API via `analyze-brands-batch` and `analyze-single-response` (Inngest functions)
+- Data stored in: `brand_mentions`, `brand_sentiment_attributes`, `potential_competitors`
+- Frontend migrated to use new tables instead of legacy `sentiment_analysis` table
+
 ## Functions to Keep
 
-These functions are **still in use** and should NOT be removed:
+These Edge Functions are **legacy but still exist** (may be removed in the future):
 
-- ❌ `analyze-sentiment` - Still used for sentiment analysis
-- ❌ `daily-sentiment-analysis` - Still used for daily sentiment analysis
-- ❌ `process-sentiment-queue` - Still used for sentiment queue processing
-- ❌ `trigger-sentiment-analysis` - Still used for sentiment triggers
-- ❌ `process-analysis` - May still be used for citation processing
+- 🟡 `process-analysis` - Legacy citation processing (migrated to Inngest, can be removed)
+- 🟡 `trigger-daily-analysis` - Legacy (already removed from active use)
+- 🟡 `process-queue` - Legacy (already removed from active use)
+- 🟡 `analyze-prompt` - Legacy (already removed from active use)
 
 ## Pre-Cleanup Checklist
 
@@ -167,18 +180,29 @@ SELECT COUNT(*) FROM analysis_queue;
 
 ## Summary
 
-**Safe to remove now**:
-- `trigger-daily-analysis/` directory
-- `process-queue/` directory  
-- `analyze-prompt/` directory
+**Already Removed** ✅:
+- ✅ `trigger-daily-analysis/` directory
+- ✅ `process-queue/` directory  
+- ✅ `analyze-prompt/` directory
+- ✅ `analyze-sentiment/` directory
+- ✅ `daily-sentiment-analysis/` directory
+- ✅ `process-sentiment-queue/` directory
+- ✅ `trigger-sentiment-analysis/` directory
+
+**Can be removed** (legacy, not actively used):
+- 🟡 `process-analysis/` (citation processing now in Inngest)
+- 🟡 Any remaining queue-based functions
 
 **Keep**:
-- All sentiment analysis functions
-- `process-analysis/` (citation processing)
-- Shared utilities (unless confirmed unused)
+- ✅ Shared utilities (may still be used by remaining functions)
+
+**Database Tables to Clean Up** (Optional - after 1 month of monitoring):
+- `sentiment_analysis` table (legacy, replaced by `brand_sentiment_attributes`)
+- `sentiment_analysis_queue` table (no longer used)
+- `analysis_queue` table (if not used)
 
 **Timeline**:
-1. **Week 1**: Remove Edge Functions, monitor closely
-2. **Week 2-4**: Monitor for any issues
-3. **After 1 month**: Consider dropping `analysis_queue` table if unused
+1. ✅ **December 2024**: Removed all sentiment analysis Edge Functions
+2. 🔄 **January 2025**: Monitor new system (Inngest + Groq)
+3. 📅 **February 2025**: Consider dropping legacy tables if data is no longer needed
 

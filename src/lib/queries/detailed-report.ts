@@ -269,6 +269,7 @@ async function getShareOfVoiceData(
 
 /**
  * Calculate Sentiment: Average sentiment scores
+ * Now uses brand_sentiment_attributes instead of legacy sentiment_analysis table
  */
 async function getSentimentData(
   projectId: string,
@@ -279,32 +280,32 @@ async function getSentimentData(
 ): Promise<ReportSectionData> {
   const supabase = await createClient();
 
-  // Current period: brand sentiment
+  // Current period: brand sentiment (using brand_sentiment_attributes)
   const { data: brandSentimentCurrent } = await supabase
-    .from("sentiment_analysis")
-    .select("overall_sentiment")
+    .from("brand_sentiment_attributes")
+    .select("sentiment_rating")
     .eq("project_id", projectId)
-    .eq("analysis_type", "brand")
+    .eq("brand_type", "client")
     .gte("created_at", from.toISOString())
     .lte("created_at", to.toISOString())
     .limit(10000);
 
   // Previous period: brand sentiment
   const { data: brandSentimentPrevious } = await supabase
-    .from("sentiment_analysis")
-    .select("overall_sentiment")
+    .from("brand_sentiment_attributes")
+    .select("sentiment_rating")
     .eq("project_id", projectId)
-    .eq("analysis_type", "brand")
+    .eq("brand_type", "client")
     .gte("created_at", previousFrom.toISOString())
     .lte("created_at", previousTo.toISOString())
     .limit(10000);
 
   // Current period: competitor sentiment
   const { data: competitorSentimentCurrent } = await supabase
-    .from("sentiment_analysis")
-    .select("overall_sentiment, competitor_id, competitors!inner(name, domain)")
+    .from("brand_sentiment_attributes")
+    .select("sentiment_rating, competitor_id, competitors!inner(name, domain)")
     .eq("project_id", projectId)
-    .eq("analysis_type", "competitor")
+    .eq("brand_type", "competitor")
     .not("competitor_id", "is", null)
     .gte("created_at", from.toISOString())
     .lte("created_at", to.toISOString())
@@ -312,26 +313,35 @@ async function getSentimentData(
 
   // Previous period: competitor sentiment
   const { data: competitorSentimentPrevious } = await supabase
-    .from("sentiment_analysis")
-    .select("overall_sentiment, competitor_id")
+    .from("brand_sentiment_attributes")
+    .select("sentiment_rating, competitor_id")
     .eq("project_id", projectId)
-    .eq("analysis_type", "competitor")
+    .eq("brand_type", "competitor")
     .not("competitor_id", "is", null)
     .gte("created_at", previousFrom.toISOString())
     .lte("created_at", previousTo.toISOString())
     .limit(10000);
 
-  // Calculate brand average sentiment
+  // Calculate brand average sentiment (sentiment_rating is -1 to 1, normalized to 0-1)
   const brandCurrentAvg =
     brandSentimentCurrent && brandSentimentCurrent.length > 0
-      ? brandSentimentCurrent.reduce((sum, s) => sum + (s.overall_sentiment || 0), 0) / brandSentimentCurrent.length
-      : 0;
+      ? brandSentimentCurrent.reduce((sum, s) => {
+          // Convert from -1..1 to 0..1 range
+          const normalized = (s.sentiment_rating + 1) / 2;
+          return sum + normalized;
+        }, 0) / brandSentimentCurrent.length
+      : 0.5; // Default to neutral (0.5)
+  
   const brandPreviousAvg =
     brandSentimentPrevious && brandSentimentPrevious.length > 0
-      ? brandSentimentPrevious.reduce((sum, s) => sum + (s.overall_sentiment || 0), 0) / brandSentimentPrevious.length
-      : 0;
+      ? brandSentimentPrevious.reduce((sum, s) => {
+          const normalized = (s.sentiment_rating + 1) / 2;
+          return sum + normalized;
+        }, 0) / brandSentimentPrevious.length
+      : 0.5;
+  
   const brandPercentageChange =
-    brandPreviousAvg > 0 ? ((brandCurrentAvg - brandPreviousAvg) / brandPreviousAvg) * 100 : brandCurrentAvg > 0 ? 100 : 0;
+    brandPreviousAvg > 0 ? ((brandCurrentAvg - brandPreviousAvg) / brandPreviousAvg) * 100 : brandCurrentAvg > 0.5 ? 100 : 0;
 
   // Group competitors by average sentiment
   const competitorSentimentsCurrent: Record<string, { sum: number; count: number; name: string; domain?: string }> = {};
@@ -345,7 +355,9 @@ async function getSentimentData(
         domain: cs.competitors.domain,
       };
     }
-    competitorSentimentsCurrent[compId].sum += cs.overall_sentiment || 0;
+    // Convert sentiment_rating from -1..1 to 0..1
+    const normalized = (cs.sentiment_rating + 1) / 2;
+    competitorSentimentsCurrent[compId].sum += normalized;
     competitorSentimentsCurrent[compId].count++;
   });
 
@@ -355,17 +367,18 @@ async function getSentimentData(
     if (!competitorSentimentsPrevious[compId]) {
       competitorSentimentsPrevious[compId] = { sum: 0, count: 0 };
     }
-    competitorSentimentsPrevious[compId].sum += cs.overall_sentiment || 0;
+    const normalized = (cs.sentiment_rating + 1) / 2;
+    competitorSentimentsPrevious[compId].sum += normalized;
     competitorSentimentsPrevious[compId].count++;
   });
 
   const topCompetitors: CompetitorMetric[] = Object.entries(competitorSentimentsCurrent)
     .map(([id, data]) => {
-      const currentAvg = data.count > 0 ? data.sum / data.count : 0;
+      const currentAvg = data.count > 0 ? data.sum / data.count : 0.5;
       const previous = competitorSentimentsPrevious[id] || { sum: 0, count: 0 };
-      const previousAvg = previous.count > 0 ? previous.sum / previous.count : 0;
+      const previousAvg = previous.count > 0 ? previous.sum / previous.count : 0.5;
       const percentageChange =
-        previousAvg > 0 ? ((currentAvg - previousAvg) / previousAvg) * 100 : currentAvg > 0 ? 100 : 0;
+        previousAvg > 0 ? ((currentAvg - previousAvg) / previousAvg) * 100 : currentAvg > 0.5 ? 100 : 0;
 
       return {
         id,

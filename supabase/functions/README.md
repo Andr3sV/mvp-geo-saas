@@ -1,8 +1,12 @@
 # Supabase Edge Functions
 
-Este directorio contiene las Edge Functions para análisis de sentimiento y procesamiento de citaciones.
+Este directorio contiene las Edge Functions activas.
 
-> **Nota**: Las funciones de análisis diario de prompts (`trigger-daily-analysis`, `process-queue`, `analyze-prompt`) han sido migradas al nuevo servicio **Backend Orchestrator** usando Inngest. Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más información.
+> **Nota Importante**: 
+> - **Análisis de prompts**: Migrado al servicio **Backend Orchestrator** usando Inngest.
+> - **Análisis de sentimiento**: Migrado al servicio **Backend Orchestrator** usando Groq y funciones Inngest (`analyze-brands-batch`, `analyze-single-response`).
+> 
+> Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más información sobre el nuevo sistema.
 
 ## 📁 Estructura
 
@@ -11,39 +15,53 @@ functions/
 ├── shared/
 │   ├── types.ts          # Tipos compartidos TypeScript
 │   ├── utils.ts          # Utilidades (auth, CORS, logging)
-│   └── ai-clients.ts     # Clientes para OpenAI, Gemini, Claude, Perplexity
-├── analyze-sentiment/
-│   └── index.ts          # Análisis avanzado de sentimiento
-├── daily-sentiment-analysis/
-│   └── index.ts          # Análisis diario de sentimiento
-├── process-sentiment-queue/
-│   └── index.ts          # Procesamiento de cola de sentimiento
-├── trigger-sentiment-analysis/
-│   └── index.ts          # Dispara análisis de sentimiento
+│   └── ai-clients.ts     # Clientes para AI (legacy, no usado actualmente)
+├── analyze-prompt/
+│   └── index.ts          # [LEGACY] Análisis de prompts (migrado a Inngest)
 ├── process-analysis/
-│   └── index.ts          # Procesamiento de citaciones
+│   └── index.ts          # [LEGACY] Procesamiento de citaciones (migrado a Inngest)
+├── process-queue/
+│   └── index.ts          # [LEGACY] Procesamiento de cola (migrado a Inngest)
+├── trigger-daily-analysis/
+│   └── index.ts          # [LEGACY] Análisis diario (migrado a Inngest)
 ├── deno.json             # Configuración de Deno
 └── README.md             # Este archivo
 ```
 
-## 🚀 Funciones Disponibles
+> **⚠️ Estado Actual**: Todas las funciones en este directorio son legacy y han sido migradas al Backend Orchestrator (Inngest). Estas funciones pueden ser eliminadas en el futuro.
 
-### Sistema de Análisis de Sentimiento
+## 🚀 Estado de las Funciones
 
-Las funciones de análisis de sentimiento siguen usando Edge Functions:
+### ✅ Sistema Actual (Backend Orchestrator + Inngest)
 
-- **`analyze-sentiment`**: Análisis avanzado de sentimiento de respuestas de IA
-- **`daily-sentiment-analysis`**: Ejecuta análisis de sentimiento diariamente
-- **`process-sentiment-queue`**: Procesa la cola de análisis de sentimiento
-- **`trigger-sentiment-analysis`**: Dispara análisis de sentimiento manual
+El procesamiento de análisis ahora se maneja completamente en el **Backend Orchestrator** con Inngest:
 
-### Funciones de Procesamiento
+- **Análisis de Prompts**: 
+  - `process-single-prompt` (Inngest): Genera respuestas de AI en OpenAI, Gemini, Claude, Perplexity
+  - `schedule-daily-analysis` (Inngest): Programa análisis diarios
+  
+- **Análisis de Marcas y Sentimiento**: 
+  - `analyze-brands-batch` (Inngest): Análisis batch de menciones de marcas usando Groq
+  - `analyze-single-response` (Inngest): Análisis individual de respuestas usando Groq
+  - Datos almacenados en: `brand_mentions`, `brand_sentiment_attributes`, `potential_competitors`
 
-### `process-analysis`
+### ❌ Funciones Legacy (Eliminadas)
 
-Procesa las respuestas de IA para extraer y analizar citaciones.
+Las siguientes funciones han sido **eliminadas** porque ya no se usan:
 
-Procesa las respuestas de IA para extraer y analizar citaciones.
+- ~~`analyze-sentiment`~~: Reemplazado por `analyze-single-response` (Inngest + Groq)
+- ~~`daily-sentiment-analysis`~~: Reemplazado por `analyze-brands-batch` (Inngest + Groq)
+- ~~`process-sentiment-queue`~~: Ya no es necesario (procesamiento directo en Inngest)
+- ~~`trigger-sentiment-analysis`~~: Ya no es necesario (eventos automáticos en Inngest)
+
+### 🔄 Funciones Legacy (Pueden ser eliminadas)
+
+Las siguientes funciones aún existen pero **no se usan activamente**:
+
+- `analyze-prompt`: Migrado a `process-single-prompt` (Inngest)
+- `process-analysis`: Procesamiento de citaciones ahora en Inngest
+- `process-queue`: Migrado a sistema de eventos de Inngest
+- `trigger-daily-analysis`: Migrado a `schedule-daily-analysis` (Inngest)
 
 **Endpoint**: `https://your-project.supabase.co/functions/v1/process-analysis`
 
@@ -215,13 +233,26 @@ Asegúrate de que tu frontend esté en el dominio autorizado en Supabase Dashboa
 
 ### Documentación Interna
 
-- **[Backend Orchestrator](../../backend-orchestrator/backend-orchestrator/README.md)** - Nuevo servicio de análisis de prompts usando Inngest
-- **[Sistema de Análisis de Sentimiento](../../docs/SENTIMENT_ANALYSIS_QUEUE_SYSTEM.md)** - Documentación del sistema de análisis de sentimiento
+- **[Backend Orchestrator](../../backend-orchestrator/backend-orchestrator/README.md)** - Servicio principal de análisis usando Inngest (análisis de prompts y brand analysis)
+- **[Arquitectura](../../backend-orchestrator/backend-orchestrator/docs/ARCHITECTURE.md)** - Documentación detallada de la arquitectura del sistema
 - **[Optimizaciones de Queries y Performance](../../docs/QUERY_OPTIMIZATIONS.md)** - Optimizaciones para manejar grandes volúmenes de datos
 
 ### Nota sobre Migración
 
-Las funciones de análisis de prompts (`trigger-daily-analysis`, `process-queue`, `analyze-prompt`) han sido migradas al nuevo servicio **Backend Orchestrator** que usa Inngest para orquestación. Este servicio ofrece mejor confiabilidad, rate limiting, y monitoreo. Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más detalles.
+**Todas las funciones Edge Functions han sido migradas al servicio Backend Orchestrator con Inngest:**
+
+- ✅ **Análisis de Prompts**: Migrado completamente (OpenAI, Gemini, Claude, Perplexity)
+- ✅ **Análisis de Sentimiento**: Migrado completamente (Groq para brand analysis)
+- ✅ **Procesamiento de Citaciones**: Migrado completamente (en Inngest)
+
+El nuevo sistema ofrece:
+- ⚡ Mejor confiabilidad y manejo de errores
+- 🔄 Rate limiting centralizado para todas las APIs
+- 📊 Monitoreo y logs mejorados en Inngest dashboard
+- 🚀 Escalabilidad automática
+- 💰 Mejor control de costos
+
+Ver [backend-orchestrator/README.md](../../backend-orchestrator/backend-orchestrator/README.md) para más detalles.
 
 ### Recursos Externos
 

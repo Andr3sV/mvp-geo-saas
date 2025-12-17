@@ -94,9 +94,9 @@ export default function SentimentPage() {
         .eq('project_id', selectedProjectId)
         .eq('status', 'success');
       
-      // Count unique ai_response_ids that have been analyzed
+      // Count unique ai_response_ids that have been analyzed (using brand_sentiment_attributes)
       const { data: analyzedResponses } = await supabase
-        .from('sentiment_analysis')
+        .from('brand_sentiment_attributes')
         .select('ai_response_id')
         .eq('project_id', selectedProjectId);
       
