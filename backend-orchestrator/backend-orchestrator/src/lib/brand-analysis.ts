@@ -40,7 +40,7 @@ Return true or false.
 
 Return an array of competitor names that appear in the answer.
 
-3. Identify any additional brands mentioned that are not the client's brand and not part of the competitor list.
+3. Identify any newly discovered competitor brands—i.e., brands that compete with the client’s brand but are neither the client’s brand nor included in the client-provided competitor list.
 
 Return them exactly as they appear.
 
