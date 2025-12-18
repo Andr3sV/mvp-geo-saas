@@ -6,6 +6,7 @@ import { processPrompt } from "./inngest/functions/process-prompt";
 import { testFunction, manualScheduleAnalysis } from "./inngest/functions/test-function";
 import { analyzeBrandsBatch } from "./inngest/functions/analyze-brands-batch";
 import { analyzeSingleResponse } from "./inngest/functions/analyze-single-response";
+import { aggregateDailyStats, backfillProjectStats } from "./inngest/functions/aggregate-daily-stats";
 
 // Create Inngest handler
 const handler = serve({
@@ -17,6 +18,8 @@ const handler = serve({
     manualScheduleAnalysis,
     analyzeBrandsBatch,
     analyzeSingleResponse,
+    aggregateDailyStats,
+    backfillProjectStats,
   ],
 });
 
@@ -59,4 +62,4 @@ console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
 console.log(`📡 Inngest endpoint available at /api/inngest`);
-console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt, test-function, manual-schedule-analysis, analyze-brands-batch, analyze-single-response`);
+console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt, test-function, manual-schedule-analysis, analyze-brands-batch, analyze-single-response, aggregate-daily-stats, backfill-project-stats`);

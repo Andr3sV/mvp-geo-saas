@@ -6,6 +6,7 @@ import { format, subDays, eachDayOfInterval } from "date-fns";
 // =============================================
 // SHARE OF VOICE METRICS
 // =============================================
+// MIGRATED: Now uses brand_mentions table instead of legacy citations_detail/competitor_citations
 
 /**
  * Calculate Share of Voice for brand vs competitors
@@ -41,11 +42,11 @@ export async function getShareOfVoice(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
-  // Get brand citations in period with platform, region, and topic filters
-  // Use count instead of fetching all rows to avoid Supabase's 1000 row limit
-  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
-  let brandCitationsQuery = supabase
-    .from("citations_detail")
+  // =============================================
+  // GET BRAND MENTIONS (from brand_mentions table)
+  // =============================================
+  let brandMentionsQuery = supabase
+    .from("brand_mentions")
     .select(`
       id,
       ai_responses!inner(
@@ -54,73 +55,72 @@ export async function getShareOfVoice(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
-    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
+    .eq("brand_type", "client") // ✅ Only brand mentions (not competitors)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
 
   if (platformFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.platform", platform);
+    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.platform", platform);
   }
 
   if (regionFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.region", region);
+    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.prompt_tracking.region", region);
   }
 
   if (topicFilter) {
-    brandCitationsQuery = brandCitationsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
+    brandMentionsQuery = brandMentionsQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
-  const { count: brandCitationsCount, error: brandError } = await brandCitationsQuery;
+  const { count: brandMentionsCount, error: brandError } = await brandMentionsQuery;
   
   if (brandError) {
-    console.error('Error fetching brand citations:', brandError);
+    console.error('Error fetching brand mentions:', brandError);
   }
   
-  const brandMentions = brandCitationsCount || 0;
+  const brandMentions = brandMentionsCount || 0;
 
-  // Get competitor citations in period with competitor info, platform, region, and topic filters
-  // Need full data to group by competitor, so we'll fetch in batches if needed
-  let competitorCitationsQuery = supabase
-    .from("competitor_citations")
+  // =============================================
+  // GET COMPETITOR MENTIONS (from brand_mentions table)
+  // =============================================
+  let competitorMentionsQuery = supabase
+    .from("brand_mentions")
     .select(`
       id,
       created_at,
       competitor_id,
-      competitors!inner(name, domain, is_active, region),
+      competitors!inner(id, name, domain, is_active, region),
       ai_responses!inner(
         platform,
         prompt_tracking!inner(region, topic_id)
       )
     `)
     .eq("project_id", projectId)
+    .eq("brand_type", "competitor") // ✅ Only competitor mentions
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString())
-    .limit(50000); // Increase limit to handle large datasets
+    .limit(50000);
 
   if (platformFilter) {
-    competitorCitationsQuery = competitorCitationsQuery.eq("ai_responses.platform", platform);
+    competitorMentionsQuery = competitorMentionsQuery.eq("ai_responses.platform", platform);
   }
 
   if (regionFilter) {
-    // Filter by prompt's region only (we'll filter competitor region in JS below)
-    competitorCitationsQuery = competitorCitationsQuery
+    competitorMentionsQuery = competitorMentionsQuery
       .eq("ai_responses.prompt_tracking.region", region);
   }
 
   if (topicFilter) {
-    competitorCitationsQuery = competitorCitationsQuery
+    competitorMentionsQuery = competitorMentionsQuery
       .eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
-  const { data: competitorCitations, error: compError } = await competitorCitationsQuery;
+  const { data: competitorMentions, error: compError } = await competitorMentionsQuery;
   
   if (compError) {
-    console.error('Error fetching competitor citations:', compError);
+    console.error('Error fetching competitor mentions:', compError);
   }
 
-  // First, get ALL active competitors for this region (even if they have 0 mentions)
-  // This ensures all competitors defined for the region appear in Market Share Distribution
-  // Filter: ONLY competitors with the selected region (NOT GLOBAL)
+  // Get ALL active competitors for this region (even if they have 0 mentions)
   let allCompetitorsQuery = supabase
     .from("competitors")
     .select("id, name, domain, region")
@@ -128,7 +128,6 @@ export async function getShareOfVoice(
     .eq("is_active", true);
 
   if (regionFilter) {
-    // Get ONLY competitors with region matching the filter (NOT GLOBAL)
     allCompetitorsQuery = allCompetitorsQuery.eq("region", region);
   }
 
@@ -142,35 +141,34 @@ export async function getShareOfVoice(
       id: competitor.id,
       name: competitor.name,
       domain: competitor.domain || "",
-      mentions: 0, // Initialize with 0 mentions
+      mentions: 0,
     });
   });
 
-  // Now count mentions from citations (only those in the region filter)
-  competitorCitations?.forEach((citation: any) => {
-    const competitor = citation.competitors;
+  // Count mentions from brand_mentions (filter by competitor region in JS)
+  competitorMentions?.forEach((mention: any) => {
+    const competitor = mention.competitors;
     if (!competitor || !competitor.is_active) return;
 
     // Filter by competitor region - ONLY exact match (not GLOBAL)
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region) {
-        return; // Skip this competitor - must be exact match
+        return;
       }
     }
 
-    // Increment mentions if competitor exists in stats
     if (competitorStats.has(competitor.name)) {
       competitorStats.get(competitor.name)!.mentions++;
     }
   });
 
   // Calculate totals
-  const competitorMentions = Array.from(competitorStats.values()).reduce(
+  const competitorMentionsTotal = Array.from(competitorStats.values()).reduce(
     (sum, comp) => sum + comp.mentions,
     0
   );
-  const totalMentions = brandMentions + competitorMentions;
+  const totalMentions = brandMentions + competitorMentionsTotal;
 
   // Calculate percentages
   const brandPercentage = totalMentions > 0 ? (brandMentions / totalMentions) * 100 : 0;
@@ -178,12 +176,12 @@ export async function getShareOfVoice(
   const competitors = Array.from(competitorStats.values()).map((comp) => ({
     id: comp.id,
     name: comp.name,
-    domain: comp.domain || comp.name, // Fallback to name if no domain
+    domain: comp.domain || comp.name,
     mentions: comp.mentions,
     percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
   }));
 
-  // Sort competitors by percentage descending (highest first)
+  // Sort competitors by percentage descending
   competitors.sort((a, b) => b.percentage - a.percentage);
 
   // Determine market position
@@ -197,7 +195,7 @@ export async function getShareOfVoice(
   return {
     brand: {
       name: project?.name || "Your Brand",
-      domain: project?.client_url || project?.name || "", // Fallback to name if no URL
+      domain: project?.client_url || project?.name || "",
       mentions: brandMentions,
       percentage: Number(brandPercentage.toFixed(1)),
     },
@@ -224,7 +222,7 @@ export async function getShareOfVoiceTrends(
 ) {
   const supabase = await createClient();
 
-  // Current period (default to last 30 days if not provided)
+  // Current period
   const currentEndDate = toDate || new Date();
   const currentStartDate = fromDate || (() => {
     const date = new Date();
@@ -235,19 +233,20 @@ export async function getShareOfVoiceTrends(
   // Calculate period duration
   const periodDuration = currentEndDate.getTime() - currentStartDate.getTime();
 
-  // Previous period (same duration, before current period)
+  // Previous period
   const previousEndDate = new Date(currentStartDate);
   const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
 
-  // Build platform, region, and topic filters
+  // Build filters
   const platformFilter = platform && platform !== "all";
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
-  // Get current period data
-  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
+  // =============================================
+  // CURRENT PERIOD - Brand Mentions
+  // =============================================
   let currentBrandQuery = supabase
-    .from("citations_detail")
+    .from("brand_mentions")
     .select(`
       id,
       ai_responses!inner(
@@ -256,24 +255,25 @@ export async function getShareOfVoiceTrends(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
-    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
+    .eq("brand_type", "client")
     .gte("created_at", currentStartDate.toISOString())
     .lte("created_at", currentEndDate.toISOString());
 
   if (platformFilter) {
     currentBrandQuery = currentBrandQuery.eq("ai_responses.platform", platform);
   }
-
   if (regionFilter) {
     currentBrandQuery = currentBrandQuery.eq("ai_responses.prompt_tracking.region", region);
   }
-
   if (topicFilter) {
     currentBrandQuery = currentBrandQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
+  // =============================================
+  // CURRENT PERIOD - Competitor Mentions
+  // =============================================
   let currentCompQuery = supabase
-    .from("competitor_citations")
+    .from("brand_mentions")
     .select(`
       id,
       competitor_id,
@@ -284,33 +284,26 @@ export async function getShareOfVoiceTrends(
       )
     `)
     .eq("project_id", projectId)
+    .eq("brand_type", "competitor")
     .gte("created_at", currentStartDate.toISOString())
     .lte("created_at", currentEndDate.toISOString())
-    .limit(50000); // Increase limit to handle large datasets
+    .limit(50000);
 
   if (platformFilter) {
     currentCompQuery = currentCompQuery.eq("ai_responses.platform", platform);
   }
-
   if (regionFilter) {
-    currentCompQuery = currentCompQuery
-      .eq("ai_responses.prompt_tracking.region", region);
+    currentCompQuery = currentCompQuery.eq("ai_responses.prompt_tracking.region", region);
   }
-
   if (topicFilter) {
-    currentCompQuery = currentCompQuery
-      .eq("ai_responses.prompt_tracking.topic_id", topicId);
+    currentCompQuery = currentCompQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
-  const [currentBrandResult, currentCompResult] = await Promise.all([
-    currentBrandQuery,
-    currentCompQuery,
-  ]);
-
-  // Get previous period data
-  // IMPORTANT: Only count direct mentions (is_direct_mention = true), not URLs without mentions
+  // =============================================
+  // PREVIOUS PERIOD - Brand Mentions
+  // =============================================
   let previousBrandQuery = supabase
-    .from("citations_detail")
+    .from("brand_mentions")
     .select(`
       id,
       ai_responses!inner(
@@ -319,24 +312,25 @@ export async function getShareOfVoiceTrends(
       )
     `, { count: 'exact', head: false })
     .eq("project_id", projectId)
-    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
+    .eq("brand_type", "client")
     .gte("created_at", previousStartDate.toISOString())
     .lte("created_at", previousEndDate.toISOString());
 
   if (platformFilter) {
     previousBrandQuery = previousBrandQuery.eq("ai_responses.platform", platform);
   }
-
   if (regionFilter) {
     previousBrandQuery = previousBrandQuery.eq("ai_responses.prompt_tracking.region", region);
   }
-
   if (topicFilter) {
     previousBrandQuery = previousBrandQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
+  // =============================================
+  // PREVIOUS PERIOD - Competitor Mentions
+  // =============================================
   let previousCompQuery = supabase
-    .from("competitor_citations")
+    .from("brand_mentions")
     .select(`
       id,
       competitor_id,
@@ -347,42 +341,41 @@ export async function getShareOfVoiceTrends(
       )
     `)
     .eq("project_id", projectId)
+    .eq("brand_type", "competitor")
     .gte("created_at", previousStartDate.toISOString())
     .lte("created_at", previousEndDate.toISOString())
-    .limit(50000); // Increase limit to handle large datasets
+    .limit(50000);
 
   if (platformFilter) {
     previousCompQuery = previousCompQuery.eq("ai_responses.platform", platform);
   }
-
   if (regionFilter) {
-    previousCompQuery = previousCompQuery
-      .eq("ai_responses.prompt_tracking.region", region);
+    previousCompQuery = previousCompQuery.eq("ai_responses.prompt_tracking.region", region);
   }
-
   if (topicFilter) {
-    previousCompQuery = previousCompQuery
-      .eq("ai_responses.prompt_tracking.topic_id", topicId);
+    previousCompQuery = previousCompQuery.eq("ai_responses.prompt_tracking.topic_id", topicId);
   }
 
-  const [previousBrandResult, previousCompResult] = await Promise.all([
-    previousBrandQuery,
-    previousCompQuery,
-  ]);
+  const [currentBrandResult, currentCompResult, previousBrandResult, previousCompResult] = 
+    await Promise.all([
+      currentBrandQuery,
+      currentCompQuery,
+      previousBrandQuery,
+      previousCompQuery,
+    ]);
 
-  // Calculate current period stats - use count instead of data.length
+  // Calculate current period stats
   const currentBrandMentions = currentBrandResult.count || 0;
   
-  // Count current competitor mentions (with region filter in JS)
   let currentCompMentions = 0;
-  currentCompResult.data?.forEach((citation: any) => {
-    const competitor = citation.competitors;
+  currentCompResult.data?.forEach((mention: any) => {
+    const competitor = mention.competitors;
     if (!competitor?.is_active) return;
     
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        return; // Skip this competitor
+        return;
       }
     }
     currentCompMentions++;
@@ -393,19 +386,18 @@ export async function getShareOfVoiceTrends(
     ? (currentBrandMentions / currentTotal) * 100 
     : 0;
 
-  // Calculate previous period stats - use count instead of data.length
+  // Calculate previous period stats
   const previousBrandMentions = previousBrandResult.count || 0;
   
-  // Count previous competitor mentions (with region filter in JS)
   let previousCompMentions = 0;
-  previousCompResult.data?.forEach((citation: any) => {
-    const competitor = citation.competitors;
+  previousCompResult.data?.forEach((mention: any) => {
+    const competitor = mention.competitors;
     if (!competitor?.is_active) return;
     
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        return; // Skip this competitor
+        return;
       }
     }
     previousCompMentions++;
@@ -422,16 +414,14 @@ export async function getShareOfVoiceTrends(
   // Calculate competitor trends
   const competitorTrends = new Map<string, { current: number; previous: number }>();
 
-  // Current competitor stats (filter by region in JS)
-  currentCompResult.data?.forEach((citation: any) => {
-    const competitor = citation.competitors;
+  currentCompResult.data?.forEach((mention: any) => {
+    const competitor = mention.competitors;
     if (!competitor?.name || !competitor.is_active) return;
     
-    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        return; // Skip this competitor
+        return;
       }
     }
     
@@ -442,16 +432,14 @@ export async function getShareOfVoiceTrends(
     competitorTrends.get(name)!.current++;
   });
 
-  // Previous competitor stats (filter by region in JS)
-  previousCompResult.data?.forEach((citation: any) => {
-    const competitor = citation.competitors;
+  previousCompResult.data?.forEach((mention: any) => {
+    const competitor = mention.competitors;
     if (!competitor?.name || !competitor.is_active) return;
     
-    // Filter by competitor region (in JavaScript since SQL .or() doesn't work properly)
     if (regionFilter) {
       const competitorRegion = competitor.region;
       if (competitorRegion !== region && competitorRegion !== 'GLOBAL') {
-        return; // Skip this competitor
+        return;
       }
     }
     
@@ -462,7 +450,7 @@ export async function getShareOfVoiceTrends(
     competitorTrends.get(name)!.previous++;
   });
 
-  // Calculate percentage trends for each competitor
+  // Calculate percentage trends
   const competitorTrendsList = Array.from(competitorTrends.entries()).map(
     ([name, stats]) => {
       const currentShare = currentTotal > 0 ? (stats.current / currentTotal) * 100 : 0;
@@ -522,7 +510,7 @@ export async function getShareOfVoiceInsights(
     insights.push({
       type: "info",
       title: `🎯 Market Position #${sovData.marketPosition}`,
-      description: `${leader.name} leads with ${leader.percentage}%. You have ${sovData.brand.percentage}% share of voice.`,
+      description: `${leader?.name || 'Leader'} leads with ${leader?.percentage || 0}%. You have ${sovData.brand.percentage}% share of voice.`,
     });
   }
 
@@ -573,7 +561,7 @@ export async function getShareOfVoiceInsights(
 
 /**
  * Get daily mentions evolution for brand and a specific competitor
- * Used for time-series chart visualization
+ * Uses optimized SQL RPC function
  */
 export async function getShareOfVoiceOverTime(
   projectId: string,
@@ -586,18 +574,18 @@ export async function getShareOfVoiceOverTime(
 ) {
   const supabase = await createClient();
 
-  // Get project info (including domain for logo)
+  // Get project info
   const { data: project } = await supabase
     .from("projects")
     .select("name, client_url")
     .eq("id", projectId)
     .single();
 
-  // Calculate date range (default to last 30 days if not provided)
+  // Calculate date range
   const endDate = toDate || new Date();
   const startDate = fromDate || subDays(endDate, 30);
 
-  // Get competitor info if competitor selected
+  // Get competitor info if selected
   let competitorName = "";
   let competitorDomain = "";
 
@@ -612,8 +600,7 @@ export async function getShareOfVoiceOverTime(
     competitorDomain = compData?.domain || "";
   }
 
-  // Use optimized SQL function for aggregation (handles large datasets efficiently)
-  // This replaces client-side counting which was hitting pagination limits
+  // Use optimized SQL function
   const { data: dailyMentions, error } = await supabase.rpc("get_daily_mentions_evolution", {
     p_project_id: projectId,
     p_competitor_id: competitorId || null,
@@ -626,7 +613,7 @@ export async function getShareOfVoiceOverTime(
 
   if (error) {
     console.error("Error fetching daily mentions evolution:", error);
-    // Fallback to empty data structure
+    // Fallback to empty data
     const allDays = eachDayOfInterval({ start: startDate, end: endDate });
     const dailyData = allDays.map((day) => ({
       date: format(day, "MMM dd"),
@@ -644,7 +631,7 @@ export async function getShareOfVoiceOverTime(
     };
   }
 
-  // Create array of all days in range to ensure we have data for every day
+  // Process results
   const allDays = eachDayOfInterval({ start: startDate, end: endDate });
   
   interface DailyMentions {
@@ -662,7 +649,6 @@ export async function getShareOfVoiceOverTime(
     ])
   );
 
-  // Map to chart format
   const dailyData = allDays.map((day) => {
     const dayStr = format(day, "yyyy-MM-dd");
     const mentions: DailyMentions = mentionsMap.get(dayStr) || { brandMentions: 0, competitorMentions: 0 };
@@ -683,4 +669,3 @@ export async function getShareOfVoiceOverTime(
     competitorDomain,
   };
 }
-
