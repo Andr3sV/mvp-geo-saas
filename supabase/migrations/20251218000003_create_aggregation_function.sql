@@ -20,6 +20,7 @@ CREATE OR REPLACE FUNCTION aggregate_daily_brand_stats(
 RETURNS INTEGER AS $$
 DECLARE
   v_rows_affected INTEGER := 0;
+  v_temp_rows INTEGER := 0;
   v_brand_name TEXT;
 BEGIN
   -- Get project brand name for entity_name
@@ -160,7 +161,8 @@ BEGIN
     AND entity_type = 'brand' 
     AND competitor_id IS NULL;
 
-  GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
+  GET DIAGNOSTICS v_temp_rows = ROW_COUNT;
+  v_rows_affected := v_rows_affected + v_temp_rows;
 
   -- =============================================
   -- STEP 2: Aggregate Competitor Stats
@@ -251,7 +253,8 @@ BEGIN
     responses_analyzed = EXCLUDED.responses_analyzed,
     updated_at = now();
 
-  GET DIAGNOSTICS v_rows_affected = v_rows_affected + ROW_COUNT;
+  GET DIAGNOSTICS v_temp_rows = ROW_COUNT;
+  v_rows_affected := v_rows_affected + v_temp_rows;
 
   RETURN v_rows_affected;
 END;
