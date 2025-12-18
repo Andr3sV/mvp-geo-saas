@@ -111,13 +111,13 @@ export const scheduleAnalysis = inngest.createFunction(
         // Only send event if there are platforms to process
         if (platformsToProcess.length > 0) {
           eventsToSend.push({
-            name: "analysis/process-prompt",
-            data: {
+      name: "analysis/process-prompt",
+      data: {
               prompt_tracking_id: prompt.id,
               project_id: prompt.project_id,
               platforms_to_process: platformsToProcess,
-              batch_id: batchId,
-            },
+        batch_id: batchId,
+      },
           });
 
           logInfo("schedule-analysis", `Prompt ${prompt.id}: processing ${platformsToProcess.join(', ')}, skipping ${Array.from(successfulPlatforms).join(', ')} (already successful today)`);

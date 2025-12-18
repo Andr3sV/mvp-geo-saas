@@ -249,6 +249,7 @@ export const processPrompt = inngest.createFunction(
               const citationsSaved = await saveCitations(
                 supabase,
                 aiResponse.id,
+                project_id,
                 result.citationsData
               );
               logInfo("process-prompt", `Saved ${citationsSaved} structured citations for ${platform}`, {

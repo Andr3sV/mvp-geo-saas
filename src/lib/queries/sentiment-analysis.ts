@@ -404,21 +404,21 @@ export async function getAttributeAnalysis(
 
   try {
     // Query brand_sentiment_attributes with joins
-    let query = supabase
+  let query = supabase
       .from('brand_sentiment_attributes')
-      .select(`
+    .select(`
         brand_type,
-        positive_attributes,
-        negative_attributes,
+      positive_attributes,
+      negative_attributes,
         sentiment_rating,
-        analyzed_text,
-        created_at,
+      analyzed_text,
+      created_at,
         brand_mentions!inner(entity_name),
-        ai_responses!inner(platform, prompt_tracking!inner(region))
-      `)
-      .eq('project_id', projectId);
+      ai_responses!inner(platform, prompt_tracking!inner(region))
+    `)
+    .eq('project_id', projectId);
 
-    // Apply filters
+  // Apply filters
     if (filters.dateRange?.from && filters.dateRange?.to) {
       query = query
         .gte('created_at', filters.dateRange.from.toISOString())
@@ -438,75 +438,75 @@ export async function getAttributeAnalysis(
       query = query.eq('brand_type', brandType);
     }
 
-    const { data, error } = await query;
+  const { data, error } = await query;
 
-    if (error) {
-      throw new Error(`Failed to fetch attribute analysis: ${error.message}`);
-    }
+  if (error) {
+    throw new Error(`Failed to fetch attribute analysis: ${error.message}`);
+  }
 
-    // Flatten all attributes
-    const attributeMap = new Map<string, {
-      entityName: string;
-      analysisType: 'brand' | 'competitor';
-      sentimentType: 'positive' | 'neutral' | 'negative';
-      occurrences: Array<{
-        sentiment: number;
-        text: string;
-        platform: string;
-        createdAt: string;
-      }>;
-    }>();
+  // Flatten all attributes
+  const attributeMap = new Map<string, {
+    entityName: string;
+    analysisType: 'brand' | 'competitor';
+    sentimentType: 'positive' | 'neutral' | 'negative';
+    occurrences: Array<{
+      sentiment: number;
+      text: string;
+      platform: string;
+      createdAt: string;
+    }>;
+  }>();
 
-    (data || []).forEach((analysis: any) => {
+  (data || []).forEach((analysis: any) => {
       const entityName = analysis.brand_mentions?.entity_name || 'Unknown';
       const analysisType = analysis.brand_type === 'client' ? 'brand' : 'competitor';
       
-      const processAttributes = (attributes: string[], sentimentType: 'positive' | 'neutral' | 'negative') => {
-        (attributes || []).forEach((attr: string) => {
+    const processAttributes = (attributes: string[], sentimentType: 'positive' | 'neutral' | 'negative') => {
+      (attributes || []).forEach((attr: string) => {
           const key = `${attr}-${entityName}-${analysisType}-${sentimentType}`;
-          
-          if (!attributeMap.has(key)) {
-            attributeMap.set(key, {
+        
+        if (!attributeMap.has(key)) {
+          attributeMap.set(key, {
               entityName,
               analysisType,
-              sentimentType,
-              occurrences: [],
-            });
-          }
-          
-          attributeMap.get(key)!.occurrences.push({
+            sentimentType,
+            occurrences: [],
+          });
+        }
+        
+        attributeMap.get(key)!.occurrences.push({
             sentiment: (analysis.sentiment_rating + 1) / 2, // Normalize to 0-1
             text: analysis.analyzed_text || '',
             platform: analysis.ai_responses?.platform || 'Unknown',
-            createdAt: analysis.created_at,
-          });
+          createdAt: analysis.created_at,
         });
-      };
+      });
+    };
 
       processAttributes(analysis.positive_attributes || [], 'positive');
       processAttributes(analysis.negative_attributes || [], 'negative');
-    });
+  });
 
-    // Convert to result format
-    return Array.from(attributeMap.entries())
-      .map(([key, data]) => {
-        const attribute = key.split('-')[0];
-        const frequency = data.occurrences.length;
-        const averageSentiment = data.occurrences.reduce((sum, occ) => sum + occ.sentiment, 0) / frequency;
-        
-        return {
-          attribute,
-          entityName: data.entityName,
-          analysisType: data.analysisType,
-          sentimentType: data.sentimentType,
-          frequency,
-          averageSentiment,
-          examples: data.occurrences
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 3),
-        };
-      })
-      .sort((a, b) => b.frequency - a.frequency);
+  // Convert to result format
+  return Array.from(attributeMap.entries())
+    .map(([key, data]) => {
+      const attribute = key.split('-')[0];
+      const frequency = data.occurrences.length;
+      const averageSentiment = data.occurrences.reduce((sum, occ) => sum + occ.sentiment, 0) / frequency;
+      
+      return {
+        attribute,
+        entityName: data.entityName,
+        analysisType: data.analysisType,
+        sentimentType: data.sentimentType,
+        frequency,
+        averageSentiment,
+        examples: data.occurrences
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 3),
+      };
+    })
+    .sort((a, b) => b.frequency - a.frequency);
   } catch (error: any) {
     console.error('Error fetching attribute analysis:', error);
     return [];
@@ -522,10 +522,10 @@ export async function triggerSentimentAnalysis(
   // (analyze-brands-batch and analyze-single-response functions)
   console.warn('triggerSentimentAnalysis is deprecated. Use Inngest brand analysis instead.');
   
-  return {
-    success: false,
+    return {
+      success: false,
     message: 'Sentiment analysis is now handled automatically by Inngest brand analysis system. No manual trigger needed.',
-  };
+    };
 }
 
 // Helper function to get top attributes by frequency
