@@ -64,22 +64,24 @@ export function DateRangePicker({
   };
 
   const getQuickFilterRange = (filterType: "today" | "lastWeek" | "lastMonth"): DateRange => {
-    const now = new Date();
+    // Get yesterday as the maximum selectable date (today is blocked)
+    const yesterday = subDays(new Date(), 1);
     switch (filterType) {
       case "today":
+        // "Today" means yesterday since today is blocked
         return {
-          from: startOfDay(now),
-          to: endOfDay(now),
+          from: startOfDay(yesterday),
+          to: endOfDay(yesterday),
         };
       case "lastWeek":
         return {
-          from: startOfDay(subDays(now, 6)), // Last 7 days including today
-          to: endOfDay(now),
+          from: startOfDay(subDays(yesterday, 6)), // Last 7 days ending yesterday
+          to: endOfDay(yesterday),
         };
       case "lastMonth":
         return {
-          from: startOfDay(subDays(now, 29)), // Last 30 days
-          to: endOfDay(now),
+          from: startOfDay(subDays(yesterday, 29)), // Last 30 days ending yesterday
+          to: endOfDay(yesterday),
         };
     }
   };
@@ -204,7 +206,11 @@ export function DateRangePicker({
               selected={selectedRange}
               onSelect={handleSelect}
               numberOfMonths={2}
-              disabled={(date) => date > new Date()}
+              disabled={(date) => {
+                // Block today and future dates (today's data won't be available until tomorrow)
+                const today = startOfDay(new Date());
+                return date >= today;
+              }}
             />
             {selectedRange?.from && selectedRange?.to && (
               <div className="flex items-center justify-between border-t pt-3 mt-3">

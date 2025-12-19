@@ -19,6 +19,14 @@ import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evo
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
 
+// Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
+function getYesterday(): Date {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(23, 59, 59, 999);
+  return yesterday;
+}
+
 export default function ShareOfVoicePage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
@@ -26,10 +34,16 @@ export default function ShareOfVoicePage() {
   const [trendsData, setTrendsData] = useState<any>(null);
   const [insights, setInsights] = useState<any[]>([]);
   
-  // Date range state
+  // Date range state (default to last 30 days ending yesterday)
+  // Today's data won't be available until tomorrow, so max date is yesterday
   const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
+    from: (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29); // 30 days total including yesterday
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })(),
+    to: getYesterday(),
   });
   
   // Platform filter state
