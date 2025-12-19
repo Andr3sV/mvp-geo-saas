@@ -28,7 +28,7 @@ export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
       <CardHeader>
         <CardTitle>Most Cited Domains in AI Answers</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Top websites used as sources when AI models cite your brand
+          Top websites used as sources in AI model responses
         </p>
       </CardHeader>
       <CardContent>
