@@ -15,7 +15,7 @@ interface EntityToProcess {
 
 /**
  * Daily aggregation function for brand statistics
- * Runs at 2:00 AM every day to aggregate yesterday's stats
+ * Runs at 1:30 AM every day to aggregate yesterday's stats
  * OPTIMIZED: Processes each entity (brand + each competitor) individually
  */
 export const aggregateDailyStats = inngest.createFunction(
@@ -27,7 +27,7 @@ export const aggregateDailyStats = inngest.createFunction(
     },
     retries: 3,
   },
-  { cron: '0 2 * * *' },
+  { cron: '30 1 * * *' },
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
