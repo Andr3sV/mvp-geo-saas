@@ -5,40 +5,38 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { MetricCard } from "@/components/citations/metric-card";
 import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
-import { CitationDRBreakdown } from "@/components/citations/citation-dr-breakdown";
 import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains-table";
-import { TopPerformingPagesTable } from "@/components/citations/top-performing-pages-table";
-import { CompetitiveTopicsTable } from "@/components/citations/competitive-topics-table";
 import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
 import {
   FileText,
   Link2,
-  Globe,
-  Award,
+  Trophy,
 } from "lucide-react";
 import {
   getQuickLookMetrics,
   getCitationsEvolution,
-  getDRBreakdown,
   getMostCitedDomains,
-  getTopPerformingPages,
-  getCompetitiveTopicAnalysis,
   getCitationSources,
 } from "@/lib/queries/citations-real";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { subDays } from "date-fns";
+
+/**
+ * Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
+ */
+function getYesterday(): Date {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(23, 59, 59, 999);
+  return yesterday;
+}
 
 export default function CitationsPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [quickMetrics, setQuickMetrics] = useState<any>(null);
-  const [drBreakdown, setDRBreakdown] = useState<any>({ high: 0, medium: 0, low: 0, unverified: 0 });
   const [mostCitedDomains, setMostCitedDomains] = useState<any[]>([]);
-  const [topPages, setTopPages] = useState<any[]>([]);
-  const [competitiveTopics, setCompetitiveTopics] = useState<any[]>([]);
   const [citationSources, setCitationSources] = useState<any[]>([]);
   const [citationSourcesTotal, setCitationSourcesTotal] = useState(0);
   const [citationSourcesPage, setCitationSourcesPage] = useState(1);
@@ -46,9 +44,15 @@ export default function CitationsPage() {
   const [citationSourcesTotalPages, setCitationSourcesTotalPages] = useState(0);
 
   // Filters state
+  // Date range state (default to last 30 days ending yesterday)
   const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
+    from: (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29); // 30 days total including yesterday
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })(),
+    to: getYesterday(),
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
@@ -199,23 +203,14 @@ export default function CitationsPage() {
         try {
           const [
             metricsData,
-            drResult,
             domainsResult,
-            pagesResult,
-            topicsResult,
           ] = await Promise.all([
             getQuickLookMetrics(selectedProjectId, filtersPayload),
-            getDRBreakdown(selectedProjectId, filtersPayload),
             getMostCitedDomains(selectedProjectId, 10, filtersPayload),
-            getTopPerformingPages(selectedProjectId, 10, filtersPayload),
-            getCompetitiveTopicAnalysis(selectedProjectId, filtersPayload),
           ]);
 
           setQuickMetrics(metricsData);
-          setDRBreakdown(drResult);
           setMostCitedDomains(domainsResult);
-          setTopPages(pagesResult);
-          setCompetitiveTopics(topicsResult);
         } catch (error) {
           console.error("Error loading citation data:", error);
         } finally {
@@ -257,7 +252,7 @@ export default function CitationsPage() {
       />
 
       {/* Quick Look Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <MetricCard
           title="Total Citation Pages"
           value={quickMetrics.totalCitationPages.toLocaleString()}
@@ -267,24 +262,17 @@ export default function CitationsPage() {
         />
         <MetricCard
           title="My Pages Cited"
-          value={quickMetrics.myPagesCited}
+          value={quickMetrics.myPagesCited.toLocaleString()}
           description="Your pages referenced by AI"
           icon={<Link2 className="h-5 w-5" />}
           trend={{ value: 8.3, direction: "up" }}
         />
         <MetricCard
-          title="Domains Mentioning Me"
-          value={quickMetrics.domainsMentioningMe}
-          description="Unique domains referencing you"
-          icon={<Globe className="h-5 w-5" />}
-          trend={{ value: 15.7, direction: "up" }}
-        />
-        <MetricCard
-          title="Your Domain Rating"
-          value={quickMetrics.yourDomainRating}
-          description="Domain authority score (0-100)"
-          icon={<Award className="h-5 w-5" />}
-          trend={{ value: 2.1, direction: "up" }}
+          title="Market Position"
+          value={`#${quickMetrics.ranking?.position || 1}`}
+          description={`Out of ${quickMetrics.ranking?.totalEntities || 1} entities`}
+          icon={<Trophy className="h-5 w-5" />}
+          trend={{ value: 0, direction: "up" }}
         />
       </div>
 
@@ -301,11 +289,8 @@ export default function CitationsPage() {
         isLoading={isLoadingEvolution}
       />
 
-      {/* DR Breakdown and Most Cited Domains - Side by Side */}
-      <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
-        <CitationDRBreakdown data={drBreakdown} />
-        <MostCitedDomainsTable data={mostCitedDomains} />
-      </div>
+      {/* Most Cited Domains */}
+      <MostCitedDomainsTable data={mostCitedDomains} />
 
       {/* Citation Sources - Individual URLs */}
       <CitationSourcesTable
@@ -316,22 +301,6 @@ export default function CitationsPage() {
         totalPages={citationSourcesTotalPages}
         onPageChange={setCitationSourcesPage}
       />
-
-      {/* Tabs for additional insights */}
-      <Tabs defaultValue="topics" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="topics">Competitive Analysis</TabsTrigger>
-          <TabsTrigger value="pages">Top Performing Pages</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="topics" className="mt-6">
-          <CompetitiveTopicsTable data={competitiveTopics} />
-        </TabsContent>
-        
-        <TabsContent value="pages" className="mt-6">
-          <TopPerformingPagesTable data={topPages} />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

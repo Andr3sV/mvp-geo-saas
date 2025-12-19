@@ -13,11 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
   Pagination,
   PaginationContent,
   PaginationEllipsis,
@@ -29,11 +24,9 @@ import {
 
 interface CitationSource {
   id: string;
-  citationText: string;
   citedUrl: string;
   citedDomain: string;
   platform: string;
-  sentiment: "positive" | "neutral" | "negative";
   createdAt: string;
 }
 
@@ -64,50 +57,6 @@ const getPlatformBadge = (platform: string) => {
   );
 };
 
-const getSentimentBadge = (sentiment: string) => {
-  switch (sentiment) {
-    case "positive":
-      return <Badge variant="default" className="bg-green-500">Positive</Badge>;
-    case "negative":
-      return <Badge variant="destructive">Negative</Badge>;
-    case "neutral":
-    default:
-      return <Badge variant="secondary">Neutral</Badge>;
-  }
-};
-
-/**
- * Convert markdown-like formatting to HTML for better readability
- * Handles: **bold**, *italic*, [citation numbers], and line breaks
- */
-const formatCitationText = (text: string): string => {
-  if (!text) return "";
-
-  let formatted = text;
-
-  // Escape HTML to prevent XSS (though we control the input)
-  formatted = formatted
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // First, convert **bold** to <strong>bold</strong>
-  // Use non-greedy matching to handle multiple bold sections
-  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
-
-  // Then convert *italic* to <em>italic</em> (only single asterisks remaining)
-  // Match *text* where text doesn't contain asterisks
-  formatted = formatted.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
-
-  // Convert citation references [1][2][3] to superscript with better styling
-  // Make them smaller and less prominent
-  formatted = formatted.replace(/\[(\d+)\]/g, '<sup class="text-[10px] text-muted-foreground/70 ml-0.5">[$1]</sup>');
-
-  // Preserve line breaks (convert \n to <br />)
-  formatted = formatted.replace(/\n/g, "<br />");
-
-  return formatted;
-};
 
 export function CitationSourcesTable({
   data,
@@ -259,9 +208,7 @@ export function CitationSourcesTable({
               <TableHeader>
                 <TableRow>
                   <TableHead className="px-5">Source URL</TableHead>
-                  <TableHead className="px-5 w-[30%]">Citation Text</TableHead>
                   <TableHead className="px-5">Platform</TableHead>
-                  <TableHead className="px-5">Sentiment</TableHead>
                   <TableHead className="text-right px-5">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -276,31 +223,7 @@ export function CitationSourcesTable({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="px-5 w-[30%]">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className="text-sm line-clamp-2 max-w-[280px] cursor-help [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90 [&_sup]:text-[10px] [&_sup]:text-muted-foreground/70"
-                            dangerouslySetInnerHTML={{
-                              __html: formatCitationText(citation.citationText),
-                            }}
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="top"
-                          className="max-w-md p-4 text-sm bg-popover text-popover-foreground border shadow-lg"
-                        >
-                          <div
-                            className="leading-relaxed [&_strong]:font-semibold [&_strong]:text-foreground [&_em]:italic [&_em]:text-foreground/90"
-                            dangerouslySetInnerHTML={{
-                              __html: formatCitationText(citation.citationText),
-                            }}
-                          />
-                        </TooltipContent>
-                      </Tooltip>
-                    </TableCell>
                     <TableCell className="px-5">{getPlatformBadge(citation.platform)}</TableCell>
-                    <TableCell className="px-5">{getSentimentBadge(citation.sentiment)}</TableCell>
                     <TableCell className="text-right px-5">
                       <Button
                         variant="ghost"

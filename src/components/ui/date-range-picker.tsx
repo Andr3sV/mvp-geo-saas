@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Calendar as CalendarIcon } from "lucide-react";
-import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths } from "date-fns";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
@@ -63,30 +63,57 @@ export function DateRangePicker({
     }
   };
 
-  const getQuickFilterRange = (filterType: "today" | "lastWeek" | "lastMonth"): DateRange => {
+  const getQuickFilterRange = (filterType: "currentWeek" | "pastWeek" | "currentMonth" | "pastMonth"): DateRange => {
     // Get yesterday as the maximum selectable date (today is blocked)
     const yesterday = subDays(new Date(), 1);
+    const yesterdayStart = startOfDay(yesterday);
+    
     switch (filterType) {
-      case "today":
-        // "Today" means yesterday since today is blocked
+      case "currentWeek": {
+        // Current week: Monday to Sunday of current week (ending at yesterday if before Sunday)
+        // startOfWeek with { weekStartsOn: 1 } gives us Monday
+        const weekStart = startOfWeek(yesterdayStart, { weekStartsOn: 1 }); // Monday of current week
+        // endOfWeek with { weekStartsOn: 1 } gives us Sunday
+        const weekEnd = endOfWeek(yesterdayStart, { weekStartsOn: 1 }); // Sunday of current week
+        // Cap at yesterday if Sunday hasn't arrived yet
+        const actualEnd = weekEnd > yesterdayStart ? yesterdayStart : weekEnd;
         return {
-          from: startOfDay(yesterday),
-          to: endOfDay(yesterday),
+          from: startOfDay(weekStart),
+          to: endOfDay(actualEnd),
         };
-      case "lastWeek":
+      }
+      case "pastWeek": {
+        // Past week: Monday to Sunday of previous week
+        const pastWeekDate = subWeeks(yesterdayStart, 1);
+        const pastWeekStart = startOfWeek(pastWeekDate, { weekStartsOn: 1 }); // Monday of past week
+        const pastWeekEnd = endOfWeek(pastWeekDate, { weekStartsOn: 1 }); // Sunday of past week
         return {
-          from: startOfDay(subDays(yesterday, 6)), // Last 7 days ending yesterday
-          to: endOfDay(yesterday),
+          from: startOfDay(pastWeekStart),
+          to: endOfDay(pastWeekEnd),
         };
-      case "lastMonth":
+      }
+      case "currentMonth": {
+        // Current month: from start of current month to yesterday
+        const monthStart = startOfMonth(yesterdayStart);
         return {
-          from: startOfDay(subDays(yesterday, 29)), // Last 30 days ending yesterday
-          to: endOfDay(yesterday),
+          from: startOfDay(monthStart),
+          to: endOfDay(yesterdayStart),
         };
+      }
+      case "pastMonth": {
+        // Past month: complete previous month
+        const pastMonth = subMonths(yesterdayStart, 1);
+        const pastMonthStart = startOfMonth(pastMonth);
+        const pastMonthEnd = endOfMonth(pastMonth);
+        return {
+          from: startOfDay(pastMonthStart),
+          to: endOfDay(pastMonthEnd),
+        };
+      }
     }
   };
 
-  const handleQuickFilter = (filterType: "today" | "lastWeek" | "lastMonth") => {
+  const handleQuickFilter = (filterType: "currentWeek" | "pastWeek" | "currentMonth" | "pastMonth") => {
     const range = getQuickFilterRange(filterType);
     setSelectedRange(range);
     onChange?.({ from: range.from, to: range.to });
@@ -94,13 +121,8 @@ export function DateRangePicker({
   };
 
   // Detect which quick filter matches the current value (if any)
-  const getActiveQuickFilter = (): "today" | "lastWeek" | "lastMonth" | null => {
+  const getActiveQuickFilter = (): "currentWeek" | "pastWeek" | "currentMonth" | "pastMonth" | null => {
     if (!value?.from || !value?.to) return null;
-
-    const now = new Date();
-    const todayRange = getQuickFilterRange("today");
-    const lastWeekRange = getQuickFilterRange("lastWeek");
-    const lastMonthRange = getQuickFilterRange("lastMonth");
 
     // Helper to compare dates (same day, ignoring time)
     const isSameDay = (date1: Date, date2: Date) => {
@@ -111,28 +133,22 @@ export function DateRangePicker({
       );
     };
 
-    // Check if value matches today
-    if (
-      isSameDay(value.from, todayRange.from!) &&
-      isSameDay(value.to, todayRange.to!)
-    ) {
-      return "today";
-    }
+    // Check each filter type
+    const filters: Array<"currentWeek" | "pastWeek" | "currentMonth" | "pastMonth"> = [
+      "currentWeek",
+      "pastWeek",
+      "currentMonth",
+      "pastMonth",
+    ];
 
-    // Check if value matches last week
-    if (
-      isSameDay(value.from, lastWeekRange.from!) &&
-      isSameDay(value.to, lastWeekRange.to!)
-    ) {
-      return "lastWeek";
-    }
-
-    // Check if value matches last month
-    if (
-      isSameDay(value.from, lastMonthRange.from!) &&
-      isSameDay(value.to, lastMonthRange.to!)
-    ) {
-      return "lastMonth";
+    for (const filterType of filters) {
+      const range = getQuickFilterRange(filterType);
+      if (
+        isSameDay(value.from, range.from!) &&
+        isSameDay(value.to, range.to!)
+      ) {
+        return filterType;
+      }
     }
 
     return null;
@@ -172,30 +188,38 @@ export function DateRangePicker({
         <PopoverContent className="w-auto p-0" align="start">
           <div className="p-3">
             {/* Quick Filters */}
-            <div className="flex gap-2 mb-3 pb-3 border-b">
+            <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b">
               <Button
-                variant={activeQuickFilter === "today" ? "default" : "outline"}
+                variant={activeQuickFilter === "currentWeek" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 text-xs"
-                onClick={() => handleQuickFilter("today")}
+                className="text-xs"
+                onClick={() => handleQuickFilter("currentWeek")}
               >
-                Today
+                Current Week
               </Button>
               <Button
-                variant={activeQuickFilter === "lastWeek" ? "default" : "outline"}
+                variant={activeQuickFilter === "pastWeek" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 text-xs"
-                onClick={() => handleQuickFilter("lastWeek")}
+                className="text-xs"
+                onClick={() => handleQuickFilter("pastWeek")}
               >
-                Last Week
+                Past Week
               </Button>
               <Button
-                variant={activeQuickFilter === "lastMonth" ? "default" : "outline"}
+                variant={activeQuickFilter === "currentMonth" ? "default" : "outline"}
                 size="sm"
-                className="flex-1 text-xs"
-                onClick={() => handleQuickFilter("lastMonth")}
+                className="text-xs"
+                onClick={() => handleQuickFilter("currentMonth")}
               >
-                Last Month
+                Current Month
+              </Button>
+              <Button
+                variant={activeQuickFilter === "pastMonth" ? "default" : "outline"}
+                size="sm"
+                className="text-xs"
+                onClick={() => handleQuickFilter("pastMonth")}
+              >
+                Past Month
               </Button>
             </div>
             
