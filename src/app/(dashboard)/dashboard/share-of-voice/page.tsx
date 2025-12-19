@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Users, Trophy } from "lucide-react";
+import { TrendingUp, Users, Trophy, MessageSquare } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -218,11 +218,11 @@ export default function ShareOfVoicePage() {
       />
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <StatCard
           title="Your Share"
           value={`${sovData.brand.percentage}%`}
-          description={`${sovData.brand.mentions} of ${sovData.totalMentions} total mentions`}
+          description="Share vs competitors"
           icon={Trophy}
           trend={
             trendsData.brandTrend !== 0
@@ -232,6 +232,12 @@ export default function ShareOfVoicePage() {
                 }
               : undefined
           }
+        />
+        <StatCard
+          title="Total Mentions"
+          value={sovData.totalMentions.toLocaleString()}
+          description="Total mentions across all brands"
+          icon={MessageSquare}
         />
         <StatCard
           title="Market Position"
