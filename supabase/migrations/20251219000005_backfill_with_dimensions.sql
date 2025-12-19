@@ -85,59 +85,90 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
--- TRUNCATE OLD DATA AND RE-BACKFILL
--- Run this block manually after reviewing
+-- BACKFILL INSTRUCTIONS
+-- Run these queries STEP BY STEP in Supabase SQL Editor
 -- =============================================
 
--- WARNING: This will delete all existing daily_brand_stats data
--- and re-populate with dimension-aware data
+-- STEP 1: Truncate existing data (run this first, only once)
+-- TRUNCATE TABLE daily_brand_stats;
 
+-- STEP 2: List projects to backfill (see which projects have data)
 /*
-DO $$
+SELECT DISTINCT p.id, p.name, COUNT(*) as response_count
+FROM projects p
+JOIN ai_responses ar ON ar.project_id = p.id
+WHERE ar.created_at >= CURRENT_DATE - INTERVAL '7 days'
+  AND ar.status = 'success'
+GROUP BY p.id, p.name
+ORDER BY response_count DESC;
+*/
+
+-- STEP 3: Backfill ONE project at a time (copy, replace project_id, execute)
+-- For each project, run this query separately:
+/*
+SELECT backfill_daily_brand_stats_with_dimensions(
+  'YOUR_PROJECT_ID_HERE'::uuid,
+  (CURRENT_DATE - INTERVAL '7 days')::date,
+  (CURRENT_DATE - INTERVAL '1 day')::date
+);
+*/
+
+-- STEP 4: Or use this simpler function that processes ONE day at a time
+-- to avoid timeouts on large projects
+
+-- =============================================
+-- FUNCTION: backfill_single_day
+-- Backfills ALL projects for a SINGLE day (faster, avoids timeouts)
+-- =============================================
+
+CREATE OR REPLACE FUNCTION backfill_single_day(p_date DATE)
+RETURNS INTEGER AS $$
 DECLARE
   v_project RECORD;
-  v_start_date DATE := CURRENT_DATE - INTERVAL '7 days';
-  v_end_date DATE := CURRENT_DATE - INTERVAL '1 day';
-  v_total_rows INTEGER := 0;
-  v_project_rows INTEGER;
+  v_dim RECORD;
+  v_comp RECORD;
+  v_rows INTEGER := 0;
 BEGIN
-  -- Truncate existing data (old format without dimensions)
-  TRUNCATE TABLE daily_brand_stats;
-  
-  RAISE NOTICE 'Starting backfill from % to %', v_start_date, v_end_date;
-  
-  -- Get all projects that have AI responses in the date range
-  FOR v_project IN 
-    SELECT DISTINCT p.id, p.name
-    FROM projects p
-    JOIN ai_responses ar ON ar.project_id = p.id
-    WHERE ar.created_at >= v_start_date
+  -- For each project with data on this date
+  FOR v_project IN (
+    SELECT DISTINCT ar.project_id, p.name
+    FROM ai_responses ar
+    JOIN projects p ON p.id = ar.project_id
+    WHERE ar.created_at >= p_date::timestamp
+      AND ar.created_at < (p_date + 1)::timestamp
       AND ar.status = 'success'
-    ORDER BY p.name
-  LOOP
-    BEGIN
-      -- Backfill this project
-      v_project_rows := backfill_daily_brand_stats_with_dimensions(
-        v_project.id, 
-        v_start_date, 
-        v_end_date
+  ) LOOP
+    
+    -- For each dimension combination
+    FOR v_dim IN (
+      SELECT * FROM get_dimension_combinations(v_project.project_id, p_date)
+    ) LOOP
+      
+      -- Brand stats
+      PERFORM aggregate_brand_stats_only(
+        v_project.project_id, p_date, 
+        v_dim.platform, v_dim.region, v_dim.topic_id
       );
-      v_total_rows := v_total_rows + v_project_rows;
+      v_rows := v_rows + 1;
       
-      RAISE NOTICE 'Project "%": % rows created', v_project.name, v_project_rows;
+      -- Competitor stats
+      FOR v_comp IN (
+        SELECT id FROM competitors 
+        WHERE project_id = v_project.project_id AND is_active = true
+      ) LOOP
+        PERFORM aggregate_competitor_stats_only(
+          v_project.project_id, v_comp.id, p_date,
+          v_dim.platform, v_dim.region, v_dim.topic_id
+        );
+        v_rows := v_rows + 1;
+      END LOOP;
       
-      -- Small pause to prevent overwhelming the database
-      PERFORM pg_sleep(0.1);
-      
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'Error processing project %: %', v_project.name, SQLERRM;
-      CONTINUE;
-    END;
+    END LOOP;
   END LOOP;
   
-  RAISE NOTICE 'Backfill complete! Total rows: %', v_total_rows;
-END $$;
-*/
+  RETURN v_rows;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =============================================
 -- COMMENTS
