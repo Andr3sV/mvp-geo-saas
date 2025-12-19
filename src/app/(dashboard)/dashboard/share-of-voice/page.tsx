@@ -12,10 +12,16 @@ import {
   getShareOfVoiceTrends,
   getShareOfVoiceInsights,
   getShareOfVoiceOverTime,
+  getShareEvolution,
+  getPlatformPerformance,
 } from "@/lib/queries/share-of-voice";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
+import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
+import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
+import { PlatformHeatmap } from "@/components/share-of-voice/platform-heatmap";
+import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 
 // Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
@@ -63,6 +69,11 @@ export default function ShareOfVoicePage() {
   const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
   const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
+
+  // New charts data
+  const [shareEvolutionData, setShareEvolutionData] = useState<any>({ data: [], entities: [] });
+  const [platformData, setPlatformData] = useState<any>({ data: [], platforms: [], entities: [] });
+  const [isLoadingCharts, setIsLoadingCharts] = useState(false);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
@@ -125,6 +136,7 @@ export default function ShareOfVoicePage() {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoading(true);
+    setIsLoadingCharts(true);
 
     try {
       const [sov, trends, insightsData] = await Promise.all([
@@ -136,8 +148,22 @@ export default function ShareOfVoicePage() {
       setSovData(sov);
       setTrendsData(trends);
       setInsights(insightsData);
+
+      // Load additional chart data in parallel (non-blocking)
+      Promise.all([
+        getShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
+        getPlatformPerformance(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
+      ]).then(([shareEvo, platformPerf]) => {
+        setShareEvolutionData(shareEvo);
+        setPlatformData(platformPerf);
+        setIsLoadingCharts(false);
+      }).catch((error) => {
+        console.error("Error loading chart data:", error);
+        setIsLoadingCharts(false);
+      });
     } catch (error) {
       console.error("Error loading Share of Voice data:", error);
+      setIsLoadingCharts(false);
     } finally {
       setIsLoading(false);
     }
@@ -325,7 +351,31 @@ export default function ShareOfVoicePage() {
         // Sort by percentage descending
         allEntities.sort((a, b) => b.percentage - a.percentage);
 
-        return <MarketShareDistribution entities={allEntities} isLoading={isLoading} />;
+        return (
+          <>
+            <MarketShareDistribution entities={allEntities} isLoading={isLoading} />
+
+            {/* Share Evolution Chart - Right after Market Share Distribution */}
+            <ShareEvolutionChart
+              data={shareEvolutionData.data}
+              entities={shareEvolutionData.entities}
+              isLoading={isLoadingCharts}
+            />
+
+            {/* Competitive Momentum Matrix - Full row */}
+            <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} />
+
+            {/* Competitive Gap Tracker - Full row, top 4 competitors */}
+            <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} />
+
+            {/* Platform Heatmap */}
+            <PlatformHeatmap
+              data={platformData.data}
+              platforms={platformData.platforms}
+              isLoading={isLoadingCharts}
+            />
+          </>
+        );
       })()}
 
       {/* Insights */}

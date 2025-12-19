@@ -637,3 +637,254 @@ export async function getShareOfVoiceOverTime(
     competitorDomain,
   };
 }
+
+// =============================================
+// SHARE EVOLUTION (ALL ENTITIES OVER TIME)
+// =============================================
+
+/**
+ * Get share evolution data for all entities (brand + all competitors) over time
+ * Returns daily share percentages for stacked area chart
+ */
+export async function getShareEvolution(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
+) {
+  const supabase = await createClient();
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range
+  const endDate = toDate || getYesterday();
+  const startDate = fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
+
+  // Map platform filter
+  const mappedPlatform = mapPlatformToDatabase(platform);
+  const platformFilter = mappedPlatform !== null;
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
+
+  // Build query for daily stats
+  let query = supabase
+    .from("daily_brand_stats")
+    .select("stat_date, entity_type, competitor_id, mentions_count, entity_name")
+    .eq("project_id", projectId)
+    .gte("stat_date", startDateStr)
+    .lte("stat_date", endDateStr);
+
+  if (platformFilter) {
+    query = query.eq("platform", mappedPlatform);
+  }
+  if (regionFilter) {
+    query = query.eq("region", region);
+  }
+  if (topicFilter) {
+    query = query.eq("topic_id", topicId);
+  }
+
+  const { data: stats, error } = await query;
+
+  if (error) {
+    console.error("Error fetching share evolution:", error);
+    return { data: [], entities: [] };
+  }
+
+  // Get active competitors
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name, domain")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  // Create entity list (brand + competitors)
+  const entityList = [
+    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", isBrand: true },
+    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", isBrand: false })),
+  ];
+
+  // Group stats by date
+  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+  const dailyData = allDays.map((day) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+    const dayStats = stats?.filter((s: any) => s.stat_date === dayStr) || [];
+
+    // Calculate mentions for each entity
+    const entityMentions: Record<string, number> = {};
+    let totalMentions = 0;
+
+    // Brand mentions
+    const brandMentions = dayStats
+      .filter((s: any) => s.entity_type === "brand" && !s.competitor_id)
+      .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
+    entityMentions["brand"] = brandMentions;
+    totalMentions += brandMentions;
+
+    // Competitor mentions
+    competitors?.forEach((comp: any) => {
+      const compMentions = dayStats
+        .filter((s: any) => s.entity_type === "competitor" && s.competitor_id === comp.id)
+        .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
+      entityMentions[comp.id] = compMentions;
+      totalMentions += compMentions;
+    });
+
+    // Calculate percentages
+    const result: any = {
+      date: format(day, "MMM dd"),
+      fullDate: dayStr,
+      total: totalMentions,
+    };
+
+    entityList.forEach((entity) => {
+      const mentions = entityMentions[entity.id] || 0;
+      result[entity.id] = totalMentions > 0 ? Number(((mentions / totalMentions) * 100).toFixed(1)) : 0;
+      result[`${entity.id}_mentions`] = mentions;
+    });
+
+    return result;
+  });
+
+  return {
+    data: dailyData,
+    entities: entityList,
+  };
+}
+
+// =============================================
+// PLATFORM PERFORMANCE
+// =============================================
+
+/**
+ * Get mentions breakdown by platform for each entity
+ * Returns data for heatmap visualization
+ */
+export async function getPlatformPerformance(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  region?: string,
+  topicId?: string
+) {
+  const supabase = await createClient();
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range
+  const endDate = toDate || getYesterday();
+  const startDate = fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
+
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
+
+  // Get stats grouped by entity and platform
+  let query = supabase
+    .from("daily_brand_stats")
+    .select("entity_type, competitor_id, entity_name, platform, mentions_count")
+    .eq("project_id", projectId)
+    .gte("stat_date", startDateStr)
+    .lte("stat_date", endDateStr);
+
+  if (regionFilter) {
+    query = query.eq("region", region);
+  }
+  if (topicFilter) {
+    query = query.eq("topic_id", topicId);
+  }
+
+  const { data: stats, error } = await query;
+
+  if (error) {
+    console.error("Error fetching platform performance:", error);
+    return { data: [], platforms: [], entities: [] };
+  }
+
+  // Get active competitors
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name, domain")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  // Define platforms
+  const platforms = ["openai", "claude", "gemini", "perplexity"];
+  const platformLabels: Record<string, string> = {
+    openai: "ChatGPT",
+    claude: "Claude",
+    gemini: "Gemini",
+    perplexity: "Perplexity",
+  };
+
+  // Create entity list
+  const entityList = [
+    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", isBrand: true },
+    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", isBrand: false })),
+  ];
+
+  // Aggregate mentions by entity and platform
+  const performanceData = entityList.map((entity) => {
+    const platformMentions: Record<string, number> = {};
+    let totalMentions = 0;
+
+    platforms.forEach((platform) => {
+      let mentions = 0;
+
+      if (entity.isBrand) {
+        mentions = (stats || [])
+          .filter((s: any) => s.entity_type === "brand" && !s.competitor_id && s.platform === platform)
+          .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
+      } else {
+        mentions = (stats || [])
+          .filter((s: any) => s.entity_type === "competitor" && s.competitor_id === entity.id && s.platform === platform)
+          .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
+      }
+
+      platformMentions[platform] = mentions;
+      totalMentions += mentions;
+    });
+
+    return {
+      id: entity.id,
+      name: entity.name,
+      domain: entity.domain,
+      isBrand: entity.isBrand,
+      total: totalMentions,
+      ...platformMentions,
+    };
+  });
+
+  return {
+    data: performanceData,
+    platforms: platforms.map((p) => ({ id: p, label: platformLabels[p] })),
+    entities: entityList,
+  };
+}
