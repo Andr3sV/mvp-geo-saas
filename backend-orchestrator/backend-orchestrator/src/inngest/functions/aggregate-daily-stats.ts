@@ -8,7 +8,7 @@ import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 /**
  * Daily aggregation function for brand statistics
  * Runs at 2:00 AM every day to aggregate yesterday's stats
- * Uses the aggregate_daily_stats_for_all_projects SQL function
+ * OPTIMIZED: Processes each project individually to avoid timeouts
  */
 export const aggregateDailyStats = inngest.createFunction(
   {
@@ -30,43 +30,94 @@ export const aggregateDailyStats = inngest.createFunction(
 
     logInfo('aggregate-daily-stats', `Starting daily stats aggregation for ${statDate}`);
 
-    // 1. Run the aggregation function
-    const aggregationResult = await step.run('run-aggregation', async () => {
-      // Call the SQL function to aggregate stats for all projects
-      const { data, error } = await supabase.rpc('aggregate_daily_stats_for_all_projects', {
-        p_stat_date: statDate,
-      });
+    // Step 1: Get all projects with data for yesterday
+    const projects = await step.run('get-active-projects', async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, name')
+        .order('name');
 
       if (error) {
-        logError('aggregate-daily-stats', 'Aggregation failed', error);
-        throw new Error(`Aggregation failed: ${error.message}`);
+        logError('aggregate-daily-stats', 'Failed to fetch projects', error);
+        throw new Error(`Failed to fetch projects: ${error.message}`);
       }
 
-      logInfo('aggregate-daily-stats', `Aggregation completed`, { results: data });
-
-      // Calculate totals
-      const totalProjects = data?.length || 0;
-      const totalRows = data?.reduce((sum: number, row: { rows_affected: number }) => sum + row.rows_affected, 0) || 0;
-
-      return {
-        date: statDate,
-        projectsProcessed: totalProjects,
-        rowsCreated: totalRows,
-        details: data,
-      };
+      logInfo('aggregate-daily-stats', `Found ${data?.length || 0} projects to process`);
+      return data || [];
     });
 
-    // 2. Log summary
+    if (projects.length === 0) {
+      logInfo('aggregate-daily-stats', 'No projects found');
+      return { message: 'No projects to process', projectsProcessed: 0, rowsCreated: 0 };
+    }
+
+    // Step 2: Process each project individually (avoids timeout)
+    let totalRows = 0;
+    let processedCount = 0;
+    const errors: string[] = [];
+
+    // Process in batches of 5 projects per step to balance speed and reliability
+    const BATCH_SIZE = 5;
+    const batches = [];
+    for (let i = 0; i < projects.length; i += BATCH_SIZE) {
+      batches.push(projects.slice(i, i + BATCH_SIZE));
+    }
+
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      const batchResult = await step.run(`aggregate-batch-${batchIndex}`, async () => {
+        let batchRows = 0;
+        let batchProcessed = 0;
+        const batchErrors: string[] = [];
+
+        for (const project of batch) {
+          try {
+            // Call aggregate_daily_brand_stats for this specific project
+            const { data, error } = await supabase.rpc('aggregate_daily_brand_stats', {
+              p_project_id: project.id,
+              p_stat_date: statDate,
+            });
+
+            if (error) {
+              logError('aggregate-daily-stats', `Failed to aggregate project ${project.name}`, error);
+              batchErrors.push(`${project.name}: ${error.message}`);
+            } else {
+              const rowsAffected = data || 0;
+              batchRows += rowsAffected;
+              batchProcessed++;
+              
+              if (rowsAffected > 0) {
+                logInfo('aggregate-daily-stats', `Project "${project.name}": ${rowsAffected} rows`);
+              }
+            }
+          } catch (err: any) {
+            logError('aggregate-daily-stats', `Exception for project ${project.name}`, err);
+            batchErrors.push(`${project.name}: ${err.message}`);
+          }
+        }
+
+        return { batchRows, batchProcessed, batchErrors };
+      });
+
+      totalRows += batchResult.batchRows;
+      processedCount += batchResult.batchProcessed;
+      errors.push(...batchResult.batchErrors);
+    }
+
+    // Log summary
     logInfo('aggregate-daily-stats', 'Daily aggregation complete', {
       date: statDate,
-      projectsProcessed: aggregationResult.projectsProcessed,
-      rowsCreated: aggregationResult.rowsCreated,
+      projectsProcessed: processedCount,
+      rowsCreated: totalRows,
+      errors: errors.length,
     });
 
     return {
       message: `Daily stats aggregation completed for ${statDate}`,
-      projectsProcessed: aggregationResult.projectsProcessed,
-      rowsCreated: aggregationResult.rowsCreated,
+      projectsProcessed: processedCount,
+      rowsCreated: totalRows,
+      errors: errors.length > 0 ? errors : undefined,
     };
   }
 );
@@ -121,4 +172,3 @@ export const backfillProjectStats = inngest.createFunction(
     };
   }
 );
-
