@@ -117,53 +117,99 @@ SELECT backfill_daily_brand_stats_with_dimensions(
 -- to avoid timeouts on large projects
 
 -- =============================================
--- FUNCTION: backfill_single_day
--- Backfills ALL projects for a SINGLE day (faster, avoids timeouts)
+-- ULTRA-SIMPLE BACKFILL: Direct inserts without function overhead
+-- Run these queries ONE BY ONE in SQL Editor
 -- =============================================
 
-CREATE OR REPLACE FUNCTION backfill_single_day(p_date DATE)
-RETURNS INTEGER AS $$
+-- STEP A: See all dimension combinations for a specific date
+/*
+SELECT DISTINCT 
+  ar.project_id,
+  p.name as project_name,
+  ar.platform,
+  pt.region,
+  pt.topic_id
+FROM ai_responses ar
+JOIN projects p ON p.id = ar.project_id
+JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
+WHERE ar.created_at >= '2025-12-18'::date
+  AND ar.created_at < '2025-12-19'::date
+  AND ar.status = 'success'
+ORDER BY p.name, ar.platform, pt.region;
+*/
+
+-- STEP B: For each row from Step A, run this query replacing the values:
+/*
+SELECT aggregate_brand_stats_only(
+  'PROJECT_ID_HERE'::uuid,
+  '2025-12-18'::date,
+  'openai',           -- platform from Step A
+  'GLOBAL',           -- region from Step A  
+  NULL::uuid          -- topic_id from Step A (or 'UUID_HERE'::uuid)
+);
+*/
+
+-- =============================================
+-- SIMPLER APPROACH: Process just BRANDS first (no competitors)
+-- =============================================
+
+CREATE OR REPLACE FUNCTION backfill_brands_only(p_date DATE)
+RETURNS TABLE(project_name TEXT, platform TEXT, region TEXT, result INTEGER) AS $$
 DECLARE
-  v_project RECORD;
-  v_dim RECORD;
-  v_comp RECORD;
-  v_rows INTEGER := 0;
+  v_rec RECORD;
 BEGIN
-  -- For each project with data on this date
-  FOR v_project IN (
-    SELECT DISTINCT ar.project_id, p.name
+  FOR v_rec IN (
+    SELECT DISTINCT 
+      ar.project_id,
+      p.name,
+      ar.platform,
+      pt.region,
+      pt.topic_id
     FROM ai_responses ar
     JOIN projects p ON p.id = ar.project_id
+    JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
     WHERE ar.created_at >= p_date::timestamp
       AND ar.created_at < (p_date + 1)::timestamp
       AND ar.status = 'success'
   ) LOOP
+    PERFORM aggregate_brand_stats_only(
+      v_rec.project_id, p_date,
+      v_rec.platform, v_rec.region, v_rec.topic_id
+    );
     
-    -- For each dimension combination
-    FOR v_dim IN (
-      SELECT * FROM get_dimension_combinations(v_project.project_id, p_date)
-    ) LOOP
-      
-      -- Brand stats
-      PERFORM aggregate_brand_stats_only(
-        v_project.project_id, p_date, 
-        v_dim.platform, v_dim.region, v_dim.topic_id
-      );
-      v_rows := v_rows + 1;
-      
-      -- Competitor stats
-      FOR v_comp IN (
-        SELECT id FROM competitors 
-        WHERE project_id = v_project.project_id AND is_active = true
-      ) LOOP
-        PERFORM aggregate_competitor_stats_only(
-          v_project.project_id, v_comp.id, p_date,
-          v_dim.platform, v_dim.region, v_dim.topic_id
-        );
-        v_rows := v_rows + 1;
-      END LOOP;
-      
-    END LOOP;
+    project_name := v_rec.name;
+    platform := v_rec.platform;
+    region := v_rec.region;
+    result := 1;
+    RETURN NEXT;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================
+-- EVEN SIMPLER: Single direct aggregation (no loops)
+-- =============================================
+
+CREATE OR REPLACE FUNCTION backfill_one(
+  p_project_id UUID,
+  p_date DATE,
+  p_platform TEXT,
+  p_region TEXT,
+  p_topic_id UUID DEFAULT NULL
+)
+RETURNS INTEGER AS $$
+DECLARE
+  v_rows INTEGER := 0;
+  v_comp RECORD;
+BEGIN
+  -- Brand
+  PERFORM aggregate_brand_stats_only(p_project_id, p_date, p_platform, p_region, p_topic_id);
+  v_rows := v_rows + 1;
+  
+  -- Competitors
+  FOR v_comp IN (SELECT id FROM competitors WHERE project_id = p_project_id AND is_active = true) LOOP
+    PERFORM aggregate_competitor_stats_only(p_project_id, v_comp.id, p_date, p_platform, p_region, p_topic_id);
+    v_rows := v_rows + 1;
   END LOOP;
   
   RETURN v_rows;
