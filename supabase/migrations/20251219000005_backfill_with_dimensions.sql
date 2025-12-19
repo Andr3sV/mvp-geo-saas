@@ -187,32 +187,105 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
--- EVEN SIMPLER: Single direct aggregation (no loops)
+-- BACKFILL BY ENTITY: One brand or one competitor at a time
+-- This is the safest approach for large datasets
 -- =============================================
 
-CREATE OR REPLACE FUNCTION backfill_one(
+-- Backfill ONLY the client brand for a project (all dimensions for one day)
+CREATE OR REPLACE FUNCTION backfill_brand_for_day(
   p_project_id UUID,
-  p_date DATE,
-  p_platform TEXT,
-  p_region TEXT,
-  p_topic_id UUID DEFAULT NULL
+  p_date DATE
 )
 RETURNS INTEGER AS $$
 DECLARE
+  v_dim RECORD;
   v_rows INTEGER := 0;
-  v_comp RECORD;
 BEGIN
-  -- Brand
-  PERFORM aggregate_brand_stats_only(p_project_id, p_date, p_platform, p_region, p_topic_id);
-  v_rows := v_rows + 1;
-  
-  -- Competitors
-  FOR v_comp IN (SELECT id FROM competitors WHERE project_id = p_project_id AND is_active = true) LOOP
-    PERFORM aggregate_competitor_stats_only(p_project_id, v_comp.id, p_date, p_platform, p_region, p_topic_id);
+  FOR v_dim IN (SELECT * FROM get_dimension_combinations(p_project_id, p_date)) LOOP
+    PERFORM aggregate_brand_stats_only(p_project_id, p_date, v_dim.platform, v_dim.region, v_dim.topic_id);
     v_rows := v_rows + 1;
   END LOOP;
-  
   RETURN v_rows;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Backfill ONLY one competitor for a project (all dimensions for one day)
+CREATE OR REPLACE FUNCTION backfill_competitor_for_day(
+  p_project_id UUID,
+  p_competitor_id UUID,
+  p_date DATE
+)
+RETURNS INTEGER AS $$
+DECLARE
+  v_dim RECORD;
+  v_rows INTEGER := 0;
+BEGIN
+  FOR v_dim IN (SELECT * FROM get_dimension_combinations(p_project_id, p_date)) LOOP
+    PERFORM aggregate_competitor_stats_only(p_project_id, p_competitor_id, p_date, v_dim.platform, v_dim.region, v_dim.topic_id);
+    v_rows := v_rows + 1;
+  END LOOP;
+  RETURN v_rows;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================
+-- MASTER BACKFILL: Generates all queries you need to run
+-- Run this to get the list of queries, then execute them one by one
+-- =============================================
+
+CREATE OR REPLACE FUNCTION generate_backfill_queries(
+  p_start_date DATE,
+  p_end_date DATE
+)
+RETURNS TABLE(query_order INT, query_text TEXT) AS $$
+DECLARE
+  v_date DATE;
+  v_project RECORD;
+  v_comp RECORD;
+  v_order INT := 0;
+BEGIN
+  v_date := p_start_date;
+  WHILE v_date <= p_end_date LOOP
+    
+    -- Get projects with data for this date
+    FOR v_project IN (
+      SELECT DISTINCT ar.project_id, p.name
+      FROM ai_responses ar
+      JOIN projects p ON p.id = ar.project_id
+      WHERE ar.created_at >= v_date::timestamp
+        AND ar.created_at < (v_date + 1)::timestamp
+        AND ar.status = 'success'
+      ORDER BY p.name
+    ) LOOP
+      
+      -- Brand query
+      v_order := v_order + 1;
+      query_order := v_order;
+      query_text := format(
+        'SELECT backfill_brand_for_day(%L::uuid, %L::date); -- %s brand',
+        v_project.project_id, v_date, v_project.name
+      );
+      RETURN NEXT;
+      
+      -- Competitor queries
+      FOR v_comp IN (
+        SELECT id, name FROM competitors 
+        WHERE project_id = v_project.project_id AND is_active = true
+        ORDER BY name
+      ) LOOP
+        v_order := v_order + 1;
+        query_order := v_order;
+        query_text := format(
+          'SELECT backfill_competitor_for_day(%L::uuid, %L::uuid, %L::date); -- %s / %s',
+          v_project.project_id, v_comp.id, v_date, v_project.name, v_comp.name
+        );
+        RETURN NEXT;
+      END LOOP;
+      
+    END LOOP;
+    
+    v_date := v_date + 1;
+  END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
