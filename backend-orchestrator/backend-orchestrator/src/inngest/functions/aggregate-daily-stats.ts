@@ -5,134 +5,194 @@
 import { inngest } from '../client';
 import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 
+interface EntityToProcess {
+  projectId: string;
+  projectName: string;
+  entityType: 'brand' | 'competitor';
+  competitorId?: string;
+  competitorName?: string;
+}
+
 /**
  * Daily aggregation function for brand statistics
  * Runs at 2:00 AM every day to aggregate yesterday's stats
- * OPTIMIZED: Processes each project individually to avoid timeouts
+ * OPTIMIZED: Processes each entity (brand + each competitor) individually
  */
 export const aggregateDailyStats = inngest.createFunction(
   {
     id: 'aggregate-daily-stats',
     name: 'Aggregate Daily Stats',
     concurrency: {
-      limit: 1, // Only one aggregation at a time
+      limit: 1,
     },
     retries: 3,
   },
-  { cron: '0 2 * * *' }, // Runs daily at 2:00 AM
+  { cron: '0 2 * * *' },
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
     // Calculate yesterday's date
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const statDate = yesterday.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    const statDate = yesterday.toISOString().split('T')[0];
 
     logInfo('aggregate-daily-stats', `Starting daily stats aggregation for ${statDate}`);
 
-    // Step 1: Get all projects with data for yesterday
-    const projects = await step.run('get-active-projects', async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name')
-        .order('name');
+    // Step 1: Get all entities to process (brands + competitors)
+    const entities = await step.run('get-entities-to-process', async () => {
+      // Get projects with AI responses from yesterday
+      const { data: projectsWithData, error: projectsError } = await supabase
+        .from('ai_responses')
+        .select('project_id, projects!inner(id, name)')
+        .gte('created_at', `${statDate}T00:00:00`)
+        .lt('created_at', `${statDate}T23:59:59`);
 
-      if (error) {
-        logError('aggregate-daily-stats', 'Failed to fetch projects', error);
-        throw new Error(`Failed to fetch projects: ${error.message}`);
+      if (projectsError) {
+        throw new Error(`Failed to fetch projects: ${projectsError.message}`);
       }
 
-      logInfo('aggregate-daily-stats', `Found ${data?.length || 0} projects to process`);
-      return data || [];
+      // Get unique projects
+      const uniqueProjects = new Map<string, { id: string; name: string }>();
+      projectsWithData?.forEach((row: any) => {
+        if (row.projects && !uniqueProjects.has(row.project_id)) {
+          uniqueProjects.set(row.project_id, {
+            id: row.projects.id,
+            name: row.projects.name,
+          });
+        }
+      });
+
+      // Build list of all entities to process
+      const entitiesToProcess: EntityToProcess[] = [];
+
+      for (const [projectId, project] of uniqueProjects) {
+        // Add brand entity
+        entitiesToProcess.push({
+          projectId,
+          projectName: project.name,
+          entityType: 'brand',
+        });
+
+        // Get active competitors for this project
+        const { data: competitors } = await supabase
+          .from('competitors')
+          .select('id, name')
+          .eq('project_id', projectId)
+          .eq('is_active', true);
+
+        // Add each competitor as separate entity
+        competitors?.forEach((comp: any) => {
+          entitiesToProcess.push({
+            projectId,
+            projectName: project.name,
+            entityType: 'competitor',
+            competitorId: comp.id,
+            competitorName: comp.name,
+          });
+        });
+      }
+
+      logInfo('aggregate-daily-stats', `Found ${entitiesToProcess.length} entities to process across ${uniqueProjects.size} projects`);
+      return entitiesToProcess;
     });
 
-    if (projects.length === 0) {
-      logInfo('aggregate-daily-stats', 'No projects found');
-      return { message: 'No projects to process', projectsProcessed: 0, rowsCreated: 0 };
+    if (entities.length === 0) {
+      logInfo('aggregate-daily-stats', 'No entities to process');
+      return { message: 'No data for yesterday', entitiesProcessed: 0 };
     }
 
-    // Step 2: Process each project individually (avoids timeout)
-    let totalRows = 0;
-    let processedCount = 0;
-    const errors: string[] = [];
-
-    // Process in batches of 5 projects per step to balance speed and reliability
-    const BATCH_SIZE = 5;
-    const batches = [];
-    for (let i = 0; i < projects.length; i += BATCH_SIZE) {
-      batches.push(projects.slice(i, i + BATCH_SIZE));
+    // Step 2: Process entities in batches (10 per step for efficiency)
+    const BATCH_SIZE = 10;
+    const batches: EntityToProcess[][] = [];
+    for (let i = 0; i < entities.length; i += BATCH_SIZE) {
+      batches.push(entities.slice(i, i + BATCH_SIZE));
     }
+
+    let successCount = 0;
+    let failCount = 0;
+    const failedEntities: string[] = [];
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      
-      const batchResult = await step.run(`aggregate-batch-${batchIndex}`, async () => {
-        let batchRows = 0;
-        let batchProcessed = 0;
-        const batchErrors: string[] = [];
 
-        for (const project of batch) {
+      const batchResult = await step.run(`process-batch-${batchIndex}`, async () => {
+        let batchSuccess = 0;
+        let batchFail = 0;
+        const batchFailed: string[] = [];
+
+        for (const entity of batch) {
           try {
-            // Call aggregate_daily_brand_stats for this specific project
-            const { data, error } = await supabase.rpc('aggregate_daily_brand_stats', {
-              p_project_id: project.id,
-              p_stat_date: statDate,
-            });
+            if (entity.entityType === 'brand') {
+              // Aggregate brand stats
+              const { error } = await supabase.rpc('aggregate_brand_stats_only', {
+                p_project_id: entity.projectId,
+                p_stat_date: statDate,
+              });
 
-            if (error) {
-              logError('aggregate-daily-stats', `Failed to aggregate project ${project.name}`, error);
-              batchErrors.push(`${project.name}: ${error.message}`);
-            } else {
-              const rowsAffected = data || 0;
-              batchRows += rowsAffected;
-              batchProcessed++;
-              
-              if (rowsAffected > 0) {
-                logInfo('aggregate-daily-stats', `Project "${project.name}": ${rowsAffected} rows`);
+              if (error) {
+                throw new Error(error.message);
               }
+              batchSuccess++;
+            } else {
+              // Aggregate competitor stats
+              const { error } = await supabase.rpc('aggregate_competitor_stats_only', {
+                p_project_id: entity.projectId,
+                p_competitor_id: entity.competitorId,
+                p_stat_date: statDate,
+              });
+
+              if (error) {
+                throw new Error(error.message);
+              }
+              batchSuccess++;
             }
           } catch (err: any) {
-            logError('aggregate-daily-stats', `Exception for project ${project.name}`, err);
-            batchErrors.push(`${project.name}: ${err.message}`);
+            batchFail++;
+            const entityName = entity.entityType === 'brand' 
+              ? `${entity.projectName} (brand)` 
+              : `${entity.projectName}/${entity.competitorName}`;
+            batchFailed.push(entityName);
+            logError('aggregate-daily-stats', `Failed: ${entityName}`, err);
           }
         }
 
-        return { batchRows, batchProcessed, batchErrors };
+        return { batchSuccess, batchFail, batchFailed };
       });
 
-      totalRows += batchResult.batchRows;
-      processedCount += batchResult.batchProcessed;
-      errors.push(...batchResult.batchErrors);
+      successCount += batchResult.batchSuccess;
+      failCount += batchResult.batchFail;
+      failedEntities.push(...batchResult.batchFailed);
     }
 
-    // Log summary
+    // Final summary
     logInfo('aggregate-daily-stats', 'Daily aggregation complete', {
       date: statDate,
-      projectsProcessed: processedCount,
-      rowsCreated: totalRows,
-      errors: errors.length,
+      entitiesProcessed: successCount,
+      entitiesFailed: failCount,
+      totalEntities: entities.length,
     });
+
+    if (failCount > 0) {
+      logError('aggregate-daily-stats', `${failCount} entities failed`, { failedEntities });
+    }
 
     return {
       message: `Daily stats aggregation completed for ${statDate}`,
-      projectsProcessed: processedCount,
-      rowsCreated: totalRows,
-      errors: errors.length > 0 ? errors : undefined,
+      entitiesProcessed: successCount,
+      entitiesFailed: failCount,
+      failedEntities: failCount > 0 ? failedEntities : undefined,
     };
   }
 );
 
 /**
  * Manual trigger function for backfilling stats
- * Can be invoked manually to backfill stats for a specific project
  */
 export const backfillProjectStats = inngest.createFunction(
   {
     id: 'backfill-project-stats',
     name: 'Backfill Project Stats',
-    concurrency: {
-      limit: 2, // Allow 2 backfills at a time
-    },
+    concurrency: { limit: 2 },
     retries: 2,
   },
   { event: 'stats/backfill-project' },
@@ -145,12 +205,11 @@ export const backfillProjectStats = inngest.createFunction(
       end_date,
     });
 
-    // Run the backfill function
     const result = await step.run('run-backfill', async () => {
       const { data, error } = await supabase.rpc('backfill_daily_brand_stats', {
         p_project_id: project_id,
         p_start_date: start_date,
-        p_end_date: end_date || new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
+        p_end_date: end_date || new Date(Date.now() - 86400000).toISOString().split('T')[0],
       });
 
       if (error) {
