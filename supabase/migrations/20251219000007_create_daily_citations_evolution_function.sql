@@ -79,6 +79,7 @@ BEGIN
       AND competitor_id IS NOT NULL
       AND stat_date >= v_start_date::date
       AND stat_date <= v_end_date::date
+      -- Only filter by competitor_id if one is specified
       AND (p_competitor_id IS NULL OR competitor_id = p_competitor_id)
       AND (v_mapped_platform IS NULL OR platform = v_mapped_platform)
       -- When p_region is NULL or 'GLOBAL', don't filter by region (sum all regions)

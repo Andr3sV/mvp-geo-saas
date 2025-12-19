@@ -7,6 +7,8 @@ import { MetricCard } from "@/components/citations/metric-card";
 import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
 import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains-table";
 import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import {
   FileText,
   Link2,
@@ -17,6 +19,7 @@ import {
   getCitationsEvolution,
   getMostCitedDomains,
   getCitationSources,
+  getCitationsRanking,
 } from "@/lib/queries/citations-real";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
@@ -36,6 +39,7 @@ export default function CitationsPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [quickMetrics, setQuickMetrics] = useState<any>(null);
+  const [citationsRanking, setCitationsRanking] = useState<any>(null);
   const [mostCitedDomains, setMostCitedDomains] = useState<any[]>([]);
   const [citationSources, setCitationSources] = useState<any[]>([]);
   const [citationSourcesTotal, setCitationSourcesTotal] = useState(0);
@@ -203,13 +207,16 @@ export default function CitationsPage() {
         try {
           const [
             metricsData,
+            rankingData,
             domainsResult,
           ] = await Promise.all([
             getQuickLookMetrics(selectedProjectId, filtersPayload),
+            getCitationsRanking(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
             getMostCitedDomains(selectedProjectId, 10, filtersPayload),
           ]);
 
           setQuickMetrics(metricsData);
+          setCitationsRanking(rankingData);
           setMostCitedDomains(domainsResult);
         } catch (error) {
           console.error("Error loading citation data:", error);
@@ -288,6 +295,115 @@ export default function CitationsPage() {
         onCompetitorChange={setSelectedCompetitorId}
         isLoading={isLoadingEvolution}
       />
+
+      {/* Citations Ranking - Brand vs Competitors */}
+      {citationsRanking && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Citations Share Distribution</CardTitle>
+            <CardDescription>
+              Percentage of citations across all tracked brands
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {(() => {
+                // Filter competitors to only show those assigned to the selected region
+                const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+                const filteredCompetitors = citationsRanking.competitors.filter((comp: any) =>
+                  regionCompetitorIds.has(comp.id)
+                );
+
+                // Recalculate total citations and percentages based on filtered competitors
+                const filteredCompetitorCitations = filteredCompetitors.reduce(
+                  (sum: number, comp: any) => sum + comp.citations,
+                  0
+                );
+                const filteredTotalCitations = citationsRanking.brand.citations + filteredCompetitorCitations;
+
+                // Combine brand and filtered competitors with recalculated percentages
+                const allEntities = [
+                  {
+                    id: "brand",
+                    name: citationsRanking.brand.name,
+                    domain: citationsRanking.brand.domain,
+                    citations: citationsRanking.brand.citations,
+                    percentage:
+                      filteredTotalCitations > 0
+                        ? Number(((citationsRanking.brand.citations / filteredTotalCitations) * 100).toFixed(1))
+                        : 0,
+                    isBrand: true,
+                  },
+                  ...filteredCompetitors.map((comp: any) => ({
+                    id: comp.id,
+                    name: comp.name,
+                    domain: comp.domain,
+                    citations: comp.citations,
+                    percentage:
+                      filteredTotalCitations > 0
+                        ? Number(((comp.citations / filteredTotalCitations) * 100).toFixed(1))
+                        : 0,
+                    isBrand: false,
+                  })),
+                ];
+
+                // Sort by percentage descending
+                allEntities.sort((a, b) => b.percentage - a.percentage);
+
+                // Check if we have any data
+                if (allEntities.length === 1 && allEntities[0].citations === 0) {
+                  return (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No data available yet.</p>
+                      <p className="text-sm mt-2">
+                        Run some analyses to see citations distribution.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return allEntities.map((entity) => (
+                  <div key={entity.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <BrandLogo 
+                          domain={entity.domain || entity.name} 
+                          name={entity.name} 
+                          size={20} 
+                        />
+                        <span className={entity.isBrand ? "font-semibold" : "font-medium"}>
+                          {entity.name}
+                        </span>
+                        {entity.isBrand && <Trophy className="h-4 w-4 text-yellow-500" />}
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-muted-foreground">
+                          {entity.citations} citation{entity.citations !== 1 ? "s" : ""}
+                        </span>
+                        <span
+                          className={`w-16 text-right ${
+                            entity.isBrand ? "font-semibold" : "font-medium"
+                          }`}
+                        >
+                          {entity.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-muted">
+                      <div
+                        className={`h-3 rounded-full ${
+                          entity.isBrand ? "bg-primary" : "bg-muted-foreground/30"
+                        }`}
+                        style={{ width: `${entity.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Most Cited Domains */}
       <MostCitedDomainsTable data={mostCitedDomains} />
