@@ -5,8 +5,8 @@ import { BrandLogo } from "@/components/ui/brand-logo";
 import { Check, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
@@ -209,10 +209,21 @@ export function EvolutionChart({
         ) : (
           <div className="h-[320px] w-full -mx-2">
             <ResponsiveContainer width="100%" height={320}>
-              <LineChart
+              <AreaChart
                 data={data}
                 margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
               >
+                <defs>
+                  <linearGradient id="primaryGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={primaryColor} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={primaryColor} stopOpacity={0.05} />
+                  </linearGradient>
+                  <linearGradient id="secondaryGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={secondaryColor} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={secondaryColor} stopOpacity={0.05} />
+                  </linearGradient>
+                </defs>
+
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="hsl(var(--border))"
@@ -240,12 +251,13 @@ export function EvolutionChart({
 
                 <Tooltip content={<CustomTooltip />} cursor={false} />
 
-                <Line
+                <Area
                   type="monotone"
                   dataKey={primaryDataKey}
                   name={primaryEntityName}
                   stroke={primaryColor}
                   strokeWidth={2.5}
+                  fill="url(#primaryGradient)"
                   dot={false}
                   activeDot={{
                     r: 5,
@@ -258,12 +270,13 @@ export function EvolutionChart({
                 />
 
                 {selectedEntityId && (
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey={secondaryDataKey}
                     name={secondaryEntityName}
                     stroke={secondaryColor}
                     strokeWidth={2.5}
+                    fill="url(#secondaryGradient)"
                     dot={false}
                     activeDot={{
                       r: 5,
@@ -275,7 +288,7 @@ export function EvolutionChart({
                     animationEasing="ease-in-out"
                   />
                 )}
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         )}
