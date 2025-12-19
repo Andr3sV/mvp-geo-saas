@@ -17,6 +17,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │ - brand_mentions│
 │ - brand_sentiment_attributes
 │ - potential_competitors
+│ - citations (with classification)
+│ - daily_brand_stats (pre-aggregated)
 └────────┬────────┘
          │
          │ (queries)
@@ -36,6 +38,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  ┌──────────────────────────────────┐  │  │
 │  │  │  schedule-daily-analysis         │  │  │
 │  │  │  (Cron: 2 AM daily)              │  │  │
+│  │  │  aggregate-daily-stats          │  │  │
+│  │  │  (Cron: 1:30 AM daily)           │  │  │
 │  │  └──────────┬───────────────────────┘  │  │
 │  │             │                           │  │
 │  │             │ emits events              │  │
@@ -178,6 +182,22 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   3. Analyze brands via Groq API
   4. Save results to brand analysis tables
 
+#### aggregate-daily-stats
+
+- **Type**: Scheduled (Cron)
+- **Schedule**: `30 1 * * *` (1:30 AM daily)
+- **Concurrency**: 1 (only one aggregation workflow at a time)
+- **Purpose**: Pre-aggregate daily statistics for brands and competitors into `daily_brand_stats` table
+- **Steps**:
+  1. Get all projects that have data for yesterday
+  2. For each project, get client brand and all active competitors
+  3. Process each entity (brand + each competitor) individually using specialized SQL functions:
+     - `aggregate_brand_stats_only` for client brand
+     - `aggregate_competitor_stats_only` for each competitor
+  4. Each entity is processed in a separate, small SQL transaction (prevents timeouts)
+  5. Results are upserted into `daily_brand_stats` table
+- **Optimization**: Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage, preventing timeouts on large datasets
+
 ### 3. AI Clients Layer
 
 **Purpose**: Abstract AI provider APIs
@@ -203,10 +223,11 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 
 #### AI Clients
 
-- **OpenAI**: GPT-4 Turbo Preview
-- **Gemini**: Gemini 2.0 Flash Exp (with Google Search)
+- **OpenAI**: GPT-4.1 Mini (Responses API with web_search tool)
+- **Gemini**: Gemini 2.5 Flash Lite (with Google Search)
 - **Claude**: Claude Haiku 4.5
 - **Perplexity**: Sonar Pro (with web search)
+- **Groq**: GPT-OSS-20B (for brand analysis)
 
 ### 4. Data Flow
 
@@ -229,6 +250,14 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 6. process-single-prompt functions execute (max 5 parallel)
    - Double-check for existing responses (race condition protection)
    - Use callAIWithRetry for automatic retry on rate limits
+   - Save citations with automatic classification (brand/competitor/other)
+   ↓
+7. Cron Trigger (1:30 AM next day)
+   ↓
+8. aggregate-daily-stats function
+   - Aggregates yesterday's data into daily_brand_stats
+   - Processes each entity (brand + competitors) individually
+   - Uses optimized SQL functions with timestamp ranges
 ```
 
 #### Single Prompt Processing Flow
@@ -623,7 +652,7 @@ We use Gemini's `generateContent` API with `google_search` tool to enable web se
 #### Configuration
 
 - **Endpoint**: `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}`
-- **Model**: `gemini-2.0-flash-exp` (default)
+- **Model**: `gemini-2.5-flash-lite` (default, optimized for higher rate limits)
 - **API Type**: Generate Content API
 
 #### Request Structure
@@ -824,12 +853,13 @@ Gemini has strict rate limits:
 
 #### Database Schema
 
-Citations are stored in the `citations` table:
+Citations are stored in the `citations` table with classification:
 
 ```sql
 CREATE TABLE citations (
   id UUID PRIMARY KEY,
   ai_response_id UUID NOT NULL REFERENCES ai_responses(id),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
 
   web_search_query TEXT,
   uri TEXT,
@@ -840,6 +870,10 @@ CREATE TABLE citations (
   end_index INTEGER,
   text TEXT,
 
+  -- Classification fields
+  citation_type TEXT DEFAULT 'other' CHECK (citation_type IN ('brand', 'competitor', 'other')),
+  competitor_id UUID REFERENCES competitors(id) ON DELETE SET NULL,
+
   metadata JSONB DEFAULT '{}',
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -847,12 +881,22 @@ CREATE TABLE citations (
 );
 ```
 
+**Citation Classification**:
+- Citations are automatically classified as `brand`, `competitor`, or `other` during insertion
+- Classification is based on domain matching against project `client_url` and active competitor domains
+- Uses `normalize_domain()` function to handle protocol and www variations
+
 #### Storage Logic
 
 1. **Validation**: Citations must have `url` OR `uri` (not null)
 2. **Backfilling**: If `uri` is missing, use `url` (and vice versa) to avoid nulls
-3. **Filtering**: Invalid citations (no URL/URI) are skipped with logging
-4. **Batch Insert**: All valid citations are inserted in a single transaction
+3. **Classification**: Each citation is automatically classified during insertion:
+   - Compares normalized domain against project `client_url` (brand)
+   - Compares normalized domain against active competitor domains (competitor)
+   - Defaults to `other` if no match
+   - Uses `normalize_domain()` function to handle protocol, www, and path variations
+4. **Filtering**: Invalid citations (no URL/URI) are skipped with logging
+5. **Batch Insert**: All valid citations are inserted in a single transaction with classification
 
 #### Storage Process
 
@@ -862,20 +906,32 @@ const validCitations = citationsData.filter(
   (citation) => citation.url || citation.uri
 );
 
-// 2. Prepare records
-const records = validCitations.map((citation) => ({
-  ai_response_id: aiResponseId,
-  web_search_query: citation.web_search_query || null,
-  uri: citation.uri || citation.url || null, // Backfill
-  url: citation.url || citation.uri || null, // Backfill
-  domain: citation.domain || null,
-  start_index: citation.start_index ?? null,
-  end_index: citation.end_index ?? null,
-  text: citation.text || null,
-  metadata: citation.metadata || {},
-}));
+// 2. Fetch project and competitor data for classification
+const project = await fetchProject(projectId);
+const competitors = await fetchActiveCompetitors(projectId);
 
-// 3. Insert into database
+// 3. Prepare records with classification
+const records = validCitations.map((citation) => {
+  const domain = citation.domain || extractDomain(citation.url || citation.uri);
+  const classification = classifyCitation(domain, project.client_url, competitors);
+  
+  return {
+    ai_response_id: aiResponseId,
+    project_id: projectId, // Required for classification
+    web_search_query: citation.web_search_query || null,
+    uri: citation.uri || citation.url || null, // Backfill
+    url: citation.url || citation.uri || null, // Backfill
+    domain: domain || null,
+    start_index: citation.start_index ?? null,
+    end_index: citation.end_index ?? null,
+    text: citation.text || null,
+    citation_type: classification.type, // 'brand', 'competitor', or 'other'
+    competitor_id: classification.competitorId || null,
+    metadata: citation.metadata || {},
+  };
+});
+
+// 4. Insert into database
 await supabase.from("citations").insert(records);
 ```
 
@@ -887,12 +943,147 @@ await supabase.from("citations").insert(records);
 | ---------------------- | ------------------------------ | ------------------------------------- |
 | **API Type**           | Responses API                  | Generate Content API                  |
 | **Web Search Tool**    | `{ type: "web_search" }`       | `{ google_search: {} }`               |
-| **Model**              | `gpt-4.1-mini`                 | `gemini-2.0-flash-exp`                |
+| **Model**              | `gpt-4.1-mini`                 | `gemini-2.5-flash-lite`               |
 | **Citation Source**    | `output[].annotations`         | `groundingMetadata.groundingSupports` |
 | **Query Source**       | `web_search_call.action.query` | `groundingMetadata.webSearchQueries`  |
 | **Citation Model**     | One citation per annotation    | One citation per fragment+source      |
 | **URL Format**         | Direct URLs                    | May need URI→URL transformation       |
 | **Query Sanitization** | Unicode decode, remove "Note:" | None (queries already clean)          |
+
+---
+
+## Daily Brand Stats Aggregation
+
+### Overview
+
+The Daily Brand Stats system pre-aggregates daily metrics for brands and competitors to optimize frontend query performance. Instead of querying raw tables (`brand_mentions`, `citations`, `brand_sentiment_attributes`) on every request, the frontend queries the pre-aggregated `daily_brand_stats` table.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Raw Data Tables (Source)                        │
+│                                                               │
+│  - brand_mentions (mentions per response)                    │
+│  - citations (URL citations with classification)             │
+│  - brand_sentiment_attributes (sentiment per response)       │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        │ Daily Aggregation (1:30 AM)
+                        │
+            ┌───────────▼───────────┐
+            │  aggregate-daily-stats │
+            │  (Inngest Function)    │
+            │                        │
+            │ - Processes each entity│
+            │   individually         │
+            │ - Uses optimized SQL   │
+            │   functions            │
+            └───────────┬───────────┘
+                        │
+                        │ Upserts
+                        │
+            ┌───────────▼───────────┐
+            │  daily_brand_stats    │
+            │  (Pre-aggregated)      │
+            │                        │
+            │ - One row per entity  │
+            │   per day              │
+            │ - Fast frontend queries│
+            └───────────────────────┘
+```
+
+### Database Schema
+
+#### daily_brand_stats
+
+Pre-aggregated daily statistics for brands and competitors:
+
+```sql
+CREATE TABLE daily_brand_stats (
+  id UUID PRIMARY KEY,
+  project_id UUID NOT NULL REFERENCES projects(id),
+  stat_date DATE NOT NULL,
+  
+  -- Entity identification
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('brand', 'competitor')),
+  competitor_id UUID REFERENCES competitors(id), -- NULL for brand
+  entity_name TEXT NOT NULL, -- Cached name
+  
+  -- Aggregated metrics
+  mentions_count INTEGER NOT NULL DEFAULT 0,
+  citations_count INTEGER NOT NULL DEFAULT 0,
+  sentiment_positive_count INTEGER NOT NULL DEFAULT 0,
+  sentiment_neutral_count INTEGER NOT NULL DEFAULT 0,
+  sentiment_negative_count INTEGER NOT NULL DEFAULT 0,
+  sentiment_avg_rating DECIMAL(4,3), -- -1.000 to 1.000
+  responses_analyzed INTEGER NOT NULL DEFAULT 0,
+  
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  
+  UNIQUE(project_id, stat_date, COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid))
+);
+```
+
+### Aggregation Functions
+
+#### aggregate_brand_stats_only
+
+Optimized SQL function to aggregate stats for a single client brand:
+
+- Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage
+- Consolidates 7 subqueries into 3 efficient queries
+- Processes brand mentions, citations, and sentiment in separate queries
+- Returns 1 on success, 0 on failure
+
+#### aggregate_competitor_stats_only
+
+Optimized SQL function to aggregate stats for a single competitor:
+
+- Same optimization approach as brand aggregation
+- Filters by `competitor_id` for all queries
+- Validates competitor exists and is active before processing
+
+### Performance Optimizations
+
+1. **Timestamp Ranges**: Uses `created_at >= start AND created_at < end` instead of `DATE(created_at)` to allow PostgreSQL to use indexes
+2. **Query Consolidation**: Reduces 7 separate subqueries to 3 consolidated queries per entity
+3. **Composite Indexes**: Specialized indexes on `(project_id, brand_type, created_at)` and similar patterns
+4. **Per-Entity Processing**: Each entity (brand or competitor) is processed in a separate, small SQL transaction to prevent timeouts
+
+**Performance Improvement**:
+- Before: 10+ seconds (timeout) for large projects
+- After: 50-100ms per entity
+
+### Data Flow
+
+```
+1. Daily Cron (1:30 AM)
+   ↓
+2. aggregate-daily-stats function
+   ↓
+3. Get all projects with data for yesterday
+   ↓
+4. For each project:
+   - Get client brand
+   - Get all active competitors
+   ↓
+5. For each entity (brand + competitors):
+   - Call aggregate_brand_stats_only or aggregate_competitor_stats_only
+   - Upsert into daily_brand_stats
+   ↓
+6. Frontend queries daily_brand_stats (fast!)
+```
+
+### Integration with Frontend
+
+The frontend has been migrated to use `daily_brand_stats` for:
+- Share of Voice trends
+- Citation statistics
+- Executive overview metrics
+
+This replaces direct queries to `citations_detail` and `competitor_citations` (legacy tables).
 
 ---
 
@@ -1254,7 +1445,7 @@ Stores brands detected in responses that are not the client brand or known compe
 
 - Very fast inference (typically < 2 seconds)
 - Low cost (gpt-oss-20b is economical)
-- Rate limits handled by Groq (generous for free tier)
+- Rate limits: 950 RPM, 240,000 TPM (paid tier, configured in rate limiter)
 
 **Database**:
 
@@ -1298,3 +1489,5 @@ Stores brands detected in responses that are not the client brand or known compe
 6. **Circuit Breaker**: Prevent cascade failures
 7. **Citation Quality Scoring**: Filter low-quality citations
 8. **URL Validation**: Verify citations URLs are accessible
+9. **Materialized Views**: Consider materialized views for complex aggregations if daily_brand_stats becomes insufficient
+10. **Incremental Aggregation**: Update daily_brand_stats incrementally as new data arrives instead of full daily recalculation
