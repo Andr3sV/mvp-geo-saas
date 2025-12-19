@@ -27,22 +27,38 @@ Instructions:
 Carefully read the user's answer and perform the following steps. Base your analysis exclusively on the text provided. Do not invent facts that are not present, but you must evaluate both explicit descriptions and contextual clues.
 
 -----------------------------------------
-
 BRAND & COMPETITOR DETECTION
-
 -----------------------------------------
 
 1. Detect whether the client's brand is mentioned.
-
 Return true or false.
 
 2. Identify which competitors from the client's predefined competitor list are mentioned.
-
 Return an array of competitor names that appear in the answer.
 
-3. Identify any newly discovered competitor brands—i.e., brands that compete with the client’s brand but are neither the client’s brand nor included in the client-provided competitor list.
+3. Identify ALL other brand names mentioned in the text, excluding:
+- the client's brand
+- brands in the predefined competitor list
 
 Return them exactly as they appear.
+
+4. From the brands identified in step 3, determine which ones are LIKELY COMPETITORS of the client's brand.
+
+A brand should be considered a newly discovered competitor if ANY of the following apply:
+- It serves the same product or service category
+- It addresses the same customer need or use case
+- It is presented as an alternative, substitute, or comparison option
+- It appears in recommendation lists, rankings, or evaluations relevant to the client's category
+- It competes on similar attributes (price, quality, performance, prestige, convenience, etc.)
+
+IMPORTANT:
+- Competition does NOT need to be explicitly stated in the text.
+- You MUST use contextual and industry reasoning.
+- Do NOT exclude a brand simply because competition is implied rather than stated.
+
+Return ONLY brands that reasonably compete with the client’s brand.
+
+5. Return all newly discovered competitors as an array in the property of the JSON other_brands_detected
 
 -----------------------------------------
 

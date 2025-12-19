@@ -882,6 +882,7 @@ CREATE TABLE citations (
 ```
 
 **Citation Classification**:
+
 - Citations are automatically classified as `brand`, `competitor`, or `other` during insertion
 - Classification is based on domain matching against project `client_url` and active competitor domains
 - Uses `normalize_domain()` function to handle protocol and www variations
@@ -913,8 +914,12 @@ const competitors = await fetchActiveCompetitors(projectId);
 // 3. Prepare records with classification
 const records = validCitations.map((citation) => {
   const domain = citation.domain || extractDomain(citation.url || citation.uri);
-  const classification = classifyCitation(domain, project.client_url, competitors);
-  
+  const classification = classifyCitation(
+    domain,
+    project.client_url,
+    competitors
+  );
+
   return {
     ai_response_id: aiResponseId,
     project_id: projectId, // Required for classification
@@ -1004,12 +1009,12 @@ CREATE TABLE daily_brand_stats (
   id UUID PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES projects(id),
   stat_date DATE NOT NULL,
-  
+
   -- Entity identification
   entity_type TEXT NOT NULL CHECK (entity_type IN ('brand', 'competitor')),
   competitor_id UUID REFERENCES competitors(id), -- NULL for brand
   entity_name TEXT NOT NULL, -- Cached name
-  
+
   -- Aggregated metrics
   mentions_count INTEGER NOT NULL DEFAULT 0,
   citations_count INTEGER NOT NULL DEFAULT 0,
@@ -1018,10 +1023,10 @@ CREATE TABLE daily_brand_stats (
   sentiment_negative_count INTEGER NOT NULL DEFAULT 0,
   sentiment_avg_rating DECIMAL(4,3), -- -1.000 to 1.000
   responses_analyzed INTEGER NOT NULL DEFAULT 0,
-  
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  
+
   UNIQUE(project_id, stat_date, COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid))
 );
 ```
@@ -1053,6 +1058,7 @@ Optimized SQL function to aggregate stats for a single competitor:
 4. **Per-Entity Processing**: Each entity (brand or competitor) is processed in a separate, small SQL transaction to prevent timeouts
 
 **Performance Improvement**:
+
 - Before: 10+ seconds (timeout) for large projects
 - After: 50-100ms per entity
 
@@ -1079,6 +1085,7 @@ Optimized SQL function to aggregate stats for a single competitor:
 ### Integration with Frontend
 
 The frontend has been migrated to use `daily_brand_stats` for:
+
 - Share of Voice trends
 - Citation statistics
 - Executive overview metrics
