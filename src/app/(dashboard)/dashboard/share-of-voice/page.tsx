@@ -6,7 +6,6 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
-import { BrandLogo } from "@/components/ui/brand-logo";
 import { useProject } from "@/contexts/project-context";
 import {
   getShareOfVoice,
@@ -16,8 +15,8 @@ import {
 } from "@/lib/queries/share-of-voice";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
+import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { subDays } from "date-fns";
 
 // Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
 function getYesterday(): Date {
@@ -279,127 +278,55 @@ export default function ShareOfVoicePage() {
       />
 
       {/* Share of Voice Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Market Share Distribution</CardTitle>
-          <CardDescription>
-            Percentage of mentions across all tracked brands
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* All entities (brand + competitors) sorted by percentage */}
-            {(() => {
-              // Filter competitors to only show those assigned to the selected region
-              // Use regionFilteredCompetitors to ensure we only show competitors from the region
-              const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-              const filteredCompetitors = sovData.competitors.filter((comp: any) =>
-                regionCompetitorIds.has(comp.id)
-              );
+      {(() => {
+        // Filter competitors to only show those assigned to the selected region
+        const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+        const filteredCompetitors = sovData.competitors.filter((comp: any) =>
+          regionCompetitorIds.has(comp.id)
+        );
 
-              // Recalculate total mentions and percentages based on filtered competitors
-              const filteredCompetitorMentions = filteredCompetitors.reduce(
-                (sum: number, comp: any) => sum + comp.mentions,
-                0
-              );
-              const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+        // Recalculate total mentions and percentages based on filtered competitors
+        const filteredCompetitorMentions = filteredCompetitors.reduce(
+          (sum: number, comp: any) => sum + comp.mentions,
+          0
+        );
+        const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
 
-              // Combine brand and filtered competitors with recalculated percentages
-              const allEntities = [
-                {
-                  id: "brand",
-                  name: sovData.brand.name,
-                  domain: sovData.brand.domain,
-                  mentions: sovData.brand.mentions,
-                  percentage:
-                    filteredTotalMentions > 0
-                      ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
-                      : 0,
-                  isBrand: true,
-                  trend: trendsData.brandTrend,
-                },
-                ...filteredCompetitors.map((comp: any) => ({
-                  id: comp.id,
-                  name: comp.name,
-                  domain: comp.domain,
-                  mentions: comp.mentions,
-                  percentage:
-                    filteredTotalMentions > 0
-                      ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
-                      : 0,
-                  isBrand: false,
-                  trend:
-                    trendsData.competitorTrends.find((t: any) => t.name === comp.name)
-                      ?.trend || 0,
-                })),
-              ];
+        // Combine brand and filtered competitors with recalculated percentages
+        const allEntities = [
+          {
+            id: "brand",
+            name: sovData.brand.name,
+            domain: sovData.brand.domain,
+            mentions: sovData.brand.mentions,
+            percentage:
+              filteredTotalMentions > 0
+                ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
+                : 0,
+            isBrand: true,
+            trend: trendsData.brandTrend,
+          },
+          ...filteredCompetitors.map((comp: any) => ({
+            id: comp.id,
+            name: comp.name,
+            domain: comp.domain,
+            mentions: comp.mentions,
+            percentage:
+              filteredTotalMentions > 0
+                ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
+                : 0,
+            isBrand: false,
+            trend:
+              trendsData.competitorTrends.find((t: any) => t.name === comp.name)
+                ?.trend || 0,
+          })),
+        ];
 
-              // Sort by percentage descending
-              allEntities.sort((a, b) => b.percentage - a.percentage);
+        // Sort by percentage descending
+        allEntities.sort((a, b) => b.percentage - a.percentage);
 
-              // Check if we have any data
-              if (allEntities.length === 1 && allEntities[0].mentions === 0) {
-                return (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No data available yet.</p>
-                    <p className="text-sm mt-2">
-                      Run some analyses to see share of voice distribution.
-                    </p>
-                  </div>
-                );
-              }
-
-              return allEntities.map((entity) => (
-                <div key={entity.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <BrandLogo 
-                        domain={entity.domain || entity.name} 
-                        name={entity.name} 
-                        size={20} 
-                      />
-                      <span className={entity.isBrand ? "font-semibold" : "font-medium"}>
-                        {entity.name}
-                      </span>
-                      {entity.isBrand && <Trophy className="h-4 w-4 text-yellow-500" />}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm text-muted-foreground">
-                        {entity.mentions} mention{entity.mentions !== 1 ? "s" : ""}
-                      </span>
-                      {entity.trend !== 0 && (
-                        <span
-                          className={`text-sm ${
-                            entity.trend > 0 ? "text-green-600" : "text-red-600"
-                          }`}
-                        >
-                          {entity.trend > 0 ? "+" : ""}
-                          {entity.trend}%
-                        </span>
-                      )}
-                      <span
-                        className={`w-16 text-right ${
-                          entity.isBrand ? "font-semibold" : "font-medium"
-                        }`}
-                      >
-                        {entity.percentage.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-3 w-full rounded-full bg-muted">
-                    <div
-                      className={`h-3 rounded-full ${
-                        entity.isBrand ? "bg-primary" : "bg-muted-foreground/30"
-                      }`}
-                      style={{ width: `${entity.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </CardContent>
-      </Card>
+        return <MarketShareDistribution entities={allEntities} isLoading={isLoading} />;
+      })()}
 
       {/* Insights */}
       {insights.length > 0 && (
