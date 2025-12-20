@@ -779,3 +779,4 @@ COMMENT ON FUNCTION get_declining_queries IS 'Returns queries with negative grow
 COMMENT ON FUNCTION get_query_momentum IS 'Returns query volume and growth for momentum matrix';
 COMMENT ON FUNCTION get_emerging_queries IS 'Returns new queries that appeared in current period';
 COMMENT ON FUNCTION get_query_domain_correlation IS 'Returns query-domain correlation matrix data';
+

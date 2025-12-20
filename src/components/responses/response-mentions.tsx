@@ -65,3 +65,4 @@ export function ResponseMentions({ mentions, className }: ResponseMentionsProps)
     </div>
   );
 }
+

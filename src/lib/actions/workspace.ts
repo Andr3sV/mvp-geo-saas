@@ -69,6 +69,7 @@ export async function createProject(data: {
   name: string;
   workspace_id: string;
   client_url?: string;
+  color?: string;
 }) {
   const supabase = await createClient();
   const {
@@ -90,6 +91,7 @@ export async function createProject(data: {
       workspace_id: data.workspace_id,
       client_url: data.client_url,
       brand_name: data.name,
+      color: data.color || '#3B82F6',
     })
     .select()
     .single();

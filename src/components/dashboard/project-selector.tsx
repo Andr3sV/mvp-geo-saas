@@ -54,6 +54,7 @@ export function ProjectSelector({
   const [projectName, setProjectName] = useState("");
   const [clientUrl, setClientUrl] = useState("");
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [projectColor, setProjectColor] = useState("#3B82F6");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +85,7 @@ export function ProjectSelector({
         name: projectName.trim(),
         workspace_id: selectedWorkspaceId,
         client_url: clientUrl.trim() || undefined,
+        color: projectColor,
       });
 
       if (result.data && !result.error) {
@@ -92,6 +94,7 @@ export function ProjectSelector({
         setProjectName("");
         setClientUrl("");
         setSelectedWorkspaceId("");
+        setProjectColor("#3B82F6");
         
         // Switch to new project
         onProjectChange(result.data.id);
@@ -204,6 +207,32 @@ export function ProjectSelector({
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="project-color">Brand Color</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="project-color"
+                  type="color"
+                  value={projectColor}
+                  onChange={(e) => setProjectColor(e.target.value)}
+                  disabled={isCreating}
+                  className="h-10 w-20 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <Input
+                  type="text"
+                  value={projectColor}
+                  onChange={(e) => setProjectColor(e.target.value)}
+                  placeholder="#3B82F6"
+                  disabled={isCreating}
+                  className="flex-1"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose a color to represent this brand in charts and visualizations
+              </p>
+            </div>
+
             {error && (
               <p className="text-sm text-destructive">{error}</p>
             )}
@@ -216,6 +245,8 @@ export function ProjectSelector({
                 setShowCreateDialog(false);
                 setProjectName("");
                 setClientUrl("");
+                setSelectedWorkspaceId("");
+                setProjectColor("#3B82F6");
                 setError(null);
               }}
               disabled={isCreating}

@@ -13,6 +13,7 @@ import {
   createCompetitor,
   toggleCompetitorActive,
   deleteCompetitor,
+  updateCompetitor,
   type Competitor as DBCompetitor,
 } from "@/lib/actions/competitors";
 import { toast } from "sonner";
@@ -116,6 +117,22 @@ export function CompetitorsManager() {
     loadCompetitors();
   };
 
+  const handleUpdateColor = async (id: string, color: string) => {
+    const result = await updateCompetitor(id, { color });
+
+    if (result.error) {
+      toast.error("Failed to update color");
+      return;
+    }
+
+    // Update local state immediately for better UX
+    setCompetitors((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, color } : c))
+    );
+    
+    toast.success("Color updated successfully");
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -161,6 +178,7 @@ export function CompetitorsManager() {
               competitors={competitors}
               onToggleActive={handleToggleActive}
               onDelete={handleDeleteCompetitor}
+              onUpdateColor={handleUpdateColor}
             />
           )}
         </CardContent>

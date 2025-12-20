@@ -138,6 +138,7 @@ export default function OnboardingPage() {
   const [workspaceName, setWorkspaceName] = useState("");
   const [projectName, setProjectName] = useState("");
   const [clientUrl, setClientUrl] = useState("");
+  const [projectColor, setProjectColor] = useState("#3B82F6");
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   
   // Prompt structure with region and category
@@ -238,6 +239,7 @@ export default function OnboardingPage() {
       name: projectName,
       workspace_id: workspaceId!,
       client_url: clientUrl,
+      color: projectColor,
     });
 
     if (result.error) {
@@ -932,6 +934,33 @@ export default function OnboardingPage() {
                               />
                               <p className="text-xs text-muted-foreground">
                                 We'll use this URL to generate better prompt suggestions for your project.
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="projectColor" className="text-base">
+                                Brand Color
+                              </Label>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  id="projectColor"
+                                  type="color"
+                                  value={projectColor}
+                                  onChange={(e) => setProjectColor(e.target.value)}
+                                  disabled={loading}
+                                  className="h-12 w-24 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                                <Input
+                                  type="text"
+                                  value={projectColor}
+                                  onChange={(e) => setProjectColor(e.target.value)}
+                                  placeholder="#3B82F6"
+                                  disabled={loading}
+                                  className="flex-1 h-12 text-base"
+                                  pattern="^#[0-9A-Fa-f]{6}$"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Choose a color to represent this brand in charts and visualizations
                               </p>
                             </div>
                           </motion.div>

@@ -33,6 +33,7 @@ export function ProjectsSettings() {
   // Form states
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectUrl, setNewProjectUrl] = useState("");
+  const [newProjectColor, setNewProjectColor] = useState("#3B82F6");
   const [editProjectName, setEditProjectName] = useState("");
   const [editProjectUrl, setEditProjectUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export function ProjectsSettings() {
       name: newProjectName,
       workspace_id: workspace.id,
       client_url: newProjectUrl || undefined,
+      color: newProjectColor,
     });
 
     setActionLoading(false);
@@ -80,6 +82,7 @@ export function ProjectsSettings() {
     setIsCreateOpen(false);
     setNewProjectName("");
     setNewProjectUrl("");
+    setNewProjectColor("#3B82F6");
     loadData();
     router.refresh();
   };
@@ -203,6 +206,31 @@ export function ProjectsSettings() {
                       onChange={(e) => setNewProjectUrl(e.target.value)}
                       disabled={actionLoading}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="project-color">Brand Color</Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="project-color"
+                        type="color"
+                        value={newProjectColor}
+                        onChange={(e) => setNewProjectColor(e.target.value)}
+                        disabled={actionLoading}
+                        className="h-10 w-20 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                      <Input
+                        type="text"
+                        value={newProjectColor}
+                        onChange={(e) => setNewProjectColor(e.target.value)}
+                        placeholder="#3B82F6"
+                        disabled={actionLoading}
+                        className="flex-1"
+                        pattern="^#[0-9A-Fa-f]{6}$"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Choose a color to represent this brand in charts and visualizations
+                    </p>
                   </div>
                 </div>
                 <DialogFooter>

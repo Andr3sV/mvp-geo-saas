@@ -142,3 +142,4 @@ export function ResponseCitations({ citations, className }: ResponseCitationsPro
     </Card>
   );
 }
+

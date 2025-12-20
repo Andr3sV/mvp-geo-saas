@@ -25,6 +25,7 @@ export interface Project {
   workspace_id: string;
   client_url?: string;
   description?: string;
+  color?: string;
   created_at: string;
   updated_at: string;
 }

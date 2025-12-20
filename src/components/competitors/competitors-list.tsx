@@ -22,12 +22,14 @@ interface CompetitorsListProps {
   competitors: Competitor[];
   onToggleActive: (id: string) => void;
   onDelete: (id: string) => void;
+  onUpdateColor: (id: string, color: string) => void;
 }
 
 export function CompetitorsList({
   competitors,
   onToggleActive,
   onDelete,
+  onUpdateColor,
 }: CompetitorsListProps) {
   return (
     <div className="space-y-4">
@@ -64,11 +66,21 @@ export function CompetitorsList({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 {competitor.color && (
-                  <div
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: competitor.color }}
-                    aria-label="Competitor color"
-                  />
+                  <label className="cursor-pointer relative group">
+                    <input
+                      type="color"
+                      value={competitor.color}
+                      onChange={(e) => onUpdateColor(competitor.id, e.target.value)}
+                      className="absolute opacity-0 w-0 h-0"
+                      aria-label="Change competitor color"
+                    />
+                    <div
+                      className="w-4 h-4 rounded-full flex-shrink-0 border-2 border-transparent group-hover:border-foreground/20 transition-all ring-0 group-hover:ring-2 group-hover:ring-foreground/10"
+                      style={{ backgroundColor: competitor.color }}
+                      aria-label="Competitor color"
+                      title="Click to change color"
+                    />
+                  </label>
                 )}
                 <h3 className="font-semibold truncate">{competitor.name}</h3>
                 {!competitor.isActive && (

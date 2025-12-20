@@ -145,3 +145,4 @@ export function ResponseDetail({ response }: ResponseDetailProps) {
     </div>
   );
 }
+

@@ -75,3 +75,4 @@ COMMENT ON INDEX idx_prompt_tracking_region_project IS 'Optimizes region filteri
 ANALYZE citations;
 ANALYZE ai_responses;
 ANALYZE prompt_tracking;
+
