@@ -1,9 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { Check, LucideIcon } from "lucide-react";
+import { Check, LucideIcon, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AreaChart,
   Area,
@@ -76,6 +83,12 @@ export function EvolutionChart({
   secondaryColor = "rgb(239, 68, 68)", // red-500
   emptyStateMessage = "Run analyses with different prompts to see trends",
 }: EvolutionChartProps) {
+  const [showAllCompetitors, setShowAllCompetitors] = useState(false);
+  const MAX_VISIBLE_COMPETITORS = 6;
+  const visibleCompetitors = entities.slice(0, MAX_VISIBLE_COMPETITORS);
+  const hiddenCompetitors = entities.slice(MAX_VISIBLE_COMPETITORS);
+  const hasMoreCompetitors = entities.length > MAX_VISIBLE_COMPETITORS;
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -131,17 +144,16 @@ export function EvolutionChart({
               className={cn(
                 "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
                 "border hover:border-primary/50",
-                !selectedEntityId
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background hover:bg-muted"
+                // La marca propia siempre está seleccionada visualmente
+                "bg-primary text-primary-foreground border-primary"
               )}
             >
               <BrandLogo domain={primaryEntityDomain} name={primaryEntityName} size={16} />
               <span>{primaryEntityName}</span>
-              {!selectedEntityId && <Check className="h-3 w-3" />}
+              <Check className="h-3 w-3" />
             </button>
 
-            {entities.map((entity) => (
+            {visibleCompetitors.map((entity) => (
               <button
                 key={entity.id}
                 onClick={() => onEntityChange(entity.id)}
@@ -159,6 +171,41 @@ export function EvolutionChart({
                 {selectedEntityId === entity.id && <Check className="h-3 w-3" />}
               </button>
             ))}
+
+            {hasMoreCompetitors && (
+              <DropdownMenu open={showAllCompetitors} onOpenChange={setShowAllCompetitors}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={isLoading}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+                      "border hover:border-primary/50 bg-background hover:bg-muted"
+                    )}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-[300px] overflow-y-auto">
+                  {hiddenCompetitors.map((entity) => (
+                    <DropdownMenuItem
+                      key={entity.id}
+                      onClick={() => {
+                        onEntityChange(entity.id);
+                        setShowAllCompetitors(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-2 cursor-pointer",
+                        selectedEntityId === entity.id && "bg-muted"
+                      )}
+                    >
+                      <BrandLogo domain={entity.domain} name={entity.name} size={16} />
+                      <span>{entity.name}</span>
+                      {selectedEntityId === entity.id && <Check className="h-3 w-3 ml-auto" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
 
           {entities.length === 0 && (
