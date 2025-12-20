@@ -137,7 +137,6 @@ export async function startAnalysis(params: AnalyzePromptParams) {
     }
 
     console.log("Edge Function response:", data);
-    revalidatePath("/dashboard/analysis");
     return { error: null, data: data?.data || data };
   } catch (error: any) {
     console.error("startAnalysis error:", error);
@@ -382,7 +381,6 @@ export async function deleteAnalysisJob(jobId: string) {
       return { error: error.message, data: null };
     }
 
-    revalidatePath("/dashboard/analysis");
     return { error: null, data: { success: true } };
   } catch (error: any) {
     return { error: error.message || "Failed to delete analysis job", data: null };

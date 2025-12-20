@@ -109,11 +109,6 @@ const dataManagementItems = [
     href: "/dashboard/topics",
     icon: Tag,
   },
-  {
-    title: "Analysis Reports",
-    href: "/dashboard/analysis",
-    icon: FileText,
-  },
 ];
 
 const opportunitiesItems = [
@@ -137,8 +132,7 @@ export function AppSidebar() {
   const isDataManagementOpen = pathname.startsWith("/dashboard/responses") ||
     pathname.startsWith("/dashboard/competitors") ||
     pathname.startsWith("/dashboard/prompts") ||
-    pathname.startsWith("/dashboard/topics") ||
-    pathname.startsWith("/dashboard/analysis");
+    pathname.startsWith("/dashboard/topics");
   const isOpportunitiesOpen = pathname.startsWith("/dashboard/opportunities");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(isOverviewOpen);
   const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(isVisibilityOpen);
@@ -164,8 +158,7 @@ export function AppSidebar() {
       pathname.startsWith("/dashboard/responses") ||
       pathname.startsWith("/dashboard/competitors") ||
       pathname.startsWith("/dashboard/prompts") ||
-      pathname.startsWith("/dashboard/topics") ||
-      pathname.startsWith("/dashboard/analysis")
+      pathname.startsWith("/dashboard/topics")
     );
     setIsOpportunitiesExpanded(pathname.startsWith("/dashboard/opportunities"));
   }, [pathname]);

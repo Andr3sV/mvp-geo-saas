@@ -45,7 +45,6 @@ const PAGE_NAMES: Record<string, string> = {
   "/dashboard/competitors": "Competitor Management",
   "/dashboard/reports/executive": "Executive Overview",
   "/dashboard/prompts": "Prompt Management",
-  "/dashboard/analysis": "Analysis Reports",
   "/dashboard/settings": "Settings",
   "/dashboard": "Dashboard",
 };
@@ -54,11 +53,6 @@ function getPageName(pathname: string): string {
   // Check for exact match first
   if (PAGE_NAMES[pathname]) {
     return PAGE_NAMES[pathname];
-  }
-  
-  // Check for dynamic routes (e.g., /dashboard/analysis/[id])
-  if (pathname.startsWith("/dashboard/analysis/")) {
-    return "Analysis Details";
   }
   
   return "Dashboard";

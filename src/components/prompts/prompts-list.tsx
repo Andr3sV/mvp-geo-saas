@@ -7,8 +7,6 @@ import { Switch } from "@/components/ui/switch";
 import { Edit2, Trash2, ChevronRight, Tag } from "lucide-react";
 import { deletePrompt, togglePromptActive, updatePrompt } from "@/lib/actions/prompt";
 import { EditPromptDialog } from "./edit-prompt-dialog";
-import { RunAnalysisButton } from "./run-analysis-button";
-import { PromptCitationsSummary } from "./prompt-citations-summary";
 import { PromptCategorySelector } from "./prompt-category-selector";
 import { getCountryByCode } from "@/lib/countries";
 import { cn } from "@/lib/utils";
@@ -33,7 +31,6 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
   const [editingPrompt, setEditingPrompt] = useState<any>(null);
   const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
-  const [expandedPrompts, setExpandedPrompts] = useState<Set<string>>(new Set());
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
 
   // Get all unique categories for the selector
@@ -117,15 +114,6 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
     setLoading(null);
   };
 
-  const toggleExpandedPrompt = (promptId: string) => {
-    const newExpanded = new Set(expandedPrompts);
-    if (newExpanded.has(promptId)) {
-      newExpanded.delete(promptId);
-    } else {
-      newExpanded.add(promptId);
-    }
-    setExpandedPrompts(newExpanded);
-  };
 
   return (
     <>
@@ -170,11 +158,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
               <div className="border-t divide-y">
                 {group.prompts.map((prompt) => (
                   <div key={prompt.id} className="bg-card">
-                    <div className="flex items-start gap-4 p-4 hover:bg-muted/20 transition-colors group/item"
-                         onClick={() => toggleExpandedPrompt(prompt.id)}
-                         role="button"
-                         tabIndex={0}
-                    >
+                    <div className="flex items-start gap-4 p-4 hover:bg-muted/20 transition-colors group/item">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-start gap-2">
                           <p className="flex-1 text-sm font-medium leading-relaxed">{prompt.prompt}</p>
@@ -197,16 +181,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
                       </div>
 
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <RunAnalysisButton
-                          promptId={prompt.id}
-                          promptText={prompt.prompt}
-                          projectId={projectId}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2"
-                        />
-
-                        <div className="flex items-center gap-2 border-l pl-2 ml-1 h-4">
+                        <div className="flex items-center gap-2 h-4">
                           <Switch
                             checked={prompt.is_active}
                             onCheckedChange={(checked) => handleToggle(prompt.id, checked)}
@@ -242,19 +217,6 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
-                      </div>
-                    </div>
-                    
-                    {/* Citations Summary - Rendered inside the item container */}
-                    <div className={cn(
-                      "overflow-hidden transition-all duration-300 ease-in-out",
-                      expandedPrompts.has(prompt.id) ? "max-h-[500px] border-t bg-muted/10" : "max-h-0"
-                    )}>
-                      <div className="p-4">
-                        <PromptCitationsSummary 
-                          promptId={prompt.id}
-                          isVisible={expandedPrompts.has(prompt.id)}
-                        />
                       </div>
                     </div>
                   </div>
