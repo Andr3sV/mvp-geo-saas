@@ -7,17 +7,30 @@ import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { HighValueOpportunitiesTable } from "@/components/citations/high-value-opportunities-table";
 import { getHighValueOpportunities } from "@/lib/queries/citations-real";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { subDays } from "date-fns";
+import { startOfWeek } from "date-fns";
+
+// Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
+function getYesterday(): Date {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(23, 59, 59, 999);
+  return yesterday;
+}
 
 export default function OpportunitiesPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [opportunities, setOpportunities] = useState<any[]>([]);
 
-  // Filters state
+  // Date range state (default to current week - Monday to yesterday)
+  // Today's data won't be available until tomorrow, so max date is yesterday
   const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
+    from: (() => {
+      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })(),
+    to: getYesterday(),
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
