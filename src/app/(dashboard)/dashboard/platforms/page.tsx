@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { startOfWeek } from "date-fns";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { useProject } from "@/contexts/project-context";
@@ -36,11 +37,10 @@ function getYesterday(): Date {
   return yesterday;
 }
 
-// Default date range: last 30 days ending yesterday
+// Default date range: current week (Monday to yesterday)
 const defaultDateRange: DateRangeValue = {
   from: (() => {
-    const date = getYesterday();
-    date.setDate(date.getDate() - 29);
+    const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
     date.setHours(0, 0, 0, 0);
     return date;
   })(),
@@ -106,7 +106,7 @@ export default function PlatformsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader 
         title="Platform Breakdown"
         description="Analyze your brand performance across different AI platforms"
       />

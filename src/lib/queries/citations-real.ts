@@ -171,7 +171,7 @@ export async function getQuickLookMetrics(
       let query = supabase
         .from("daily_brand_stats")
         .select("citations_count")
-        .eq("project_id", projectId)
+              .eq("project_id", projectId)
         .eq("entity_type", "brand")
         .is("competitor_id", null)
         .gte("stat_date", startDateStr)
@@ -212,15 +212,15 @@ export async function getQuickLookMetrics(
       if (platformFilter) {
         query = query.eq("platform", mappedPlatform);
       }
-
+      
       if (regionFilter) {
         query = query.eq("region", filters.region);
       }
-
+      
       if (topicFilter) {
         query = query.eq("topic_id", filters.topicId);
       }
-
+      
       const { data, error } = await query;
       if (error) {
         console.error('Error fetching competitor citations:', error);
@@ -234,7 +234,7 @@ export async function getQuickLookMetrics(
       const { data, error } = await supabase
         .from("competitors")
         .select("id, name, domain")
-        .eq("project_id", projectId)
+              .eq("project_id", projectId)
         .eq("is_active", true);
       
       if (error) {
@@ -455,7 +455,7 @@ export async function getCitationsEvolution(
     p_topic_id: topicId && topicId !== "all" ? topicId : null,
   });
 
-  if (error) {
+    if (error) {
     console.error("Error fetching daily citations evolution:", error);
     // Fallback to empty data
     const allDays = eachDayOfInterval({ start: startDate, end: endDate });
@@ -478,7 +478,7 @@ export async function getCitationsEvolution(
   // Debug: Log the data received
   if (dailyCitations && dailyCitations.length > 0) {
     console.log("Daily citations data received:", dailyCitations.slice(0, 5));
-  } else {
+    } else {
     console.log("No daily citations data received from RPC");
   }
 
@@ -501,7 +501,7 @@ export async function getCitationsEvolution(
       dateStr = item.date.split('T')[0]; // Remove time part if present
     } else if (item.date instanceof Date) {
       dateStr = format(item.date, "yyyy-MM-dd");
-    } else {
+      } else {
       // Try to parse as date
       dateStr = format(new Date(item.date), "yyyy-MM-dd");
     }
@@ -584,7 +584,7 @@ export async function getCitationsRanking(
   let brandQuery = supabase
     .from("daily_brand_stats")
     .select("citations_count")
-    .eq("project_id", projectId)
+            .eq("project_id", projectId)
     .eq("entity_type", "brand")
     .is("competitor_id", null)
     .gte("stat_date", startDateStr)
@@ -753,16 +753,16 @@ export async function getMostCitedDomains(
   const buildQuery = () => {
     let query = supabase
       .from("citations")
-      .select(`
-        id,
+            .select(`
+              id,
         domain,
         url,
-        ai_responses!inner(
-          platform,
-          prompt_tracking!inner(region, topic_id)
-        )
-      `)
-      .eq("project_id", projectId)
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("project_id", projectId)
       .not("domain", "is", null)
       .not("url", "is", null);
 
@@ -1178,14 +1178,14 @@ export async function getCitationSources(
   // Get total count for pagination
   let countQuery = supabase
     .from("citations")
-    .select(`
-      id,
-      ai_responses!inner(
-        platform,
-        prompt_tracking!inner(region, topic_id)
-      )
+            .select(`
+              id,
+              ai_responses!inner(
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
     `, { count: "exact", head: true })
-    .eq("project_id", projectId)
+            .eq("project_id", projectId)
     .not("url", "is", null);
 
   // Apply date filter
@@ -1256,10 +1256,10 @@ export async function getCitationSources(
       pageSize,
       totalPages: 0,
     };
-  }
+      }
 
   if (!citations) {
-    return {
+      return {
       data: [],
       total: 0,
       page,
@@ -1407,7 +1407,7 @@ export async function getCitationsTrends(
     buildStatsQuery(previousStartStr, previousEndStr, "brand"),
     buildStatsQuery(previousStartStr, previousEndStr, "competitor"),
   ]);
-
+  
   // Calculate previous period stats
   const previousBrandCitations = previousBrandResult.data?.reduce(
     (sum, stat) => sum + (stat.citations_count || 0),
@@ -1460,7 +1460,7 @@ export async function getCitationsTrends(
 
     if (!competitorTrends.has(competitorName)) {
       competitorTrends.set(competitorName, { current: 0, previous: 0 });
-    }
+      }
 
     competitorTrends.get(competitorName)!.current += currentCompCitationsMap.get(competitorId) || 0;
     competitorTrends.get(competitorName)!.previous += previousCompCitationsMap.get(competitorId) || 0;
@@ -1474,13 +1474,13 @@ export async function getCitationsTrends(
       const previousShare = previousTotal > 0 ? (stats.previous / previousTotal) * 100 : 0;
       const trend = currentShare - previousShare;
 
-      return {
+    return {
         name,
         trend: Number(trend.toFixed(1)),
         currentCitations: stats.current,
         previousCitations: stats.previous,
-      };
-    });
+    };
+  });
 
   return {
     brandTrend: Number(shareTrend.toFixed(1)),
@@ -1536,7 +1536,7 @@ export async function getCitationsShareEvolution(
   let query = supabase
     .from("daily_brand_stats")
     .select("stat_date, entity_type, competitor_id, citations_count, entity_name")
-    .eq("project_id", projectId)
+            .eq("project_id", projectId)
     .gte("stat_date", startDateStr)
     .lte("stat_date", endDateStr);
 
@@ -1561,7 +1561,7 @@ export async function getCitationsShareEvolution(
   const { data: competitors } = await supabase
     .from("competitors")
     .select("id, name, domain")
-    .eq("project_id", projectId)
+            .eq("project_id", projectId)
     .eq("is_active", true);
 
   // Create entity list (brand + competitors)

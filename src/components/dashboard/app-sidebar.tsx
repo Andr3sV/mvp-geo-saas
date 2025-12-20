@@ -25,6 +25,7 @@ import {
   LayoutDashboard,
   Eye,
   Database,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -89,6 +90,11 @@ const brandPerceptionItems = [
 
 const dataManagementItems = [
   {
+    title: "AI Responses",
+    href: "/dashboard/responses",
+    icon: Bot,
+  },
+  {
     title: "Competitors",
     href: "/dashboard/competitors",
     icon: Users2,
@@ -128,7 +134,8 @@ export function AppSidebar() {
     pathname.startsWith("/dashboard/trending");
   const isBrandPerceptionOpen = pathname.startsWith("/dashboard/sentiment") ||
     pathname.startsWith("/dashboard/attributes");
-  const isDataManagementOpen = pathname.startsWith("/dashboard/competitors") ||
+  const isDataManagementOpen = pathname.startsWith("/dashboard/responses") ||
+    pathname.startsWith("/dashboard/competitors") ||
     pathname.startsWith("/dashboard/prompts") ||
     pathname.startsWith("/dashboard/topics") ||
     pathname.startsWith("/dashboard/analysis");
@@ -154,6 +161,7 @@ export function AppSidebar() {
       pathname.startsWith("/dashboard/attributes")
     );
     setIsDataManagementExpanded(
+      pathname.startsWith("/dashboard/responses") ||
       pathname.startsWith("/dashboard/competitors") ||
       pathname.startsWith("/dashboard/prompts") ||
       pathname.startsWith("/dashboard/topics") ||

@@ -143,10 +143,10 @@ export function DateRangePicker({
 
     for (const filterType of filters) {
       const range = getQuickFilterRange(filterType);
-      if (
+    if (
         isSameDay(value.from, range.from!) &&
         isSameDay(value.to, range.to!)
-      ) {
+    ) {
         return filterType;
       }
     }

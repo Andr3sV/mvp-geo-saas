@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TrendingUp, Users, Trophy, MessageSquare } from "lucide-react";
+import { startOfWeek } from "date-fns";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,12 +38,11 @@ export default function ShareOfVoicePage() {
   const [trendsData, setTrendsData] = useState<any>(null);
   const [insights, setInsights] = useState<any[]>([]);
   
-  // Date range state (default to last 30 days ending yesterday)
+  // Date range state (default to current week - Monday to yesterday)
   // Today's data won't be available until tomorrow, so max date is yesterday
   const [dateRange, setDateRange] = useState<DateRangeValue>({
     from: (() => {
-      const date = getYesterday();
-      date.setDate(date.getDate() - 29); // 30 days total including yesterday
+      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
       date.setHours(0, 0, 0, 0);
       return date;
     })(),
@@ -299,54 +299,54 @@ export default function ShareOfVoicePage() {
       />
 
       {/* Share of Voice Chart */}
-      {(() => {
-        // Filter competitors to only show those assigned to the selected region
-        const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-        const filteredCompetitors = sovData.competitors.filter((comp: any) =>
-          regionCompetitorIds.has(comp.id)
-        );
+            {(() => {
+              // Filter competitors to only show those assigned to the selected region
+              const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+              const filteredCompetitors = sovData.competitors.filter((comp: any) =>
+                regionCompetitorIds.has(comp.id)
+              );
 
-        // Recalculate total mentions and percentages based on filtered competitors
-        const filteredCompetitorMentions = filteredCompetitors.reduce(
-          (sum: number, comp: any) => sum + comp.mentions,
-          0
-        );
-        const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+              // Recalculate total mentions and percentages based on filtered competitors
+              const filteredCompetitorMentions = filteredCompetitors.reduce(
+                (sum: number, comp: any) => sum + comp.mentions,
+                0
+              );
+              const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
 
-        // Combine brand and filtered competitors with recalculated percentages
-        const allEntities = [
-          {
-            id: "brand",
-            name: sovData.brand.name,
-            domain: sovData.brand.domain,
-            mentions: sovData.brand.mentions,
-            percentage:
-              filteredTotalMentions > 0
-                ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
-                : 0,
-            isBrand: true,
-            trend: trendsData.brandTrend,
-          },
-          ...filteredCompetitors.map((comp: any) => ({
-            id: comp.id,
-            name: comp.name,
-            domain: comp.domain,
-            mentions: comp.mentions,
-            percentage:
-              filteredTotalMentions > 0
-                ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
-                : 0,
-            isBrand: false,
-            trend:
-              trendsData.competitorTrends.find((t: any) => t.name === comp.name)
-                ?.trend || 0,
-          })),
-        ];
+              // Combine brand and filtered competitors with recalculated percentages
+              const allEntities = [
+                {
+                  id: "brand",
+                  name: sovData.brand.name,
+                  domain: sovData.brand.domain,
+                  mentions: sovData.brand.mentions,
+                  percentage:
+                    filteredTotalMentions > 0
+                      ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
+                      : 0,
+                  isBrand: true,
+                  trend: trendsData.brandTrend,
+                },
+                ...filteredCompetitors.map((comp: any) => ({
+                  id: comp.id,
+                  name: comp.name,
+                  domain: comp.domain,
+                  mentions: comp.mentions,
+                  percentage:
+                    filteredTotalMentions > 0
+                      ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
+                      : 0,
+                  isBrand: false,
+                  trend:
+                    trendsData.competitorTrends.find((t: any) => t.name === comp.name)
+                      ?.trend || 0,
+                })),
+              ];
 
-        // Sort by percentage descending
-        allEntities.sort((a, b) => b.percentage - a.percentage);
+              // Sort by percentage descending
+              allEntities.sort((a, b) => b.percentage - a.percentage);
 
-        return (
+                return (
           <>
             <MarketShareDistribution entities={allEntities} isLoading={isLoading} />
 
@@ -364,7 +364,7 @@ export default function ShareOfVoicePage() {
             <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} />
           </>
         );
-      })()}
+            })()}
 
       {/* Insights */}
       {insights.length > 0 && (

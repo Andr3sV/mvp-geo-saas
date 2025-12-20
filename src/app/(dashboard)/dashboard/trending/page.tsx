@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, TrendingDown, Zap, Activity } from "lucide-react";
+import { startOfWeek } from "date-fns";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
@@ -37,11 +38,10 @@ function getYesterday(): Date {
   return yesterday;
 }
 
-// Default date range: last 30 days ending yesterday
+// Default date range: current week (Monday to yesterday)
 const defaultDateRange: DateRangeValue = {
   from: (() => {
-    const date = getYesterday();
-    date.setDate(date.getDate() - 29);
+    const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
     date.setHours(0, 0, 0, 0);
     return date;
   })(),
@@ -113,7 +113,7 @@ export default function TrendingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader 
         title="Trending Queries"
         description="Stay ahead with real-time query trends and emerging topics"
       />

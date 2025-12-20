@@ -22,6 +22,19 @@ interface CompetitorInfo {
   domain: string;
 }
 
+// Deduplicated citation with combined text fragments
+interface DeduplicatedCitation {
+  web_search_query: string | null;
+  uri: string;
+  url: string;
+  domain: string | null;
+  text_fragments: string[];
+  start_indices: number[];
+  end_indices: number[];
+  occurrence_count: number;
+  metadata: Record<string, any>;
+}
+
 // =============================================
 // HELPER: NORMALIZE DOMAIN
 // =============================================
@@ -53,6 +66,93 @@ function normalizeDomain(urlOrDomain: string | null | undefined): string | null 
   } catch {
     return null;
   }
+}
+
+// =============================================
+// HELPER: NORMALIZE URI (for deduplication)
+// =============================================
+
+/**
+ * Normalize a URI/URL for deduplication purposes
+ * @param urlOrUri - URL or URI to normalize
+ * @returns Normalized URI (lowercase, consistent format)
+ */
+function normalizeUri(urlOrUri: string | null | undefined): string | null {
+  if (!urlOrUri) return null;
+  
+  try {
+    let uri = urlOrUri.toLowerCase().trim();
+    
+    // Remove protocol
+    uri = uri.replace(/^https?:\/\//, '');
+    
+    // Remove www. prefix
+    uri = uri.replace(/^www\./, '');
+    
+    // Remove trailing slash
+    uri = uri.replace(/\/$/, '');
+    
+    // Remove fragment (hash)
+    uri = uri.split('#')[0];
+    
+    return uri || null;
+  } catch {
+    return null;
+  }
+}
+
+// =============================================
+// HELPER: DEDUPLICATE CITATIONS BY URI
+// =============================================
+
+/**
+ * Deduplicate citations by URI, combining text fragments from duplicates
+ * @param citations - Array of citation data
+ * @returns Array of deduplicated citations with combined text
+ */
+function deduplicateCitations(citations: CitationData[]): DeduplicatedCitation[] {
+  const uriMap = new Map<string, DeduplicatedCitation>();
+  
+  for (const citation of citations) {
+    const normalizedUri = normalizeUri(citation.url || citation.uri);
+    if (!normalizedUri) continue;
+    
+    if (uriMap.has(normalizedUri)) {
+      // Combine with existing entry
+      const existing = uriMap.get(normalizedUri)!;
+      
+      if (citation.text && !existing.text_fragments.includes(citation.text)) {
+        existing.text_fragments.push(citation.text);
+      }
+      
+      if (citation.start_index != null) {
+        existing.start_indices.push(citation.start_index);
+        existing.end_indices.push(citation.end_index ?? 0);
+      }
+      
+      existing.occurrence_count++;
+      
+      // Merge metadata
+      if (citation.metadata) {
+        existing.metadata = { ...existing.metadata, ...citation.metadata };
+      }
+    } else {
+      // First occurrence - create new entry
+      uriMap.set(normalizedUri, {
+        web_search_query: citation.web_search_query || null,
+        uri: citation.uri || citation.url || '',
+        url: citation.url || citation.uri || '',
+        domain: citation.domain || null,
+        text_fragments: citation.text ? [citation.text] : [],
+        start_indices: citation.start_index != null ? [citation.start_index] : [],
+        end_indices: citation.end_index != null ? [citation.end_index] : [],
+        occurrence_count: 1,
+        metadata: citation.metadata || {}
+      });
+    }
+  }
+  
+  return Array.from(uriMap.values());
 }
 
 // =============================================
@@ -195,6 +295,11 @@ export async function saveCitations(
       return 0;
     }
 
+    // Deduplicate citations by URI (combines text fragments from same source)
+    const deduplicatedCitations = deduplicateCitations(validCitations);
+    
+    logInfo('citation-storage', `Deduplicated: ${validCitations.length} -> ${deduplicatedCitations.length} unique URIs`);
+
     // Get classification context (brand domain and competitors)
     const { brandDomain, competitors } = await getClassificationContext(supabase, projectId);
     
@@ -204,7 +309,7 @@ export async function saveCitations(
     });
 
     // Prepare records for insertion with classification
-    const records = validCitations.map(citation => {
+    const records = deduplicatedCitations.map(citation => {
       // Classify the citation based on domain
       const classification = classifyCitation(
         citation.domain || normalizeDomain(citation.url || citation.uri),
@@ -212,18 +317,32 @@ export async function saveCitations(
         competitors
       );
       
+      // Combine text fragments with separator
+      const combinedText = citation.text_fragments.length > 0
+        ? citation.text_fragments.join(' [...] ')
+        : null;
+      
       return {
         ai_response_id: aiResponseId,
         project_id: projectId,
         web_search_query: citation.web_search_query || null,
-        // If uri is missing, backfill with url to avoid nulls for OpenAI citations
-        uri: citation.uri || citation.url || null,
-        url: citation.url || citation.uri || null,
+        uri: citation.uri || null,
+        url: citation.url || null,
         domain: citation.domain || null,
-        start_index: citation.start_index ?? null,
-        end_index: citation.end_index ?? null,
-        text: citation.text || null,
-        metadata: citation.metadata || {},
+        // Use first indices
+        start_index: citation.start_indices[0] ?? null,
+        end_index: citation.end_indices[0] ?? null,
+        // Combined text from all occurrences
+        text: combinedText,
+        // Enhanced metadata with occurrence info
+        metadata: {
+          ...citation.metadata,
+          occurrence_count: citation.occurrence_count,
+          all_text_fragments: citation.text_fragments.length > 1 ? citation.text_fragments : undefined,
+          all_indices: citation.start_indices.length > 1 
+            ? citation.start_indices.map((s, i) => ({ start: s, end: citation.end_indices[i] }))
+            : undefined
+        },
         // Classification fields
         citation_type: classification.type,
         competitor_id: classification.competitorId,

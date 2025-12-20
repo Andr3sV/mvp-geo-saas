@@ -102,11 +102,11 @@ export async function getShareOfVoice(
   }
 
   const { data: brandStats, error: brandError } = await brandQuery;
-
+  
   if (brandError) {
     console.error('Error fetching brand mentions from daily_brand_stats:', brandError);
   }
-
+  
   const brandMentions = brandStats?.reduce((sum, stat) => sum + (stat.mentions_count || 0), 0) || 0;
 
   // =============================================
@@ -135,7 +135,7 @@ export async function getShareOfVoice(
   }
 
   const { data: competitorStats, error: compError } = await competitorQuery;
-
+  
   if (compError) {
     console.error('Error fetching competitor mentions from daily_brand_stats:', compError);
   }
@@ -153,7 +153,7 @@ export async function getShareOfVoice(
 
   // Aggregate competitor mentions by competitor_id
   const competitorMentionsMap = new Map<string, { id: string; name: string; domain: string; mentions: number }>();
-
+  
   // Initialize with all active competitors (with 0 mentions)
   allCompetitors?.forEach((competitor: any) => {
     competitorMentionsMap.set(competitor.id, {
@@ -195,12 +195,12 @@ export async function getShareOfVoice(
   const competitors = Array.from(competitorMentionsMap.values())
     .filter((comp) => comp.mentions > 0) // Only show competitors with mentions
     .map((comp) => ({
-      id: comp.id,
-      name: comp.name,
-      domain: comp.domain || comp.name,
-      mentions: comp.mentions,
-      percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
-    }));
+    id: comp.id,
+    name: comp.name,
+    domain: comp.domain || comp.name,
+    mentions: comp.mentions,
+    percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
+  }));
 
   // Sort competitors by percentage descending
   competitors.sort((a, b) => b.percentage - a.percentage);
@@ -278,7 +278,7 @@ export async function getShareOfVoiceTrends(
     let query = supabase
       .from("daily_brand_stats")
       .select("mentions_count, competitor_id, entity_name, competitors!inner(name, is_active)")
-      .eq("project_id", projectId)
+    .eq("project_id", projectId)
       .eq("entity_type", entityType)
       .gte("stat_date", startDate)
       .lte("stat_date", endDate);
@@ -289,18 +289,18 @@ export async function getShareOfVoiceTrends(
       query = query.not("competitor_id", "is", null);
     }
 
-    if (platformFilter) {
+  if (platformFilter) {
       query = query.eq("platform", mappedPlatform);
-    }
+  }
 
     // When region is GLOBAL, don't filter by region (sum all regions)
-    if (regionFilter) {
+  if (regionFilter) {
       query = query.eq("region", region);
-    }
+  }
 
-    if (topicFilter) {
+  if (topicFilter) {
       query = query.eq("topic_id", topicId);
-    }
+  }
 
     return query;
   };
@@ -311,14 +311,14 @@ export async function getShareOfVoiceTrends(
   const [currentBrandResult, currentCompResult] = await Promise.all([
     buildStatsQuery(currentStartStr, currentEndStr, "brand"),
     buildStatsQuery(currentStartStr, currentEndStr, "competitor"),
-  ]);
+    ]);
 
   // Calculate current period stats
   const currentBrandMentions = currentBrandResult.data?.reduce(
     (sum, stat) => sum + (stat.mentions_count || 0),
     0
   ) || 0;
-
+  
   const currentCompMentionsMap = new Map<string, number>();
   currentCompResult.data?.forEach((stat: any) => {
     const competitor = stat.competitors;
@@ -332,7 +332,7 @@ export async function getShareOfVoiceTrends(
     (sum, count) => sum + count,
     0
   );
-
+  
   const currentTotal = currentBrandMentions + currentCompMentions;
   const currentBrandShare = currentTotal > 0 
     ? (currentBrandMentions / currentTotal) * 100 
@@ -351,7 +351,7 @@ export async function getShareOfVoiceTrends(
     (sum, stat) => sum + (stat.mentions_count || 0),
     0
   ) || 0;
-
+  
   const previousCompMentionsMap = new Map<string, number>();
   previousCompResult.data?.forEach((stat: any) => {
     const competitor = stat.competitors;
@@ -365,7 +365,7 @@ export async function getShareOfVoiceTrends(
     (sum, count) => sum + count,
     0
   );
-
+  
   const previousTotal = previousBrandMentions + previousCompMentions;
   const previousBrandShare = previousTotal > 0 
     ? (previousBrandMentions / previousTotal) * 100 

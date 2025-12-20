@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { startOfWeek } from "date-fns";
 import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -48,11 +49,10 @@ export default function CitationsPage() {
   const [citationSourcesTotalPages, setCitationSourcesTotalPages] = useState(0);
 
   // Filters state
-  // Date range state (default to last 30 days ending yesterday)
+  // Date range state (default to current week - Monday to yesterday)
   const [dateRange, setDateRange] = useState<DateRangeValue>({
     from: (() => {
-      const date = getYesterday();
-      date.setDate(date.getDate() - 29); // 30 days total including yesterday
+      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
       date.setHours(0, 0, 0, 0);
       return date;
     })(),
@@ -210,22 +210,22 @@ export default function CitationsPage() {
     setIsLoading(true);
     setIsLoadingCharts(true);
     
-    try {
-      const [
-        metricsData,
+        try {
+          const [
+            metricsData,
         rankingData,
-        domainsResult,
+            domainsResult,
         trends,
-      ] = await Promise.all([
-        getQuickLookMetrics(selectedProjectId, filtersPayload),
+          ] = await Promise.all([
+            getQuickLookMetrics(selectedProjectId, filtersPayload),
         getCitationsRanking(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
-        getMostCitedDomains(selectedProjectId, 10, filtersPayload),
+            getMostCitedDomains(selectedProjectId, 10, filtersPayload),
         getCitationsTrends(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
-      ]);
+          ]);
 
-      setQuickMetrics(metricsData);
+          setQuickMetrics(metricsData);
       setCitationsRanking(rankingData);
-      setMostCitedDomains(domainsResult);
+          setMostCitedDomains(domainsResult);
       setTrendsData(trends);
 
       // Load share evolution data in parallel (non-blocking)
@@ -238,12 +238,12 @@ export default function CitationsPage() {
           console.error("Error loading share evolution data:", error);
           setIsLoadingCharts(false);
         });
-    } catch (error) {
-      console.error("Error loading citation data:", error);
+        } catch (error) {
+          console.error("Error loading citation data:", error);
       setIsLoadingCharts(false);
-    } finally {
-      setIsLoading(false);
-    }
+        } finally {
+          setIsLoading(false);
+        }
   };
 
   if (isLoading || !quickMetrics) {
@@ -306,13 +306,13 @@ export default function CitationsPage() {
                     }
                   : undefined
               }
-            />
+        />
             <StatCard
               title="Total Citations"
               value={totalCitations.toLocaleString()}
               description="Total citations across all brands"
               icon={FileText}
-            />
+        />
             <StatCard
               title="Market Position"
               value={`#${quickMetrics.ranking?.position || 1}`}
@@ -328,8 +328,8 @@ export default function CitationsPage() {
               value={citationsRanking?.competitors?.length || 0}
               description="Active competitors"
               icon={Users}
-            />
-          </div>
+        />
+      </div>
         );
       })()}
 
@@ -416,7 +416,7 @@ export default function CitationsPage() {
       })()}
 
       {/* Most Cited Domains */}
-      <MostCitedDomainsTable data={mostCitedDomains} />
+        <MostCitedDomainsTable data={mostCitedDomains} />
 
       {/* Citation Sources - Individual URLs */}
       <CitationSourcesTable

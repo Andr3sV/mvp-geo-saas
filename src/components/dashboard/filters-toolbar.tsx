@@ -176,30 +176,30 @@ export function FiltersToolbar({
 					</div>
 
 					{!hidePlatformFilter && (
-						<div className="w-full md:w-52">
-							<Select 
-								value={platform} 
-								onValueChange={(newPlatform) => {
-									setPlatform(newPlatform);
-									// Auto-apply when platform changes
-									onApply?.({ region, dateRange, platform: newPlatform, topicId });
-								}}
-							>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Platform" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectGroup>
-										<SelectLabel>Platform</SelectLabel>
-										<SelectItem value="all">All Platforms</SelectItem>
-										<SelectItem value="openai">OpenAI</SelectItem>
-										<SelectItem value="gemini">Gemini</SelectItem>
-										<SelectItem value="claude">Claude</SelectItem>
-										<SelectItem value="perplexity">Perplexity</SelectItem>
-									</SelectGroup>
-								</SelectContent>
-							</Select>
-						</div>
+					<div className="w-full md:w-52">
+						<Select 
+							value={platform} 
+							onValueChange={(newPlatform) => {
+								setPlatform(newPlatform);
+								// Auto-apply when platform changes
+								onApply?.({ region, dateRange, platform: newPlatform, topicId });
+							}}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue placeholder="Platform" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectGroup>
+									<SelectLabel>Platform</SelectLabel>
+									<SelectItem value="all">All Platforms</SelectItem>
+									<SelectItem value="openai">OpenAI</SelectItem>
+									<SelectItem value="gemini">Gemini</SelectItem>
+									<SelectItem value="claude">Claude</SelectItem>
+									<SelectItem value="perplexity">Perplexity</SelectItem>
+								</SelectGroup>
+							</SelectContent>
+						</Select>
+					</div>
 					)}
 
 					<div className="w-full md:w-52">
