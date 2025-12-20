@@ -1,225 +1,184 @@
-import { Search, TrendingUp, Target } from "lucide-react";
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Search, Hash, Globe, Ruler } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
+import { useProject } from "@/contexts/project-context";
 
-// Mock data
-const queryStats = {
-  totalQueries: 1247,
-  citationRate: 67.9,
-  topCategories: 5,
-  avgPosition: 2.4,
+// Components
+import { QueryWordCloud } from "@/components/queries/query-word-cloud";
+import { QueryPlatformDistribution } from "@/components/queries/query-platform-distribution";
+import { QueryIntentBreakdown } from "@/components/queries/query-intent-breakdown";
+import { TopQueriesTable } from "@/components/queries/top-queries-table";
+import { QueryDomainHeatmap } from "@/components/queries/query-domain-heatmap";
+
+// Queries
+import {
+  getQueryOverview,
+  getQueryWordCloudData,
+  getQueryPlatformDistribution,
+  getQueryIntentBreakdown,
+  getTopQueries,
+  getQueryDomainCorrelation,
+} from "@/lib/queries/query-analytics";
+
+type DateRangeValue = {
+  from: Date | undefined;
+  to: Date | undefined;
 };
 
-const topQueries = [
-  {
-    query: "What is the best GEO platform?",
-    citations: 156,
-    rate: 89.2,
-    avgPosition: 1.8,
-    platforms: ["ChatGPT", "Claude", "Gemini"],
-  },
-  {
-    query: "How to optimize for AI search?",
-    citations: 142,
-    rate: 78.5,
-    avgPosition: 2.1,
-    platforms: ["ChatGPT", "Perplexity"],
-  },
-  {
-    query: "GEO tools comparison",
-    citations: 98,
-    rate: 71.3,
-    avgPosition: 2.9,
-    platforms: ["Gemini", "Claude"],
-  },
-  {
-    query: "AI citation tracking software",
-    citations: 87,
-    rate: 82.1,
-    avgPosition: 1.5,
-    platforms: ["ChatGPT", "Claude"],
-  },
-  {
-    query: "Best tools for brand monitoring in AI",
-    citations: 76,
-    rate: 65.8,
-    avgPosition: 3.2,
-    platforms: ["Perplexity", "Gemini"],
-  },
-];
+// Get yesterday's date
+function getYesterday(): Date {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(23, 59, 59, 999);
+  return yesterday;
+}
 
-const queryCategories = [
-  { category: "Product Comparison", count: 324, citationRate: 74.2 },
-  { category: "How-to Guides", count: 287, citationRate: 68.5 },
-  { category: "Features & Benefits", count: 198, citationRate: 82.1 },
-  { category: "Pricing & Plans", count: 156, citationRate: 45.3 },
-  { category: "Use Cases", count: 134, citationRate: 71.6 },
-  { category: "Integration & Setup", count: 98, citationRate: 58.9 },
-];
+// Default date range: last 30 days ending yesterday
+const defaultDateRange: DateRangeValue = {
+  from: (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })(),
+  to: getYesterday(),
+};
 
 export default function QueriesPage() {
+  const { selectedProjectId } = useProject();
+
+  // Filter state
+  const [dateRange, setDateRange] = useState<DateRangeValue>(defaultDateRange);
+  const [platform, setPlatform] = useState<string>("all");
+  const [region, setRegion] = useState<string>("GLOBAL");
+
+  // Data state
+  const [isLoading, setIsLoading] = useState(true);
+  const [overview, setOverview] = useState<Awaited<ReturnType<typeof getQueryOverview>> | null>(null);
+  const [wordCloudData, setWordCloudData] = useState<Awaited<ReturnType<typeof getQueryWordCloudData>>>([]);
+  const [platformDistribution, setPlatformDistribution] = useState<Awaited<ReturnType<typeof getQueryPlatformDistribution>> | null>(null);
+  const [intentBreakdown, setIntentBreakdown] = useState<Awaited<ReturnType<typeof getQueryIntentBreakdown>>>([]);
+  const [topQueries, setTopQueries] = useState<Awaited<ReturnType<typeof getTopQueries>>>([]);
+  const [domainCorrelation, setDomainCorrelation] = useState<Awaited<ReturnType<typeof getQueryDomainCorrelation>> | null>(null);
+
+  // Load data
+  const loadData = useCallback(async () => {
+    if (!selectedProjectId) return;
+
+    setIsLoading(true);
+
+    try {
+      const [overviewData, wordCloud, distribution, intent, queries, correlation] = await Promise.all([
+        getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+        getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+        getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region),
+        getQueryIntentBreakdown(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+        getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region),
+        getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region),
+      ]);
+
+      setOverview(overviewData);
+      setWordCloudData(wordCloud);
+      setPlatformDistribution(distribution);
+      setIntentBreakdown(intent);
+      setTopQueries(queries);
+      setDomainCorrelation(correlation);
+    } catch (error) {
+      console.error("Error loading query data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedProjectId, dateRange, platform, region]);
+
+  // Initial load and reload on filter changes
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Handle filter changes
+  const handleFilterChange = (filters: {
+    region: string;
+    dateRange: DateRangeValue;
+    platform: string;
+    topicId: string;
+  }) => {
+    setDateRange(filters.dateRange);
+    setPlatform(filters.platform);
+    setRegion(filters.region);
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader 
+      <PageHeader
         title="Query Patterns"
         description="Discover what questions generate citations for your brand"
       />
 
-      <FiltersToolbar />
+      <FiltersToolbar
+        dateRange={dateRange}
+        platform={platform}
+        region={region}
+        onApply={handleFilterChange}
+      />
 
-      {/* Stats Cards */}
+      {/* Section 1: Metrics Overview */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
-          title="Tracked Queries"
-          value={queryStats.totalQueries}
-          description="Across all platforms"
+          title="Total Queries"
+          value={overview?.totalQueries || 0}
+          description="Search queries tracked"
           icon={Search}
+          isLoading={isLoading}
         />
         <StatCard
-          title="Citation Rate"
-          value={`${queryStats.citationRate}%`}
-          description="Queries that mention you"
-          icon={Target}
-          trend={{ value: 5.3, isPositive: true }}
+          title="Unique Queries"
+          value={overview?.uniqueQueries || 0}
+          description="Distinct search patterns"
+          icon={Hash}
+          isLoading={isLoading}
         />
         <StatCard
-          title="Categories"
-          value={queryStats.topCategories}
-          description="Query types"
-          icon={TrendingUp}
+          title="Top Platform"
+          value={overview?.topPlatform || "N/A"}
+          description="Most active platform"
+          icon={Globe}
+          isLoading={isLoading}
         />
         <StatCard
-          title="Avg Position"
-          value={queryStats.avgPosition}
-          description="In AI responses"
-          icon={TrendingUp}
+          title="Avg Query Length"
+          value={`${overview?.avgQueryLength || 0} chars`}
+          description="Average query size"
+          icon={Ruler}
+          isLoading={isLoading}
         />
       </div>
 
-      {/* Top Performing Queries */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top Performing Queries</CardTitle>
-          <CardDescription>
-            Queries that generate the most citations for your brand
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {topQueries.map((query, index) => (
-              <div key={index} className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium">{query.query}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {query.platforms.map((platform) => (
-                        <Badge key={platform} variant="secondary">
-                          {platform}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <Badge className="ml-4">#{index + 1}</Badge>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Citations</p>
-                    <p className="font-semibold">{query.citations}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Citation Rate</p>
-                    <p className="font-semibold">{query.rate}%</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Avg Position</p>
-                    <p className="font-semibold">{query.avgPosition}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Section 2: Word Cloud */}
+      <QueryWordCloud data={wordCloudData} isLoading={isLoading} />
 
-      {/* Query Categories */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Query Categories</CardTitle>
-          <CardDescription>
-            Performance breakdown by question type
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {queryCategories.map((cat) => (
-              <div key={cat.category} className="flex items-center gap-4">
-                <div className="w-48 font-medium">{cat.category}</div>
-                <div className="flex-1">
-                  <div className="h-2 w-full rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full bg-primary"
-                      style={{ width: `${cat.citationRate}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="w-20 text-right text-sm font-medium">
-                  {cat.count}
-                </div>
-                <div className="w-20 text-right text-sm text-muted-foreground">
-                  {cat.citationRate}%
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Section 3: Platform Distribution */}
+      {platformDistribution && (
+        <QueryPlatformDistribution
+          openaiData={platformDistribution.openai}
+          geminiData={platformDistribution.gemini}
+          isLoading={isLoading}
+        />
+      )}
 
-      {/* Insights */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Query Insights</CardTitle>
-          <CardDescription>Optimize your content strategy</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/20">
-              <p className="font-medium text-green-900 dark:text-green-100">
-                💡 Focus on "Features & Benefits"
-              </p>
-              <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                This category has the highest citation rate at 82.1%. Create more content
-                highlighting your unique features.
-              </p>
-            </div>
-            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950/20">
-              <p className="font-medium text-yellow-900 dark:text-yellow-100">
-                ⚠️ Improve "Pricing & Plans" content
-              </p>
-              <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
-                Only 45.3% citation rate for pricing queries. Consider adding more
-                transparent pricing information.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Section 4: Intent Breakdown */}
+      <QueryIntentBreakdown data={intentBreakdown} isLoading={isLoading} />
 
-      {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
-        <CardHeader>
-          <CardTitle className="text-blue-900 dark:text-blue-100">
-            📊 Mock Data
-          </CardTitle>
-          <CardDescription className="text-blue-700 dark:text-blue-300">
-            Query patterns will be tracked automatically across all AI platforms in Phase 7,
-            helping you identify optimization opportunities.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      {/* Section 5: Top Queries Table */}
+      <TopQueriesTable data={topQueries} isLoading={isLoading} />
+
+      {/* Section 6: Query-Domain Correlation */}
+      {domainCorrelation && (
+        <QueryDomainHeatmap data={domainCorrelation} isLoading={isLoading} />
+      )}
     </div>
   );
 }
-
