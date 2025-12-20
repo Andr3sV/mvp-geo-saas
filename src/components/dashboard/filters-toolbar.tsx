@@ -194,8 +194,6 @@ export function FiltersToolbar({
 									<SelectItem value="all">All Platforms</SelectItem>
 									<SelectItem value="openai">OpenAI</SelectItem>
 									<SelectItem value="gemini">Gemini</SelectItem>
-									<SelectItem value="claude">Claude</SelectItem>
-									<SelectItem value="perplexity">Perplexity</SelectItem>
 								</SelectGroup>
 							</SelectContent>
 						</Select>
