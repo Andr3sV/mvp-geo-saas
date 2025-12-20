@@ -893,7 +893,7 @@ CREATE TABLE citations (
 2. **Deduplication**: Citations with the same URI within a single AI response are combined:
    - Normalizes URIs by removing protocol, www, trailing slash, and fragments
    - Groups citations by normalized URI
-   - Combines text fragments from all occurrences with ` [...] ` separator
+   - Combines text fragments from all occurrences with `[...]` separator
    - Stores occurrence count and all text fragments in metadata
    - Prevents inflated citation metrics from repeated sources (common in Gemini responses)
 3. **Backfilling**: If `uri` is missing, use `url` (and vice versa) to avoid nulls
@@ -906,6 +906,7 @@ CREATE TABLE citations (
 6. **Batch Insert**: All valid, deduplicated citations are inserted in a single transaction with classification
 
 **Deduplication Example**:
+
 - **Before**: URI `https://example.com/article` cited 3 times = 3 rows
 - **After**: Same URI = 1 row with combined text and `metadata.occurrence_count: 3`
 
@@ -1052,7 +1053,7 @@ CREATE TABLE daily_brand_stats (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  UNIQUE(project_id, stat_date, 
+  UNIQUE(project_id, stat_date,
     COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid),
     COALESCE(platform, 'ALL'),
     COALESCE(region, 'GLOBAL'),
@@ -1062,6 +1063,7 @@ CREATE TABLE daily_brand_stats (
 ```
 
 **Dimensions**:
+
 - **platform**: AI platform that generated the response ('openai' or 'gemini')
 - **region**: Geographic region from prompt_tracking (ISO country code or 'GLOBAL')
 - **topic_id**: Topic ID from prompt_tracking (NULL if no topic assigned)
@@ -1114,7 +1116,8 @@ Helper function to discover unique dimension combinations for a project on a giv
 - Before: 10+ seconds (timeout) for large projects
 - After: 50-100ms per entity×dimension combination
 
-**Scaling**: 
+**Scaling**:
+
 - With 2 platforms × 3 regions × 2 topics = 12 dimension combinations per entity
 - Still fast because each combination is a small, optimized query
 

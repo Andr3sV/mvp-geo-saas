@@ -67,6 +67,8 @@ export interface GetAIResponsesFilters {
   status?: string;
   fromDate?: Date;
   toDate?: Date;
+  region?: string;
+  topicId?: string;
 }
 
 export interface GetAIResponsesResult {
@@ -92,14 +94,26 @@ export async function getAIResponses(
   // Calculate offset
   const offset = (page - 1) * pageSize;
 
+  // Check if we need to filter by region or topic (requires inner join)
+  const needsRegionFilter = filters.region && filters.region !== "GLOBAL";
+  const needsTopicFilter = filters.topicId && filters.topicId !== "all";
+  const needsPromptTrackingJoin = needsRegionFilter || needsTopicFilter;
+
   // Build base query for counting
+  // Use inner join if we need to filter by prompt_tracking fields
   let countQuery = supabase
     .from("ai_responses")
-    .select("id", { count: "exact", head: true })
+    .select(
+      needsPromptTrackingJoin
+        ? "id, prompt_tracking!inner(region, topic_id)"
+        : "id",
+      { count: "exact", head: true }
+    )
     .eq("project_id", projectId)
     .eq("status", "success"); // Only show successful responses
 
   // Build data query
+  // Use inner join if we need to filter by prompt_tracking fields
   let dataQuery = supabase
     .from("ai_responses")
     .select(`
@@ -109,8 +123,9 @@ export async function getAIResponses(
       model_version,
       status,
       created_at,
-      prompt_tracking:prompt_tracking_id (
+      ${needsPromptTrackingJoin ? "prompt_tracking!inner(" : "prompt_tracking:prompt_tracking_id ("}
         region,
+        topic_id,
         topics:topic_id (
           name
         )
@@ -144,6 +159,18 @@ export async function getAIResponses(
   if (filters.toDate) {
     countQuery = countQuery.lte("created_at", filters.toDate.toISOString());
     dataQuery = dataQuery.lte("created_at", filters.toDate.toISOString());
+  }
+
+  // Filter by region (if not GLOBAL)
+  if (filters.region && filters.region !== "GLOBAL") {
+    countQuery = countQuery.eq("prompt_tracking.region", filters.region);
+    dataQuery = dataQuery.eq("prompt_tracking.region", filters.region);
+  }
+
+  // Filter by topic
+  if (filters.topicId && filters.topicId !== "all") {
+    countQuery = countQuery.eq("prompt_tracking.topic_id", filters.topicId);
+    dataQuery = dataQuery.eq("prompt_tracking.topic_id", filters.topicId);
   }
 
   // Execute count query

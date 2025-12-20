@@ -3,15 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Search, MessageSquare, Sparkles, Bot, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { MessageSquare, Sparkles, Bot, Loader2, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProject } from "@/contexts/project-context";
 import { getAIResponses, type AIResponseListItem, type GetAIResponsesFilters } from "@/lib/queries/ai-responses";
+import { DateRangeValue } from "@/components/ui/date-range-picker";
 
 // Platform configuration
 const PLATFORM_CONFIG: Record<string, { name: string; color: string; bgColor: string; icon: typeof MessageSquare }> = {
@@ -56,7 +55,19 @@ const REGION_FLAGS: Record<string, string> = {
   GLOBAL: "🌍",
 };
 
-export function ResponsesTable() {
+interface ResponsesTableProps {
+  dateRange: DateRangeValue;
+  platform: string;
+  region: string;
+  topicId: string;
+}
+
+export function ResponsesTable({
+  dateRange,
+  platform,
+  region,
+  topicId,
+}: ResponsesTableProps) {
   const router = useRouter();
   const { selectedProjectId } = useProject();
 
@@ -68,26 +79,18 @@ export function ResponsesTable() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [platform, setPlatform] = useState("all");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
   // Load data
   const loadData = useCallback(async () => {
-    if (!selectedProjectId) return;
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoading(true);
     try {
       const filters: GetAIResponsesFilters = {};
-      if (debouncedSearch) filters.search = debouncedSearch;
       if (platform !== "all") filters.platform = platform;
+      if (dateRange.from) filters.fromDate = dateRange.from;
+      if (dateRange.to) filters.toDate = dateRange.to;
+      if (region && region !== "GLOBAL") filters.region = region;
+      if (topicId && topicId !== "all") filters.topicId = topicId;
 
       const result = await getAIResponses(selectedProjectId, filters, page, pageSize);
       setResponses(result.data);
@@ -98,7 +101,7 @@ export function ResponsesTable() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProjectId, debouncedSearch, platform, page, pageSize]);
+  }, [selectedProjectId, dateRange, platform, region, topicId, page, pageSize]);
 
   useEffect(() => {
     loadData();
@@ -107,7 +110,7 @@ export function ResponsesTable() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, platform]);
+  }, [dateRange, platform, region, topicId]);
 
   // Handle row click
   const handleRowClick = (responseId: string) => {
@@ -146,46 +149,7 @@ export function ResponsesTable() {
 
   return (
     <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">AI Responses</CardTitle>
-            <CardDescription>
-              {total > 0 ? `${total.toLocaleString()} responses found` : "No responses found"}
-            </CardDescription>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 mt-4">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search prompts..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={platform} onValueChange={setPlatform}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Platform" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Platform</SelectLabel>
-                <SelectItem value="all">All Platforms</SelectItem>
-                <SelectItem value="openai">ChatGPT</SelectItem>
-                <SelectItem value="gemini">Gemini</SelectItem>
-                <SelectItem value="claude">Claude</SelectItem>
-                <SelectItem value="perplexity">Perplexity</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-
-      <CardContent>
+      <CardContent className="pt-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -199,7 +163,7 @@ export function ResponsesTable() {
         ) : (
           <>
             {/* Table */}
-            <div className="rounded-lg border overflow-hidden">
+            <div className=" overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
