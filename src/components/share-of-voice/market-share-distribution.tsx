@@ -18,6 +18,7 @@ interface Entity {
 interface MarketShareDistributionProps {
   entities: Entity[];
   isLoading?: boolean;
+  metricLabel?: string; // "mentions" or "citations"
 }
 
 // Subtle color palette
@@ -32,7 +33,7 @@ const COLORS = [
   "bg-orange-500",
 ];
 
-export function MarketShareDistribution({ entities, isLoading }: MarketShareDistributionProps) {
+export function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions" }: MarketShareDistributionProps) {
   if (isLoading) {
     return (
       <Card>
@@ -41,7 +42,7 @@ export function MarketShareDistribution({ entities, isLoading }: MarketShareDist
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
             Market Share Distribution
           </CardTitle>
-          <CardDescription>Percentage of mentions across all tracked brands</CardDescription>
+          <CardDescription>Percentage of {metricLabel} across all tracked brands</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -71,13 +72,13 @@ export function MarketShareDistribution({ entities, isLoading }: MarketShareDist
             <BarChart3 className="h-5 w-5 text-muted-foreground" />
             Market Share Distribution
           </CardTitle>
-          <CardDescription>Percentage of mentions across all tracked brands</CardDescription>
+          <CardDescription>Percentage of {metricLabel} across all tracked brands</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <p className="text-muted-foreground">No data available yet</p>
             <p className="text-sm text-muted-foreground/70 mt-1">
-              Run some analyses to see share of voice distribution
+              Run some analyses to see share distribution
             </p>
           </div>
         </CardContent>
@@ -86,7 +87,7 @@ export function MarketShareDistribution({ entities, isLoading }: MarketShareDist
   }
 
   const maxPercentage = Math.max(...entities.map(e => e.percentage));
-  const totalMentions = entities.reduce((sum, e) => sum + e.mentions, 0);
+  const totalMetrics = entities.reduce((sum, e) => sum + e.mentions, 0);
 
   return (
     <Card>
@@ -97,11 +98,11 @@ export function MarketShareDistribution({ entities, isLoading }: MarketShareDist
               <BarChart3 className="h-5 w-5 text-muted-foreground" />
               Market Share Distribution
             </CardTitle>
-            <CardDescription>Percentage of mentions across all tracked brands</CardDescription>
+            <CardDescription>Percentage of {metricLabel} across all tracked brands</CardDescription>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-semibold tabular-nums">{totalMentions.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">total mentions</p>
+            <p className="text-2xl font-semibold tabular-nums">{totalMetrics.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">total {metricLabel}</p>
           </div>
         </div>
       </CardHeader>

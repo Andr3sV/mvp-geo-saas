@@ -13,14 +13,12 @@ import {
   getShareOfVoiceInsights,
   getShareOfVoiceOverTime,
   getShareEvolution,
-  getPlatformPerformance,
 } from "@/lib/queries/share-of-voice";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
 import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
 import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
-import { PlatformHeatmap } from "@/components/share-of-voice/platform-heatmap";
 import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 
@@ -72,7 +70,6 @@ export default function ShareOfVoicePage() {
 
   // New charts data
   const [shareEvolutionData, setShareEvolutionData] = useState<any>({ data: [], entities: [] });
-  const [platformData, setPlatformData] = useState<any>({ data: [], platforms: [], entities: [] });
   const [isLoadingCharts, setIsLoadingCharts] = useState(false);
 
   useEffect(() => {
@@ -150,17 +147,15 @@ export default function ShareOfVoicePage() {
       setInsights(insightsData);
 
       // Load additional chart data in parallel (non-blocking)
-      Promise.all([
-        getShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
-        getPlatformPerformance(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
-      ]).then(([shareEvo, platformPerf]) => {
-        setShareEvolutionData(shareEvo);
-        setPlatformData(platformPerf);
-        setIsLoadingCharts(false);
-      }).catch((error) => {
-        console.error("Error loading chart data:", error);
-        setIsLoadingCharts(false);
-      });
+      getShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId)
+        .then((shareEvo) => {
+          setShareEvolutionData(shareEvo);
+          setIsLoadingCharts(false);
+        })
+        .catch((error) => {
+          console.error("Error loading chart data:", error);
+          setIsLoadingCharts(false);
+        });
     } catch (error) {
       console.error("Error loading Share of Voice data:", error);
       setIsLoadingCharts(false);
@@ -367,13 +362,6 @@ export default function ShareOfVoicePage() {
 
             {/* Competitive Gap Tracker - Full row, top 4 competitors */}
             <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} />
-
-            {/* Platform Heatmap */}
-            <PlatformHeatmap
-              data={platformData.data}
-              platforms={platformData.platforms}
-              isLoading={isLoadingCharts}
-            />
           </>
         );
       })()}

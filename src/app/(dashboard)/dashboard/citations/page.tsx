@@ -3,23 +3,23 @@
 import { useEffect, useState } from "react";
 import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { MetricCard } from "@/components/citations/metric-card";
+import { StatCard } from "@/components/dashboard/stat-card";
 import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
 import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains-table";
 import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BrandLogo } from "@/components/ui/brand-logo";
-import {
-  FileText,
-  Link2,
-  Trophy,
-} from "lucide-react";
+import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
+import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
+import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
+import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
+import { TrendingUp, Users, Trophy, FileText } from "lucide-react";
 import {
   getQuickLookMetrics,
   getCitationsEvolution,
   getMostCitedDomains,
   getCitationSources,
   getCitationsRanking,
+  getCitationsTrends,
+  getCitationsShareEvolution,
 } from "@/lib/queries/citations-real";
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
@@ -71,6 +71,11 @@ export default function CitationsPage() {
   const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
   const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
+
+  // Strategic charts data (matching Share of Mentions)
+  const [trendsData, setTrendsData] = useState<any>({ brandTrend: 0, competitorTrends: [] });
+  const [shareEvolutionData, setShareEvolutionData] = useState<any>({ data: [], entities: [] });
+  const [isLoadingCharts, setIsLoadingCharts] = useState(false);
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
@@ -203,26 +208,42 @@ export default function CitationsPage() {
     };
 
     setIsLoading(true);
+    setIsLoadingCharts(true);
     
-        try {
-          const [
-            metricsData,
-            rankingData,
-            domainsResult,
-          ] = await Promise.all([
-            getQuickLookMetrics(selectedProjectId, filtersPayload),
-            getCitationsRanking(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
-            getMostCitedDomains(selectedProjectId, 10, filtersPayload),
-          ]);
+    try {
+      const [
+        metricsData,
+        rankingData,
+        domainsResult,
+        trends,
+      ] = await Promise.all([
+        getQuickLookMetrics(selectedProjectId, filtersPayload),
+        getCitationsRanking(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
+        getMostCitedDomains(selectedProjectId, 10, filtersPayload),
+        getCitationsTrends(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
+      ]);
 
-          setQuickMetrics(metricsData);
-          setCitationsRanking(rankingData);
-          setMostCitedDomains(domainsResult);
-        } catch (error) {
-          console.error("Error loading citation data:", error);
-        } finally {
-          setIsLoading(false);
-        }
+      setQuickMetrics(metricsData);
+      setCitationsRanking(rankingData);
+      setMostCitedDomains(domainsResult);
+      setTrendsData(trends);
+
+      // Load share evolution data in parallel (non-blocking)
+      getCitationsShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId)
+        .then((shareEvo) => {
+          setShareEvolutionData(shareEvo);
+          setIsLoadingCharts(false);
+        })
+        .catch((error) => {
+          console.error("Error loading share evolution data:", error);
+          setIsLoadingCharts(false);
+        });
+    } catch (error) {
+      console.error("Error loading citation data:", error);
+      setIsLoadingCharts(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isLoading || !quickMetrics) {
@@ -258,30 +279,59 @@ export default function CitationsPage() {
         onApply={handleFiltersChange}
       />
 
-      {/* Quick Look Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <MetricCard
-          title="Total Citation Pages"
-          value={quickMetrics.totalCitationPages.toLocaleString()}
-          description="Unique pages citing your domain"
-          icon={<FileText className="h-5 w-5" />}
-          trend={{ value: 12.5, direction: "up" }}
-        />
-        <MetricCard
-          title="My Pages Cited"
-          value={quickMetrics.myPagesCited.toLocaleString()}
-          description="Your pages referenced by AI"
-          icon={<Link2 className="h-5 w-5" />}
-          trend={{ value: 8.3, direction: "up" }}
-        />
-        <MetricCard
-          title="Market Position"
-          value={`#${quickMetrics.ranking?.position || 1}`}
-          description={`Out of ${quickMetrics.ranking?.totalEntities || 1} entities`}
-          icon={<Trophy className="h-5 w-5" />}
-          trend={{ value: 0, direction: "up" }}
-        />
-      </div>
+      {/* Stats Cards - Matching Share of Mentions UI */}
+      {(() => {
+        // Calculate totals from citationsRanking
+        const brandCitations = citationsRanking?.brand?.citations || 0;
+        const competitorCitations = citationsRanking?.competitors?.reduce(
+          (sum: number, comp: any) => sum + (comp.citations || 0), 0
+        ) || 0;
+        const totalCitations = brandCitations + competitorCitations;
+        const brandPercentage = totalCitations > 0 
+          ? Number(((brandCitations / totalCitations) * 100).toFixed(1)) 
+          : 0;
+        
+        return (
+          <div className="grid gap-4 md:grid-cols-4">
+            <StatCard
+              title="Your Share"
+              value={`${brandPercentage}%`}
+              description="Share vs competitors"
+              icon={Trophy}
+              trend={
+                trendsData.brandTrend !== 0
+                  ? {
+                      value: Math.abs(trendsData.brandTrend),
+                      isPositive: trendsData.brandTrend > 0,
+                    }
+                  : undefined
+              }
+            />
+            <StatCard
+              title="Total Citations"
+              value={totalCitations.toLocaleString()}
+              description="Total citations across all brands"
+              icon={FileText}
+            />
+            <StatCard
+              title="Market Position"
+              value={`#${quickMetrics.ranking?.position || 1}`}
+              description={
+                quickMetrics.ranking?.position === 1
+                  ? "Leading in citations"
+                  : `${citationsRanking?.competitors?.[0]?.name || "Competitor"} is leading`
+              }
+              icon={TrendingUp}
+            />
+            <StatCard
+              title="Competitors Tracked"
+              value={citationsRanking?.competitors?.length || 0}
+              description="Active competitors"
+              icon={Users}
+            />
+          </div>
+        );
+      })()}
 
       {/* Citations Evolution Chart - Full Width */}
       <CitationsEvolutionChart
@@ -296,114 +346,74 @@ export default function CitationsPage() {
         isLoading={isLoadingEvolution}
       />
 
-      {/* Citations Ranking - Brand vs Competitors */}
-      {citationsRanking && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Citations Share Distribution</CardTitle>
-            <CardDescription>
-              Percentage of citations across all tracked brands
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {(() => {
-                // Filter competitors to only show those assigned to the selected region
-                const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-                const filteredCompetitors = citationsRanking.competitors.filter((comp: any) =>
-                  regionCompetitorIds.has(comp.id)
-                );
+      {/* Strategic Charts - Matching Share of Mentions UI */}
+      {(() => {
+        // Filter competitors to only show those assigned to the selected region
+        const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+        const filteredCompetitors = citationsRanking?.competitors?.filter((comp: any) =>
+          regionCompetitorIds.has(comp.id)
+        ) || [];
 
-                // Recalculate total citations and percentages based on filtered competitors
-                const filteredCompetitorCitations = filteredCompetitors.reduce(
-                  (sum: number, comp: any) => sum + comp.citations,
-                  0
-                );
-                const filteredTotalCitations = citationsRanking.brand.citations + filteredCompetitorCitations;
+        // Recalculate total citations and percentages based on filtered competitors
+        const filteredCompetitorCitations = filteredCompetitors.reduce(
+          (sum: number, comp: any) => sum + (comp.citations || 0),
+          0
+        );
+        const filteredTotalCitations = (citationsRanking?.brand?.citations || 0) + filteredCompetitorCitations;
 
-                // Combine brand and filtered competitors with recalculated percentages
-                const allEntities = [
-                  {
-                    id: "brand",
-                    name: citationsRanking.brand.name,
-                    domain: citationsRanking.brand.domain,
-                    citations: citationsRanking.brand.citations,
-                    percentage:
-                      filteredTotalCitations > 0
-                        ? Number(((citationsRanking.brand.citations / filteredTotalCitations) * 100).toFixed(1))
-                        : 0,
-                    isBrand: true,
-                  },
-                  ...filteredCompetitors.map((comp: any) => ({
-                    id: comp.id,
-                    name: comp.name,
-                    domain: comp.domain,
-                    citations: comp.citations,
-                    percentage:
-                      filteredTotalCitations > 0
-                        ? Number(((comp.citations / filteredTotalCitations) * 100).toFixed(1))
-                        : 0,
-                    isBrand: false,
-                  })),
-                ];
+        // Combine brand and filtered competitors with recalculated percentages
+        // Use "mentions" key for component compatibility
+        const allEntities = [
+          {
+            id: "brand",
+            name: citationsRanking?.brand?.name || "Your Brand",
+            domain: citationsRanking?.brand?.domain || "",
+            mentions: citationsRanking?.brand?.citations || 0,
+            percentage:
+              filteredTotalCitations > 0
+                ? Number(((citationsRanking?.brand?.citations || 0) / filteredTotalCitations * 100).toFixed(1))
+                : 0,
+            isBrand: true,
+            trend: trendsData.brandTrend || 0,
+          },
+          ...filteredCompetitors.map((comp: any) => ({
+            id: comp.id,
+            name: comp.name,
+            domain: comp.domain,
+            mentions: comp.citations || 0,
+            percentage:
+              filteredTotalCitations > 0
+                ? Number(((comp.citations || 0) / filteredTotalCitations * 100).toFixed(1))
+                : 0,
+            isBrand: false,
+            trend:
+              trendsData.competitorTrends?.find((t: any) => t.name === comp.name)?.trend || 0,
+          })),
+        ];
 
-                // Sort by percentage descending
-                allEntities.sort((a, b) => b.percentage - a.percentage);
+        // Sort by percentage descending
+        allEntities.sort((a, b) => b.percentage - a.percentage);
 
-                // Check if we have any data
-                if (allEntities.length === 1 && allEntities[0].citations === 0) {
-                  return (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No data available yet.</p>
-                      <p className="text-sm mt-2">
-                        Run some analyses to see citations distribution.
-                      </p>
-                    </div>
-                  );
-                }
+        return (
+          <>
+            {/* Market Share Distribution */}
+            <MarketShareDistribution entities={allEntities} isLoading={isLoading} metricLabel="citations" />
 
-                return allEntities.map((entity) => (
-                  <div key={entity.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <BrandLogo 
-                          domain={entity.domain || entity.name} 
-                          name={entity.name} 
-                          size={20} 
-                        />
-                        <span className={entity.isBrand ? "font-semibold" : "font-medium"}>
-                          {entity.name}
-                        </span>
-                        {entity.isBrand && <Trophy className="h-4 w-4 text-yellow-500" />}
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground">
-                          {entity.citations} citation{entity.citations !== 1 ? "s" : ""}
-                        </span>
-                        <span
-                          className={`w-16 text-right ${
-                            entity.isBrand ? "font-semibold" : "font-medium"
-                          }`}
-                        >
-                          {entity.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div className="h-3 w-full rounded-full bg-muted">
-                      <div
-                        className={`h-3 rounded-full ${
-                          entity.isBrand ? "bg-primary" : "bg-muted-foreground/30"
-                        }`}
-                        style={{ width: `${entity.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                ));
-              })()}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            {/* Share Evolution Chart */}
+            <ShareEvolutionChart
+              data={shareEvolutionData.data}
+              entities={shareEvolutionData.entities}
+              isLoading={isLoadingCharts}
+            />
+
+            {/* Competitive Momentum Matrix */}
+            <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" />
+
+            {/* Competitive Gap Tracker */}
+            <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" />
+          </>
+        );
+      })()}
 
       {/* Most Cited Domains */}
       <MostCitedDomainsTable data={mostCitedDomains} />

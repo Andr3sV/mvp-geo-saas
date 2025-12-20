@@ -1289,3 +1289,332 @@ export async function getCitationSources(
   };
 }
 
+// =============================================
+// CITATIONS TRENDS
+// =============================================
+
+/**
+ * Calculate Citations trends by comparing current vs previous period
+ * Uses daily_brand_stats table for optimized performance
+ */
+export async function getCitationsTrends(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
+) {
+  const supabase = await createClient();
+  const { format } = await import("date-fns");
+
+  // Current period (default to last 30 days ending yesterday)
+  const currentEndDate = toDate || getYesterday();
+  const currentStartDate = fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
+
+  // Calculate period duration
+  const periodDuration = currentEndDate.getTime() - currentStartDate.getTime();
+
+  // Previous period
+  const previousEndDate = new Date(currentStartDate);
+  const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
+
+  // Map platform filter
+  const mappedPlatform = mapPlatformToDatabase(platform);
+  const platformFilter = mappedPlatform !== null;
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  // Format dates for SQL
+  const currentStartStr = format(currentStartDate, "yyyy-MM-dd");
+  const currentEndStr = format(currentEndDate, "yyyy-MM-dd");
+  const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
+  const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
+
+  // Helper function to build query
+  const buildStatsQuery = (startDate: string, endDate: string, entityType: "brand" | "competitor") => {
+    let query = supabase
+      .from("daily_brand_stats")
+      .select("citations_count, competitor_id, entity_name, competitors!inner(name, is_active)")
+      .eq("project_id", projectId)
+      .eq("entity_type", entityType)
+      .gte("stat_date", startDate)
+      .lte("stat_date", endDate);
+
+    if (entityType === "brand") {
+      query = query.is("competitor_id", null);
+    } else {
+      query = query.not("competitor_id", "is", null);
+    }
+
+    if (platformFilter) {
+      query = query.eq("platform", mappedPlatform);
+    }
+
+    if (regionFilter) {
+      query = query.eq("region", region);
+    }
+
+    if (topicFilter) {
+      query = query.eq("topic_id", topicId);
+    }
+
+    return query;
+  };
+
+  // =============================================
+  // CURRENT PERIOD
+  // =============================================
+  const [currentBrandResult, currentCompResult] = await Promise.all([
+    buildStatsQuery(currentStartStr, currentEndStr, "brand"),
+    buildStatsQuery(currentStartStr, currentEndStr, "competitor"),
+  ]);
+
+  // Calculate current period stats
+  const currentBrandCitations = currentBrandResult.data?.reduce(
+    (sum, stat) => sum + (stat.citations_count || 0),
+    0
+  ) || 0;
+
+  const currentCompCitationsMap = new Map<string, number>();
+  currentCompResult.data?.forEach((stat: any) => {
+    const competitor = stat.competitors;
+    if (!competitor?.is_active || !stat.competitor_id) return;
+
+    const currentCount = currentCompCitationsMap.get(stat.competitor_id) || 0;
+    currentCompCitationsMap.set(stat.competitor_id, currentCount + (stat.citations_count || 0));
+  });
+
+  const currentCompCitations = Array.from(currentCompCitationsMap.values()).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  const currentTotal = currentBrandCitations + currentCompCitations;
+  const currentBrandShare = currentTotal > 0 
+    ? (currentBrandCitations / currentTotal) * 100 
+    : 0;
+
+  // =============================================
+  // PREVIOUS PERIOD
+  // =============================================
+  const [previousBrandResult, previousCompResult] = await Promise.all([
+    buildStatsQuery(previousStartStr, previousEndStr, "brand"),
+    buildStatsQuery(previousStartStr, previousEndStr, "competitor"),
+  ]);
+
+  // Calculate previous period stats
+  const previousBrandCitations = previousBrandResult.data?.reduce(
+    (sum, stat) => sum + (stat.citations_count || 0),
+    0
+  ) || 0;
+
+  const previousCompCitationsMap = new Map<string, number>();
+  previousCompResult.data?.forEach((stat: any) => {
+    const competitor = stat.competitors;
+    if (!competitor?.is_active || !stat.competitor_id) return;
+
+    const previousCount = previousCompCitationsMap.get(stat.competitor_id) || 0;
+    previousCompCitationsMap.set(stat.competitor_id, previousCount + (stat.citations_count || 0));
+  });
+
+  const previousCompCitations = Array.from(previousCompCitationsMap.values()).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  const previousTotal = previousBrandCitations + previousCompCitations;
+  const previousBrandShare = previousTotal > 0 
+    ? (previousBrandCitations / previousTotal) * 100 
+    : 0;
+
+  // Calculate trend
+  const shareTrend = currentBrandShare - previousBrandShare;
+
+  // Calculate competitor trends
+  const competitorTrends = new Map<string, { current: number; previous: number }>();
+
+  // Get all unique competitor IDs from both periods
+  const allCompetitorIds = new Set([
+    ...Array.from(currentCompCitationsMap.keys()),
+    ...Array.from(previousCompCitationsMap.keys()),
+  ]);
+
+  allCompetitorIds.forEach((competitorId) => {
+    const currentStat = currentCompResult.data?.find((s: any) => s.competitor_id === competitorId);
+    const previousStat = previousCompResult.data?.find((s: any) => s.competitor_id === competitorId);
+    
+    const currentCompetitor = currentStat?.competitors as { name?: string; is_active?: boolean } | undefined;
+    const previousCompetitor = previousStat?.competitors as { name?: string; is_active?: boolean } | undefined;
+    
+    const competitorName = currentCompetitor?.name || 
+                          previousCompetitor?.name || 
+                          currentStat?.entity_name || 
+                          previousStat?.entity_name || 
+                          "Unknown";
+
+    if (!competitorTrends.has(competitorName)) {
+      competitorTrends.set(competitorName, { current: 0, previous: 0 });
+    }
+
+    competitorTrends.get(competitorName)!.current += currentCompCitationsMap.get(competitorId) || 0;
+    competitorTrends.get(competitorName)!.previous += previousCompCitationsMap.get(competitorId) || 0;
+  });
+
+  // Calculate percentage trends
+  const competitorTrendsList = Array.from(competitorTrends.entries())
+    .filter(([_, stats]) => stats.current > 0 || stats.previous > 0)
+    .map(([name, stats]) => {
+      const currentShare = currentTotal > 0 ? (stats.current / currentTotal) * 100 : 0;
+      const previousShare = previousTotal > 0 ? (stats.previous / previousTotal) * 100 : 0;
+      const trend = currentShare - previousShare;
+
+      return {
+        name,
+        trend: Number(trend.toFixed(1)),
+        currentCitations: stats.current,
+        previousCitations: stats.previous,
+      };
+    });
+
+  return {
+    brandTrend: Number(shareTrend.toFixed(1)),
+    competitorTrends: competitorTrendsList,
+  };
+}
+
+// =============================================
+// CITATIONS SHARE EVOLUTION
+// =============================================
+
+/**
+ * Get daily citations share percentages for all entities (brand + competitors)
+ * Used for stacked area chart visualization
+ */
+export async function getCitationsShareEvolution(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
+) {
+  const supabase = await createClient();
+  const { format, eachDayOfInterval } = await import("date-fns");
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range
+  const endDate = toDate || getYesterday();
+  const startDate = fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
+
+  // Map platform filter
+  const mappedPlatform = mapPlatformToDatabase(platform);
+  const platformFilter = mappedPlatform !== null;
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
+
+  // Build query for daily stats
+  let query = supabase
+    .from("daily_brand_stats")
+    .select("stat_date, entity_type, competitor_id, citations_count, entity_name")
+    .eq("project_id", projectId)
+    .gte("stat_date", startDateStr)
+    .lte("stat_date", endDateStr);
+
+  if (platformFilter) {
+    query = query.eq("platform", mappedPlatform);
+  }
+  if (regionFilter) {
+    query = query.eq("region", region);
+  }
+  if (topicFilter) {
+    query = query.eq("topic_id", topicId);
+  }
+
+  const { data: stats, error } = await query;
+
+  if (error) {
+    console.error("Error fetching citations share evolution:", error);
+    return { data: [], entities: [] };
+  }
+
+  // Get active competitors
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name, domain")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  // Create entity list (brand + competitors)
+  const entityList = [
+    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", isBrand: true },
+    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", isBrand: false })),
+  ];
+
+  // Group stats by date
+  const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+  const dailyData = allDays.map((day) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+    const dayStats = stats?.filter((s: any) => s.stat_date === dayStr) || [];
+
+    // Calculate citations for each entity
+    const entityCitations: Record<string, number> = {};
+    let totalCitations = 0;
+
+    // Brand citations
+    const brandCitations = dayStats
+      .filter((s: any) => s.entity_type === "brand" && !s.competitor_id)
+      .reduce((sum: number, s: any) => sum + (s.citations_count || 0), 0);
+    entityCitations["brand"] = brandCitations;
+    totalCitations += brandCitations;
+
+    // Competitor citations
+    competitors?.forEach((comp: any) => {
+      const compCitations = dayStats
+        .filter((s: any) => s.entity_type === "competitor" && s.competitor_id === comp.id)
+        .reduce((sum: number, s: any) => sum + (s.citations_count || 0), 0);
+      entityCitations[comp.id] = compCitations;
+      totalCitations += compCitations;
+    });
+
+    // Calculate percentages
+    const result: any = {
+      date: format(day, "MMM dd"),
+      fullDate: dayStr,
+      total: totalCitations,
+    };
+
+    entityList.forEach((entity) => {
+      const citations = entityCitations[entity.id] || 0;
+      result[entity.id] = totalCitations > 0 ? Number(((citations / totalCitations) * 100).toFixed(1)) : 0;
+      result[`${entity.id}_mentions`] = citations; // Keep _mentions key for component compatibility
+    });
+
+    return result;
+  });
+
+  return {
+    data: dailyData,
+    entities: entityList,
+  };
+}
+

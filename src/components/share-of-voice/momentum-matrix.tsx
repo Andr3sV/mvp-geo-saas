@@ -18,6 +18,7 @@ interface Entity {
 interface MomentumMatrixProps {
   entities: Entity[];
   isLoading?: boolean;
+  metricLabel?: string; // "mentions" or "citations"
 }
 
 // Quadrant classification
@@ -66,7 +67,7 @@ function getQuadrant(share: number, trend: number, avgShare: number): {
   }
 }
 
-export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
+export function MomentumMatrix({ entities, isLoading, metricLabel = "mentions" }: MomentumMatrixProps) {
   if (isLoading) {
     return (
       <Card>
@@ -106,7 +107,6 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
   }
 
   // Calculate metrics
-  const maxShare = Math.max(...entities.map(e => e.percentage));
   const avgShare = entities.reduce((sum, e) => sum + e.percentage, 0) / entities.length;
   const maxMentions = Math.max(...entities.map(e => e.mentions));
 
@@ -177,7 +177,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
                       key={entity.id} 
                       entity={entity} 
                       maxMentions={maxMentions}
-                      maxShare={maxShare}
+                      metricLabel={metricLabel}
                     />
                   ))}
               </div>
@@ -200,7 +200,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
                       key={entity.id} 
                       entity={entity} 
                       maxMentions={maxMentions}
-                      maxShare={maxShare}
+                      metricLabel={metricLabel}
                     />
                   ))}
               </div>
@@ -223,7 +223,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
                       key={entity.id} 
                       entity={entity} 
                       maxMentions={maxMentions}
-                      maxShare={maxShare}
+                      metricLabel={metricLabel}
                     />
                   ))}
               </div>
@@ -246,7 +246,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
                       key={entity.id} 
                       entity={entity} 
                       maxMentions={maxMentions}
-                      maxShare={maxShare}
+                      metricLabel={metricLabel}
                     />
                   ))}
               </div>
@@ -272,7 +272,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
         {/* Detailed Rankings Table */}
         <div className="border rounded-lg overflow-hidden">
           <div className="bg-muted/30 px-4 py-2 border-b">
-            <span className="text-xs font-medium text-muted-foreground">Detailed Breakdown (by mention volume)</span>
+            <span className="text-xs font-medium text-muted-foreground">Detailed Breakdown (by {metricLabel} volume)</span>
           </div>
           <div className="divide-y max-h-[240px] overflow-y-auto">
             {sortedEntities.slice(0, 10).map((entity, index) => {
@@ -317,7 +317,7 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
                     </div>
                     <div className="text-right w-20">
                       <div className="font-semibold tabular-nums">{entity.mentions.toLocaleString()}</div>
-                      <div className="text-muted-foreground text-[10px]">mentions</div>
+                      <div className="text-muted-foreground text-[10px]">{metricLabel}</div>
                     </div>
                     <div className={cn(
                       "px-2 py-1 rounded text-[10px] font-medium w-28 text-center",
@@ -348,13 +348,13 @@ export function MomentumMatrix({ entities, isLoading }: MomentumMatrixProps) {
 function EntityBubble({ 
   entity, 
   maxMentions,
-  maxShare,
+  metricLabel = "mentions",
 }: { 
   entity: Entity & { label: string; color: string; bgColor: string };
   maxMentions: number;
-  maxShare: number;
+  metricLabel?: string;
 }) {
-  // Size based on mentions (normalized)
+  // Size based on metric count (normalized)
   const sizeRatio = Math.sqrt(entity.mentions / maxMentions);
   const size = Math.max(32, Math.min(56, 32 + sizeRatio * 24));
 
@@ -366,7 +366,7 @@ function EntityBubble({
         entity.isBrand && "ring-2 ring-primary ring-offset-1"
       )}
       style={{ width: size, height: size }}
-      title={`${entity.name}: ${entity.percentage.toFixed(1)}% share, ${entity.trend > 0 ? "+" : ""}${entity.trend.toFixed(1)}% trend, ${entity.mentions.toLocaleString()} mentions`}
+      title={`${entity.name}: ${entity.percentage.toFixed(1)}% share, ${entity.trend > 0 ? "+" : ""}${entity.trend.toFixed(1)}% trend, ${entity.mentions.toLocaleString()} ${metricLabel}`}
     >
       <BrandLogo 
         domain={entity.domain || entity.name} 
@@ -386,7 +386,7 @@ function EntityBubble({
           <div className="text-muted-foreground mt-1 space-y-0.5">
             <div>Share: <span className="font-semibold text-foreground">{entity.percentage.toFixed(1)}%</span></div>
             <div>Trend: <span className={cn("font-semibold", entity.color)}>{entity.trend > 0 ? "+" : ""}{entity.trend.toFixed(1)}%</span></div>
-            <div>Mentions: <span className="font-semibold text-foreground">{entity.mentions.toLocaleString()}</span></div>
+            <div className="capitalize">{metricLabel}: <span className="font-semibold text-foreground">{entity.mentions.toLocaleString()}</span></div>
           </div>
         </div>
       </div>

@@ -18,9 +18,10 @@ interface Entity {
 interface CompetitiveGapTrackerProps {
   entities: Entity[];
   isLoading?: boolean;
+  metricLabel?: string; // "mentions" or "citations"
 }
 
-export function CompetitiveGapTracker({ entities, isLoading }: CompetitiveGapTrackerProps) {
+export function CompetitiveGapTracker({ entities, isLoading, metricLabel = "mentions" }: CompetitiveGapTrackerProps) {
   if (isLoading) {
     return (
       <Card>

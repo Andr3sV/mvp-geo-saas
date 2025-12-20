@@ -24,6 +24,7 @@ interface FiltersToolbarProps {
 	platform?: string;
 	region?: string;
 	topicId?: string;
+	hidePlatformFilter?: boolean;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
@@ -38,6 +39,7 @@ export function FiltersToolbar({
 	platform: controlledPlatform,
 	region: controlledRegion,
 	topicId: controlledTopicId,
+	hidePlatformFilter = false,
 	onApply 
 }: FiltersToolbarProps) {
 	const { selectedProjectId } = useProject();
@@ -173,30 +175,32 @@ export function FiltersToolbar({
 						/>
 					</div>
 
-					<div className="w-full md:w-52">
-						<Select 
-							value={platform} 
-							onValueChange={(newPlatform) => {
-								setPlatform(newPlatform);
-								// Auto-apply when platform changes
-								onApply?.({ region, dateRange, platform: newPlatform, topicId });
-							}}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Platform" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectGroup>
-									<SelectLabel>Platform</SelectLabel>
-									<SelectItem value="all">All Platforms</SelectItem>
-									<SelectItem value="openai">OpenAI</SelectItem>
-									<SelectItem value="gemini">Gemini</SelectItem>
-									<SelectItem value="claude">Claude</SelectItem>
-									<SelectItem value="perplexity">Perplexity</SelectItem>
-								</SelectGroup>
-							</SelectContent>
-						</Select>
-					</div>
+					{!hidePlatformFilter && (
+						<div className="w-full md:w-52">
+							<Select 
+								value={platform} 
+								onValueChange={(newPlatform) => {
+									setPlatform(newPlatform);
+									// Auto-apply when platform changes
+									onApply?.({ region, dateRange, platform: newPlatform, topicId });
+								}}
+							>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Platform" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										<SelectLabel>Platform</SelectLabel>
+										<SelectItem value="all">All Platforms</SelectItem>
+										<SelectItem value="openai">OpenAI</SelectItem>
+										<SelectItem value="gemini">Gemini</SelectItem>
+										<SelectItem value="claude">Claude</SelectItem>
+										<SelectItem value="perplexity">Perplexity</SelectItem>
+									</SelectGroup>
+								</SelectContent>
+							</Select>
+						</div>
+					)}
 
 					<div className="w-full md:w-52">
 						<Select 
