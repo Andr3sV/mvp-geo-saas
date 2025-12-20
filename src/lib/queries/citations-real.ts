@@ -935,6 +935,9 @@ export async function getMostCitedDomains(
  * Find high-authority domains that cite competitors but NOT your brand
  * These are actionable opportunities for content strategy and PR
  * 
+ * Uses the citations table directly, searching for brand and competitor mentions
+ * in the text and domain fields using ILIKE pattern matching.
+ * 
  * Example: If forbes.com cites Nike and Adidas but not your brand,
  * it's a high-value opportunity to build presence there.
  */
@@ -945,28 +948,56 @@ export async function getHighValueOpportunities(
 ) {
   const supabase = await createClient();
 
-  // Get brand citations WITH URLs only (domains where we ARE mentioned)
-  // IMPORTANT: Filter by is_direct_mention = true to exclude URLs without brand mentions
-  // URLs without brand mentions have is_direct_mention = false (they're just URLs saved from LLM)
-  const { data: brandCitations } = await applyTopicFilter(
+  // Step 1: Get brand name from project
+  const { data: project } = await supabase
+    .from("projects")
+    .select("brand_name")
+    .eq("id", projectId)
+    .single();
+
+  const brandName = project?.brand_name || "";
+
+  if (!brandName) {
+    console.warn("No brand_name found for project", projectId);
+    return [];
+  }
+
+  // Step 2: Get active competitors for this project
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  if (!competitors || competitors.length === 0) {
+    return [];
+  }
+
+  const competitorNames = competitors.map((c) => c.name).filter(Boolean);
+
+  // Step 3: Get all citations for this project with filters
+  // Note: citations table doesn't have project_id directly, it's through ai_responses
+  let citationsQuery = applyTopicFilter(
     applyRegionFilter(
       applyPlatformFilter(
         applyDateFilter(
           supabase
-            .from("citations_detail")
+            .from("citations")
             .select(`
-              cited_domain,
+              id,
+              domain,
+              text,
+              url,
               ai_response_id,
               ai_responses!inner(
+                project_id,
                 platform,
                 prompt_tracking!inner(region, topic_id)
               )
             `)
-            .eq("project_id", projectId)
-            .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
-            .not("cited_url", "is", null)
-            .not("cited_domain", "is", null)
-            .limit(10000), // Increase limit to handle large datasets
+            .eq("ai_responses.project_id", projectId)
+            .not("domain", "is", null)
+            .limit(10000),
           filters
         ),
         filters
@@ -976,177 +1007,132 @@ export async function getHighValueOpportunities(
     filters
   );
 
-  // Create a Set of domains where brand is already cited
-  const domainsWithBrand = new Set(
-    brandCitations?.map((c: any) => c.cited_domain) || []
-  );
+  const { data: allCitations, error } = await citationsQuery;
 
-  // Get all brand citation domains grouped by ai_response_id
-  // Used to check if brand is cited in a specific response
-  const brandCitationsByResponse = new Map<string, Set<string>>();
-  brandCitations?.forEach((citation: any) => {
-    if (!brandCitationsByResponse.has(citation.ai_response_id)) {
-      brandCitationsByResponse.set(citation.ai_response_id, new Set());
-    }
-    if (citation.cited_domain) {
-      brandCitationsByResponse.get(citation.ai_response_id)!.add(citation.cited_domain);
-    }
-  });
+  if (error) {
+    console.error("❌ Error fetching citations:", error);
+    return [];
+  }
 
-  // Get ALL citations_detail (includes URLs with and without brand mentions)
-  // Used to find domains cited in each response
-  const { data: allCitations } = await applyTopicFilter(
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations_detail")
-            .select(`
-              cited_domain,
-              ai_response_id,
-              sentiment,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
-            `)
-            .eq("project_id", projectId)
-            .not("cited_url", "is", null)
-            .not("cited_domain", "is", null)
-            .limit(10000), // Increase limit to handle large datasets
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
-
-  // Get competitor citations (these tell us about competitor presence)
-  const { data: compCitations } = await applyTopicFilter(
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("competitor_citations")
-            .select(`
-              ai_response_id,
-              competitor_id,
-              cited_url,
-              cited_domain,
-              sentiment,
-              competitors!inner(name),
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
-            `)
-            .eq("project_id", projectId)
-            .not("cited_url", "is", null) // Only competitor citations with URLs
-            .not("cited_domain", "is", null)
-            .limit(10000), // Increase limit to handle large datasets
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
-
-  // Handle empty arrays (not just null/undefined)
   if (!allCitations || allCitations.length === 0) {
-    return [];
-  }
-  
-  if (!compCitations || compCitations.length === 0) {
+    console.log("⚠️ No citations found for project", projectId);
     return [];
   }
 
-  // Build a map of domains with their competitor presence
-  const domainOpportunities = new Map<string, {
+  console.log(`📊 Found ${allCitations.length} citations for project ${projectId}`);
+  console.log(`🔍 Brand name: "${brandName}"`);
+  console.log(`🏢 Competitors (${competitorNames.length}):`, competitorNames);
+
+  // Step 4: Process citations to identify brand and competitor mentions
+  // Group by domain and track mentions
+  const domainData = new Map<string, {
     domain: string;
-    competitorsMentioned: string[];
+    brandMentioned: boolean;
+    competitorsMentioned: Set<string>;
     citationFrequency: number;
-    sentiments: string[];
     responseIds: Set<string>;
   }>();
 
-  // For each competitor citation with URL, check if it's an opportunity
-  compCitations.forEach((compCitation: any) => {
-    const responseId = compCitation.ai_response_id;
-    const competitorName = compCitation.competitors?.name;
-    const domain = compCitation.cited_domain;
-    
-    // Skip if no domain
+  allCitations.forEach((citation: any) => {
+    const domain = citation.domain;
     if (!domain) return;
-    
-    // Skip if brand is cited in this domain in any response
-    if (domainsWithBrand.has(domain)) {
-      return;
-    }
-    
-    // Check if brand is cited in this same response AND in the same domain
-    // We want to skip only if brand is cited in this exact domain in this response
-    const brandDomainsInResponse = brandCitationsByResponse.get(responseId);
-    if (brandDomainsInResponse && brandDomainsInResponse.has(domain)) {
-      return; // Skip - brand is already cited in this exact domain in this response
-    }
 
-    if (!domainOpportunities.has(domain)) {
-      domainOpportunities.set(domain, {
+    // Get text from citation (can be null/empty)
+    const text = (citation.text || "").toLowerCase();
+    const url = (citation.url || "").toLowerCase();
+    const domainLower = (domain || "").toLowerCase();
+    const brandNameLower = brandName.toLowerCase();
+
+    // Search in text, url, and domain for brand mentions
+    const brandMentioned = 
+      text.includes(brandNameLower) || 
+      url.includes(brandNameLower) ||
+      domainLower.includes(brandNameLower);
+
+    // Check which competitors are mentioned (search in text, url, and domain)
+    const mentionedCompetitors = new Set<string>();
+    competitorNames.forEach((compName) => {
+      const compNameLower = compName.toLowerCase();
+      if (
+        text.includes(compNameLower) || 
+        url.includes(compNameLower) ||
+        domainLower.includes(compNameLower)
+      ) {
+        mentionedCompetitors.add(compName);
+      }
+    });
+
+    // Initialize domain entry if not exists
+    if (!domainData.has(domain)) {
+      domainData.set(domain, {
         domain,
-        competitorsMentioned: [],
+        brandMentioned: false,
+        competitorsMentioned: new Set<string>(),
         citationFrequency: 0,
-        sentiments: [],
-        responseIds: new Set(),
+        responseIds: new Set<string>(),
       });
     }
 
-    const opp = domainOpportunities.get(domain)!;
-    
-    if (competitorName && !opp.competitorsMentioned.includes(competitorName)) {
-      opp.competitorsMentioned.push(competitorName);
+    const domainInfo = domainData.get(domain)!;
+
+    // Update brand mention status (once true, stays true)
+    if (brandMentioned) {
+      domainInfo.brandMentioned = true;
     }
-    
-    opp.citationFrequency++;
-    opp.responseIds.add(responseId);
-    
-    // Use sentiment directly from competitor citation
-    if (compCitation.sentiment) {
-      opp.sentiments.push(compCitation.sentiment);
+
+    // Add competitor mentions
+    mentionedCompetitors.forEach((compName) => {
+      domainInfo.competitorsMentioned.add(compName);
+    });
+
+    // Increment citation frequency
+    domainInfo.citationFrequency++;
+    if (citation.ai_response_id) {
+      domainInfo.responseIds.add(citation.ai_response_id);
     }
   });
 
-  // Calculate opportunity scores and format results
-  const opportunities = Array.from(domainOpportunities.values())
-    .map((opp) => {
+  // Step 5: Filter domains that mention competitors but NOT brand
+  console.log(`📈 Processing ${domainData.size} unique domains`);
+  
+  const opportunities = Array.from(domainData.values())
+    .filter((domainInfo) => {
+      // Must mention at least one competitor
+      if (domainInfo.competitorsMentioned.size === 0) {
+        return false;
+      }
+      // Must NOT mention brand
+      if (domainInfo.brandMentioned) {
+        return false;
+      }
+      return true;
+    })
+    .map((domainInfo) => {
       // Estimate DR based on citation frequency (simulated)
-      const estimatedDR = Math.min(100, 50 + (opp.citationFrequency * 8));
-      
+      const estimatedDR = Math.min(100, 50 + (domainInfo.citationFrequency * 8));
+
       // Calculate opportunity score
       // Higher score = more competitors + higher DR + more citations
-      const competitorWeight = opp.competitorsMentioned.length * 15;
-      const frequencyWeight = Math.min(30, opp.citationFrequency * 5);
+      const competitorWeight = domainInfo.competitorsMentioned.size * 15;
+      const frequencyWeight = Math.min(30, domainInfo.citationFrequency * 5);
       const drWeight = estimatedDR * 0.4;
       const opportunityScore = Math.min(100, competitorWeight + frequencyWeight + drWeight);
-      
+
       // Determine priority
       let priority: "high" | "medium" | "low" = "medium";
-      if (opportunityScore >= 75 || opp.competitorsMentioned.length >= 3) {
+      if (opportunityScore >= 75 || domainInfo.competitorsMentioned.size >= 3) {
         priority = "high";
-      } else if (opportunityScore >= 50 || opp.competitorsMentioned.length >= 2) {
+      } else if (opportunityScore >= 50 || domainInfo.competitorsMentioned.size >= 2) {
         priority = "medium";
       } else {
         priority = "low";
       }
 
       return {
-        domain: opp.domain,
+        domain: domainInfo.domain,
         domainRating: estimatedDR,
-        competitorsMentioned: opp.competitorsMentioned,
-        citationFrequency: opp.citationFrequency,
+        competitorsMentioned: Array.from(domainInfo.competitorsMentioned),
+        citationFrequency: domainInfo.citationFrequency,
         opportunityScore: Math.round(opportunityScore),
         priority,
         topics: ["GEO Opportunity"], // Could be enhanced with actual topic detection
@@ -1154,6 +1140,11 @@ export async function getHighValueOpportunities(
     })
     .sort((a, b) => b.opportunityScore - a.opportunityScore)
     .slice(0, limit);
+
+  console.log(`✅ Found ${opportunities.length} opportunities after filtering`);
+  if (opportunities.length > 0) {
+    console.log("📋 Sample opportunity:", opportunities[0]);
+  }
 
   return opportunities;
 }
