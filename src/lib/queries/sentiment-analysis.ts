@@ -7,6 +7,7 @@ export interface SentimentFilterOptions {
   };
   platform?: string;
   region?: string;
+  topicId?: string; // Filter by specific topic
   analysisType?: 'brand' | 'competitor' | 'all';
   sentimentLabel?: 'positive' | 'neutral' | 'negative' | 'all';
   entityName?: string; // Filter by specific entity name

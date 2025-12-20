@@ -32,7 +32,8 @@ export async function getUserWorkspacesWithProjects() {
           name,
           slug,
           client_url,
-          brand_name
+          brand_name,
+          color
         `)
         .eq("workspace_id", workspace.id);
 

@@ -63,8 +63,10 @@ export default function ShareOfVoicePage() {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [evolutionBrandName, setEvolutionBrandName] = useState("");
   const [evolutionBrandDomain, setEvolutionBrandDomain] = useState("");
+  const [evolutionBrandColor, setEvolutionBrandColor] = useState<string | undefined>(undefined);
   const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
   const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
+  const [evolutionCompetitorColor, setEvolutionCompetitorColor] = useState<string | undefined>(undefined);
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
   const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
 
@@ -183,8 +185,10 @@ export default function ShareOfVoicePage() {
       setEvolutionData(evolution.data);
       setEvolutionBrandName(evolution.brandName);
       setEvolutionBrandDomain(evolution.brandDomain);
+      setEvolutionBrandColor(evolution.brandColor);
       setEvolutionCompetitorName(evolution.competitorName);
       setEvolutionCompetitorDomain(evolution.competitorDomain);
+      setEvolutionCompetitorColor(evolution.competitorColor);
     } catch (error) {
       console.error("Error loading evolution data:", error);
     } finally {
@@ -290,8 +294,10 @@ export default function ShareOfVoicePage() {
         data={evolutionData}
         brandName={evolutionBrandName}
         brandDomain={evolutionBrandDomain}
+        brandColor={evolutionBrandColor || sovData.brand.color}
         competitorName={evolutionCompetitorName}
         competitorDomain={evolutionCompetitorDomain}
+        competitorColor={evolutionCompetitorColor || (selectedCompetitorId ? regionFilteredCompetitors.find(c => c.id === selectedCompetitorId)?.color : undefined)}
         competitors={regionFilteredCompetitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
@@ -319,6 +325,7 @@ export default function ShareOfVoicePage() {
                   id: "brand",
                   name: sovData.brand.name,
                   domain: sovData.brand.domain,
+                  color: sovData.brand.color,
                   mentions: sovData.brand.mentions,
                   percentage:
                     filteredTotalMentions > 0
@@ -331,6 +338,7 @@ export default function ShareOfVoicePage() {
                   id: comp.id,
                   name: comp.name,
                   domain: comp.domain,
+                  color: comp.color,
                   mentions: comp.mentions,
                   percentage:
                     filteredTotalMentions > 0

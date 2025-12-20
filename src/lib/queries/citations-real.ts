@@ -122,7 +122,7 @@ export async function getQuickLookMetrics(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -202,7 +202,7 @@ export async function getQuickLookMetrics(
     (async () => {
       let query = supabase
         .from("daily_brand_stats")
-        .select("competitor_id, entity_name, citations_count, competitors!inner(id, name, domain, is_active)")
+        .select("competitor_id, entity_name, citations_count, competitors!inner(id, name, domain, is_active, color)")
         .eq("project_id", projectId)
         .eq("entity_type", "competitor")
         .not("competitor_id", "is", null)
@@ -233,7 +233,7 @@ export async function getQuickLookMetrics(
     (async () => {
       const { data, error } = await supabase
         .from("competitors")
-        .select("id, name, domain")
+        .select("id, name, domain, color")
               .eq("project_id", projectId)
         .eq("is_active", true);
       
@@ -406,10 +406,10 @@ export async function getCitationsEvolution(
   const supabase = await createClient();
   const { format, eachDayOfInterval } = await import("date-fns");
 
-  // Get project info (including domain for logo)
+  // Get project info (including domain for logo and color)
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -426,16 +426,18 @@ export async function getCitationsEvolution(
   // Get competitor info if selected
   let competitorName = "";
   let competitorDomain = "";
+  let competitorColor: string | undefined = undefined;
 
   if (competitorId) {
     const { data: compData } = await supabase
       .from("competitors")
-      .select("name, domain")
+      .select("name, domain, color")
       .eq("id", competitorId)
       .single();
 
     competitorName = compData?.name || "Competitor";
     competitorDomain = compData?.domain || "";
+    competitorColor = compData?.color || undefined;
   }
 
   // Use optimized SQL function
@@ -470,8 +472,10 @@ export async function getCitationsEvolution(
       data: dailyData,
       brandName: project?.name || "Your Brand",
       brandDomain: project?.client_url || project?.name || "",
+      brandColor: project?.color || undefined,
       competitorName,
       competitorDomain,
+      competitorColor,
     };
   }
 
@@ -528,8 +532,10 @@ export async function getCitationsEvolution(
     data: dailyData,
     brandName: project?.name || "Your Brand",
     brandDomain: project?.client_url || project?.name || "",
+    brandColor: project?.color || undefined,
     competitorName,
     competitorDomain,
+    competitorColor,
   };
 }
 
@@ -555,7 +561,7 @@ export async function getCitationsRanking(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -616,7 +622,7 @@ export async function getCitationsRanking(
   // =============================================
   let competitorQuery = supabase
     .from("daily_brand_stats")
-    .select("competitor_id, entity_name, citations_count, competitors!inner(id, name, domain, is_active)")
+        .select("competitor_id, entity_name, citations_count, competitors!inner(id, name, domain, is_active, color)")
     .eq("project_id", projectId)
     .eq("entity_type", "competitor")
     .not("competitor_id", "is", null)
@@ -645,21 +651,22 @@ export async function getCitationsRanking(
   // Get ALL active competitors (for the region if filtered, or all if GLOBAL)
   let allCompetitorsQuery = supabase
     .from("competitors")
-    .select("id, name, domain")
+    .select("id, name, domain, color")
     .eq("project_id", projectId)
     .eq("is_active", true);
 
   const { data: allCompetitors } = await allCompetitorsQuery;
 
   // Aggregate competitor citations by competitor_id
-  const competitorCitationsMap = new Map<string, { id: string; name: string; domain: string; citations: number }>();
-
+  const competitorCitationsMap = new Map<string, { id: string; name: string; domain: string; color?: string; citations: number }>();
+  
   // Initialize with all active competitors (with 0 citations)
   allCompetitors?.forEach((competitor: any) => {
     competitorCitationsMap.set(competitor.id, {
       id: competitor.id,
       name: competitor.name,
       domain: competitor.domain || "",
+      color: competitor.color || undefined,
       citations: 0,
     });
   });
@@ -698,6 +705,7 @@ export async function getCitationsRanking(
       id: comp.id,
       name: comp.name,
       domain: comp.domain || comp.name,
+      color: comp.color,
       citations: comp.citations,
       percentage: totalCitations > 0 ? Number(((comp.citations / totalCitations) * 100).toFixed(1)) : 0,
     }));
@@ -717,6 +725,7 @@ export async function getCitationsRanking(
     brand: {
       name: project?.name || "Your Brand",
       domain: project?.client_url || project?.name || "",
+      color: project?.color || "#3B82F6",
       citations: brandCitations,
       percentage: Number(brandPercentage.toFixed(1)),
     },
@@ -1510,7 +1519,7 @@ export async function getCitationsShareEvolution(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -1560,14 +1569,14 @@ export async function getCitationsShareEvolution(
   // Get active competitors
   const { data: competitors } = await supabase
     .from("competitors")
-    .select("id, name, domain")
+    .select("id, name, domain, color")
             .eq("project_id", projectId)
     .eq("is_active", true);
 
   // Create entity list (brand + competitors)
   const entityList = [
-    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", isBrand: true },
-    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", isBrand: false })),
+    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", color: project?.color || undefined, isBrand: true },
+    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", color: c.color || undefined, isBrand: false })),
   ];
 
   // Group stats by date

@@ -55,12 +55,17 @@ export async function getVisibilityScore(
 
     // Get share of voice
     const { getShareOfVoice } = await import("./share-of-voice");
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    
     const sovData = await getShareOfVoice(
       projectId,
       filters.dateRange?.from,
       filters.dateRange?.to,
-      filters.platform === "all" ? undefined : filters.platform,
-      filters.region === "GLOBAL" ? undefined : filters.region
+      platformFilter,
+      regionFilter,
+      topicFilter
     );
 
     // Get platform presence
@@ -146,12 +151,17 @@ export async function getCompetitiveRank(
 ): Promise<{ rank: number; totalCompetitors: number }> {
   try {
     const { getShareOfVoice } = await import("./share-of-voice");
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    
     const sovData = await getShareOfVoice(
       projectId,
       filters.dateRange?.from,
       filters.dateRange?.to,
-      filters.platform === "all" ? undefined : filters.platform,
-      filters.region === "GLOBAL" ? undefined : filters.region
+      platformFilter,
+      regionFilter,
+      topicFilter
     );
 
     if (!sovData || !sovData.competitors || sovData.competitors.length === 0) {
@@ -266,12 +276,17 @@ export async function getWeeklyInsights(
     // Insight 3: Share of voice position
     // =============================================
     const { getShareOfVoice } = await import("./share-of-voice");
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    
     const sovData = await getShareOfVoice(
       projectId,
       weekAgo,
       new Date(),
-      filters.platform === "all" ? undefined : filters.platform,
-      filters.region === "GLOBAL" ? undefined : filters.region
+      platformFilter,
+      regionFilter,
+      topicFilter
     );
 
     if (sovData && sovData.brand) {
@@ -279,6 +294,7 @@ export async function getWeeklyInsights(
         dateRange: { from: weekAgo, to: new Date() },
         platform: filters.platform,
         region: filters.region,
+        topicId: filters.topicId,
       });
 
       if (rank.rank === 1) {
@@ -328,4 +344,632 @@ export async function getExecutiveMetrics(
     totalCompetitors: competitiveRank.totalCompetitors,
     weeklyInsights,
   };
+}
+
+// =============================================
+// NEW CEO DASHBOARD QUERIES
+// =============================================
+
+export interface CompetitorBattleData {
+  id: string;
+  name: string;
+  domain: string;
+  color?: string;
+  isBrand: boolean;
+  mentionsShare: number;
+  citationsShare: number;
+  mentions: number;
+  citations: number;
+  trend: number; // percentage change vs last period
+  rank: number;
+}
+
+export interface CompetitiveBattlefieldData {
+  brand: CompetitorBattleData;
+  competitors: CompetitorBattleData[];
+  leader: CompetitorBattleData;
+  gapToLeader: number; // percentage points
+  positionChange: number; // positions gained/lost
+  totalMentions: number;
+  totalCitations: number;
+}
+
+/**
+ * Get competitive battlefield data for the CEO dashboard
+ * Combines mentions and citations share with trend data
+ */
+export async function getCompetitiveBattlefield(
+  projectId: string,
+  filters: SentimentFilterOptions
+): Promise<CompetitiveBattlefieldData | null> {
+  const supabase = await createClient();
+  const { format, subDays } = await import("date-fns");
+
+  try {
+    // Get project info with color
+    const { data: project } = await supabase
+      .from("projects")
+      .select("name, client_url, color")
+      .eq("id", projectId)
+      .single();
+
+    // Get current period data
+    const { getShareOfVoice } = await import("./share-of-voice");
+    const { getCitationsRanking } = await import("./citations-real");
+
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+
+    const currentSov = await getShareOfVoice(
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    const currentCitations = await getCitationsRanking(
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    if (!currentSov || !currentCitations) return null;
+
+    // Calculate previous period for trends
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
+
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
+
+    const previousSov = await getShareOfVoice(
+      projectId,
+      previousFrom,
+      previousTo,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    // Build brand data
+    const brandTrend = previousSov?.brand?.percentage
+      ? currentSov.brand.percentage - previousSov.brand.percentage
+      : 0;
+
+    const brand: CompetitorBattleData = {
+      id: "brand",
+      name: project?.name || "Your Brand",
+      domain: project?.client_url || "",
+      color: project?.color || "#3B82F6",
+      isBrand: true,
+      mentionsShare: currentSov.brand.percentage,
+      citationsShare: currentCitations.brand.percentage,
+      mentions: currentSov.brand.mentions,
+      citations: currentCitations.brand.citations,
+      trend: Number(brandTrend.toFixed(1)),
+      rank: 1,
+    };
+
+    // Build competitors data
+    const competitors: CompetitorBattleData[] = currentSov.competitors.map((comp: any) => {
+      const citationsComp = currentCitations.competitors.find((c: any) => c.id === comp.id);
+      const previousComp = previousSov?.competitors?.find((c: any) => c.id === comp.id);
+      const trend = previousComp?.percentage
+        ? comp.percentage - previousComp.percentage
+        : 0;
+
+      return {
+        id: comp.id,
+        name: comp.name,
+        domain: comp.domain,
+        color: comp.color,
+        isBrand: false,
+        mentionsShare: comp.percentage,
+        citationsShare: citationsComp?.percentage || 0,
+        mentions: comp.mentions,
+        citations: citationsComp?.citations || 0,
+        trend: Number(trend.toFixed(1)),
+        rank: 0,
+      };
+    });
+
+    // Sort all by mentions share and assign ranks
+    const allEntities = [brand, ...competitors].sort((a, b) => b.mentionsShare - a.mentionsShare);
+    allEntities.forEach((entity, index) => {
+      entity.rank = index + 1;
+    });
+
+    // Find leader and calculate gap
+    const leader = allEntities[0];
+    const brandRank = allEntities.find(e => e.isBrand)?.rank || 1;
+    const gapToLeader = leader.isBrand ? 0 : leader.mentionsShare - brand.mentionsShare;
+
+    // Calculate position change
+    let previousRank = 1;
+    if (previousSov) {
+      const previousAllEntities = [
+        { percentage: previousSov.brand.percentage, isBrand: true },
+        ...(previousSov.competitors || []).map((c: any) => ({ percentage: c.percentage, isBrand: false })),
+      ].sort((a, b) => b.percentage - a.percentage);
+      previousRank = previousAllEntities.findIndex(e => e.isBrand) + 1;
+    }
+    const positionChange = previousRank - brandRank; // Positive = moved up
+
+    return {
+      brand: allEntities.find(e => e.isBrand) as CompetitorBattleData,
+      competitors: allEntities.filter(e => !e.isBrand) as CompetitorBattleData[],
+      leader,
+      gapToLeader: Number(gapToLeader.toFixed(1)),
+      positionChange,
+      totalMentions: currentSov.totalMentions,
+      totalCitations: currentCitations.totalCitations,
+    };
+  } catch (error) {
+    console.error("Error getting competitive battlefield:", error);
+    return null;
+  }
+}
+
+export interface WeeklyBattleReportData {
+  mentionsChange: {
+    current: number;
+    previous: number;
+    change: number;
+    changePercent: number;
+  };
+  citationsChange: {
+    current: number;
+    previous: number;
+    change: number;
+    changePercent: number;
+  };
+  shareChange: {
+    current: number;
+    previous: number;
+    change: number;
+  };
+  competitorChanges: Array<{
+    id: string;
+    name: string;
+    color?: string;
+    mentionsChange: number;
+    shareChange: number;
+    isGrowing: boolean;
+  }>;
+  biggestGainer: { name: string; change: number } | null;
+  biggestLoser: { name: string; change: number } | null;
+}
+
+/**
+ * Get weekly battle report comparing current vs previous period
+ */
+export async function getWeeklyBattleReport(
+  projectId: string,
+  filters: SentimentFilterOptions
+): Promise<WeeklyBattleReportData | null> {
+  const { subDays } = await import("date-fns");
+
+  try {
+    const { getShareOfVoice } = await import("./share-of-voice");
+    const { getCitationsRanking } = await import("./citations-real");
+
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+
+    // Current period
+    const currentSov = await getShareOfVoice(
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    const currentCitations = await getCitationsRanking(
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    if (!currentSov || !currentCitations) return null;
+
+    // Calculate previous period
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
+
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
+
+    const previousSov = await getShareOfVoice(
+      projectId,
+      previousFrom,
+      previousTo,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    const previousCitations = await getCitationsRanking(
+      projectId,
+      previousFrom,
+      previousTo,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    // Calculate changes
+    const currentMentions = currentSov.brand.mentions;
+    const previousMentions = previousSov?.brand?.mentions || 0;
+    const mentionsChange = currentMentions - previousMentions;
+    const mentionsChangePercent = previousMentions > 0 
+      ? ((mentionsChange / previousMentions) * 100) 
+      : 0;
+
+    const currentCitationsCount = currentCitations.brand.citations;
+    const previousCitationsCount = previousCitations?.brand?.citations || 0;
+    const citationsChange = currentCitationsCount - previousCitationsCount;
+    const citationsChangePercent = previousCitationsCount > 0 
+      ? ((citationsChange / previousCitationsCount) * 100) 
+      : 0;
+
+    const currentShare = currentSov.brand.percentage;
+    const previousShare = previousSov?.brand?.percentage || 0;
+    const shareChange = currentShare - previousShare;
+
+    // Competitor changes
+    const competitorChanges = currentSov.competitors.map((comp: any) => {
+      const prevComp = previousSov?.competitors?.find((c: any) => c.id === comp.id);
+      const mentionsChg = comp.mentions - (prevComp?.mentions || 0);
+      const shareChg = comp.percentage - (prevComp?.percentage || 0);
+
+      return {
+        id: comp.id,
+        name: comp.name,
+        color: comp.color,
+        mentionsChange: mentionsChg,
+        shareChange: Number(shareChg.toFixed(1)),
+        isGrowing: shareChg > 0,
+      };
+    });
+
+    // Find biggest gainer and loser
+    const allChanges = [
+      { name: currentSov.brand.name, change: shareChange },
+      ...competitorChanges.map(c => ({ name: c.name, change: c.shareChange })),
+    ];
+
+    const sortedByChange = [...allChanges].sort((a, b) => b.change - a.change);
+    const biggestGainer = sortedByChange[0]?.change > 0 ? sortedByChange[0] : null;
+    const biggestLoser = sortedByChange[sortedByChange.length - 1]?.change < 0 
+      ? sortedByChange[sortedByChange.length - 1] 
+      : null;
+
+    return {
+      mentionsChange: {
+        current: currentMentions,
+        previous: previousMentions,
+        change: mentionsChange,
+        changePercent: Number(mentionsChangePercent.toFixed(1)),
+      },
+      citationsChange: {
+        current: currentCitationsCount,
+        previous: previousCitationsCount,
+        change: citationsChange,
+        changePercent: Number(citationsChangePercent.toFixed(1)),
+      },
+      shareChange: {
+        current: Number(currentShare.toFixed(1)),
+        previous: Number(previousShare.toFixed(1)),
+        change: Number(shareChange.toFixed(1)),
+      },
+      competitorChanges,
+      biggestGainer,
+      biggestLoser,
+    };
+  } catch (error) {
+    console.error("Error getting weekly battle report:", error);
+    return null;
+  }
+}
+
+export interface PlatformDominanceData {
+  platforms: Array<{
+    id: string;
+    name: string;
+    icon: string;
+  }>;
+  entities: Array<{
+    id: string;
+    name: string;
+    color?: string;
+    isBrand: boolean;
+    platformRanks: Record<string, number>; // platform_id -> rank
+    totalMentions: number;
+  }>;
+  brandLeadsCount: number; // How many platforms brand is #1
+}
+
+/**
+ * Get platform dominance data - shows rank by platform
+ */
+export async function getPlatformDominance(
+  projectId: string,
+  filters: SentimentFilterOptions
+): Promise<PlatformDominanceData | null> {
+  const supabase = await createClient();
+  const { format } = await import("date-fns");
+
+  try {
+    // Get project info
+    const { data: project } = await supabase
+      .from("projects")
+      .select("name, client_url, color")
+      .eq("id", projectId)
+      .single();
+
+    // Get competitors
+    const { data: competitors } = await supabase
+      .from("competitors")
+      .select("id, name, domain, color")
+      .eq("project_id", projectId)
+      .eq("is_active", true);
+
+    // Date range
+    const endDate = filters.dateRange?.to || new Date();
+    const startDate = filters.dateRange?.from || new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+
+    // Build query with filters
+    let query = supabase
+      .from("daily_brand_stats")
+      .select("platform, entity_type, competitor_id, mentions_count")
+      .eq("project_id", projectId)
+      .gte("stat_date", startDateStr)
+      .lte("stat_date", endDateStr);
+
+    // Apply region filter
+    if (filters.region && filters.region !== "GLOBAL") {
+      query = query.eq("region", filters.region);
+    }
+
+    // Apply topic filter
+    if (filters.topicId && filters.topicId !== "all") {
+      query = query.eq("topic_id", filters.topicId);
+    }
+
+    const { data: stats } = await query;
+
+    if (!stats) return null;
+
+    // Define platforms
+    const platformsList = [
+      { id: "openai", name: "OpenAI", icon: "openai" },
+      { id: "gemini", name: "Gemini", icon: "gemini" },
+      { id: "perplexity", name: "Perplexity", icon: "perplexity" },
+      { id: "claude", name: "Claude", icon: "claude" },
+    ];
+
+    // Aggregate by platform and entity
+    const platformEntityMentions: Record<string, Record<string, number>> = {};
+
+    platformsList.forEach(p => {
+      platformEntityMentions[p.id] = { brand: 0 };
+      competitors?.forEach(c => {
+        platformEntityMentions[p.id][c.id] = 0;
+      });
+    });
+
+    stats.forEach((stat: any) => {
+      const platform = stat.platform;
+      if (!platformEntityMentions[platform]) return;
+
+      if (stat.entity_type === "brand" && !stat.competitor_id) {
+        platformEntityMentions[platform]["brand"] += stat.mentions_count || 0;
+      } else if (stat.entity_type === "competitor" && stat.competitor_id) {
+        platformEntityMentions[platform][stat.competitor_id] = 
+          (platformEntityMentions[platform][stat.competitor_id] || 0) + (stat.mentions_count || 0);
+      }
+    });
+
+    // Calculate ranks for each platform
+    const entities: PlatformDominanceData["entities"] = [];
+    
+    // Brand
+    const brandPlatformRanks: Record<string, number> = {};
+    let brandTotalMentions = 0;
+    
+    platformsList.forEach(p => {
+      const platformMentions = Object.entries(platformEntityMentions[p.id])
+        .map(([id, mentions]) => ({ id, mentions }))
+        .sort((a, b) => b.mentions - a.mentions);
+      
+      const brandIdx = platformMentions.findIndex(e => e.id === "brand");
+      brandPlatformRanks[p.id] = brandIdx + 1;
+      brandTotalMentions += platformEntityMentions[p.id]["brand"] || 0;
+    });
+
+    entities.push({
+      id: "brand",
+      name: project?.name || "Your Brand",
+      color: project?.color,
+      isBrand: true,
+      platformRanks: brandPlatformRanks,
+      totalMentions: brandTotalMentions,
+    });
+
+    // Competitors
+    competitors?.forEach(comp => {
+      const compPlatformRanks: Record<string, number> = {};
+      let compTotalMentions = 0;
+
+      platformsList.forEach(p => {
+        const platformMentions = Object.entries(platformEntityMentions[p.id])
+          .map(([id, mentions]) => ({ id, mentions }))
+          .sort((a, b) => b.mentions - a.mentions);
+        
+        const compIdx = platformMentions.findIndex(e => e.id === comp.id);
+        compPlatformRanks[p.id] = compIdx >= 0 ? compIdx + 1 : platformMentions.length + 1;
+        compTotalMentions += platformEntityMentions[p.id][comp.id] || 0;
+      });
+
+      entities.push({
+        id: comp.id,
+        name: comp.name,
+        color: comp.color,
+        isBrand: false,
+        platformRanks: compPlatformRanks,
+        totalMentions: compTotalMentions,
+      });
+    });
+
+    // Count platforms where brand leads
+    const brandLeadsCount = Object.values(brandPlatformRanks).filter(rank => rank === 1).length;
+
+    return {
+      platforms: platformsList,
+      entities: entities.sort((a, b) => b.totalMentions - a.totalMentions),
+      brandLeadsCount,
+    };
+  } catch (error) {
+    console.error("Error getting platform dominance:", error);
+    return null;
+  }
+}
+
+export interface MomentumScoreData {
+  score: number; // -100 to 100 (negative = losing, positive = winning)
+  velocity: number; // rate of change
+  direction: "up" | "down" | "stable";
+  weekOverWeekChange: number;
+  isOutperformingMarket: boolean;
+  competitorAvgChange: number;
+}
+
+/**
+ * Calculate momentum score - how fast brand is growing vs competition
+ */
+export async function getMomentumScore(
+  projectId: string,
+  filters: SentimentFilterOptions
+): Promise<MomentumScoreData> {
+  const { subDays } = await import("date-fns");
+
+  try {
+    const { getShareOfVoice } = await import("./share-of-voice");
+
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+
+    // Get current period
+    const currentSov = await getShareOfVoice(
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    // Calculate previous period
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
+
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
+
+    const previousSov = await getShareOfVoice(
+      projectId,
+      previousFrom,
+      previousTo,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
+
+    if (!currentSov || !previousSov) {
+      return {
+        score: 0,
+        velocity: 0,
+        direction: "stable",
+        weekOverWeekChange: 0,
+        isOutperformingMarket: false,
+        competitorAvgChange: 0,
+      };
+    }
+
+    // Calculate brand change
+    const brandChange = currentSov.brand.percentage - (previousSov.brand?.percentage || 0);
+
+    // Calculate average competitor change
+    let totalCompetitorChange = 0;
+    let competitorCount = 0;
+    
+    currentSov.competitors?.forEach((comp: any) => {
+      const prevComp = previousSov.competitors?.find((c: any) => c.id === comp.id);
+      if (prevComp) {
+        totalCompetitorChange += comp.percentage - prevComp.percentage;
+        competitorCount++;
+      }
+    });
+
+    const avgCompetitorChange = competitorCount > 0 ? totalCompetitorChange / competitorCount : 0;
+
+    // Calculate momentum score (-100 to 100)
+    // Positive = outperforming market, Negative = underperforming
+    const relativePerformance = brandChange - avgCompetitorChange;
+    const score = Math.max(-100, Math.min(100, relativePerformance * 10)); // Scale
+
+    // Determine direction
+    let direction: "up" | "down" | "stable" = "stable";
+    if (brandChange > 0.5) direction = "up";
+    else if (brandChange < -0.5) direction = "down";
+
+    return {
+      score: Math.round(score),
+      velocity: Number(brandChange.toFixed(1)),
+      direction,
+      weekOverWeekChange: Number(brandChange.toFixed(1)),
+      isOutperformingMarket: brandChange > avgCompetitorChange,
+      competitorAvgChange: Number(avgCompetitorChange.toFixed(1)),
+    };
+  } catch (error) {
+    console.error("Error calculating momentum score:", error);
+    return {
+      score: 0,
+      velocity: 0,
+      direction: "stable",
+      weekOverWeekChange: 0,
+      isOutperformingMarket: false,
+      competitorAvgChange: 0,
+    };
+  }
 }

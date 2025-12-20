@@ -4,6 +4,13 @@ import { TrendingUp } from "lucide-react";
 import { EvolutionChart } from "@/components/shared/evolution-chart";
 import { useEffect } from "react";
 
+// Helper function to convert hex to rgb
+function hexToRgb(hex: string): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return "rgb(59, 130, 246)";
+  return `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})`;
+}
+
 interface Competitor {
   id: string;
   name: string;
@@ -14,8 +21,10 @@ interface MentionsEvolutionChartProps {
   data: any[];
   brandName: string;
   brandDomain: string;
+  brandColor?: string;
   competitorName: string;
   competitorDomain: string;
+  competitorColor?: string;
   competitors: Competitor[];
   selectedCompetitorId: string | null;
   onCompetitorChange: (competitorId: string) => void;
@@ -26,8 +35,10 @@ export function MentionsEvolutionChart({
   data,
   brandName,
   brandDomain,
+  brandColor,
   competitorName,
   competitorDomain,
+  competitorColor,
   competitors,
   selectedCompetitorId,
   onCompetitorChange,
@@ -58,8 +69,8 @@ export function MentionsEvolutionChart({
       selectedEntityId={selectedCompetitorId}
       onEntityChange={onCompetitorChange}
       isLoading={isLoading}
-      primaryColor="rgb(59, 130, 246)"
-      secondaryColor="rgb(239, 68, 68)"
+      primaryColor={brandColor ? hexToRgb(brandColor) : "rgb(59, 130, 246)"}
+      secondaryColor={competitorColor ? hexToRgb(competitorColor) : "rgb(239, 68, 68)"}
       emptyStateMessage="Run analyses with different prompts to see mention trends"
     />
   );

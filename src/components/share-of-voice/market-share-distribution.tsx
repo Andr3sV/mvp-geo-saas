@@ -9,6 +9,7 @@ interface Entity {
   id: string;
   name: string;
   domain: string;
+  color?: string;
   mentions: number;
   percentage: number;
   isBrand: boolean;
@@ -111,7 +112,13 @@ export function MarketShareDistribution({ entities, isLoading, metricLabel = "me
         {entities.map((entity, index) => {
           const barWidth = maxPercentage > 0 ? (entity.percentage / maxPercentage) * 100 : 0;
           const isLeader = index === 0;
-          const colorClass = entity.isBrand ? "bg-primary" : COLORS[index % COLORS.length];
+          // Use entity color if available, otherwise fallback to default colors
+          const entityColor = entity.color || (entity.isBrand ? "#3B82F6" : undefined);
+          const colorClass = entity.isBrand && !entityColor 
+            ? "bg-primary" 
+            : entityColor 
+            ? "" // Will use inline style
+            : COLORS[index % COLORS.length];
 
           return (
             <div
@@ -165,7 +172,10 @@ export function MarketShareDistribution({ entities, isLoading, metricLabel = "me
                         "h-full rounded-full transition-all duration-500 ease-out",
                         colorClass
                       )}
-                      style={{ width: `${barWidth}%` }}
+                      style={{ 
+                        width: `${barWidth}%`,
+                        ...(entityColor && !colorClass ? { backgroundColor: entityColor } : {}),
+                      }}
                     />
                   </div>
                 </div>

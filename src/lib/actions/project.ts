@@ -16,6 +16,7 @@ export async function updateProject(projectId: string, data: {
   name?: string;
   client_url?: string;
   description?: string;
+  color?: string;
 }) {
   const supabase = await createClient();
   const {
@@ -40,6 +41,10 @@ export async function updateProject(projectId: string, data: {
   
   if (data.description !== undefined) {
     updateData.description = data.description;
+  }
+  
+  if (data.color !== undefined) {
+    updateData.color = data.color;
   }
 
   const { data: project, error } = await supabase

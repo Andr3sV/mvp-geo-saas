@@ -9,6 +9,7 @@ interface Entity {
   id: string;
   name: string;
   domain: string;
+  color?: string;
   percentage: number;
   trend: number;
   mentions: number;
@@ -93,8 +94,11 @@ export function CompetitiveGapTracker({ entities, isLoading, metricLabel = "ment
             <div className="flex-1">
               <div className="h-6 bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-primary rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                  style={{ width: `${(brand.percentage / maxShare) * 100}%` }}
+                  className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                  style={{ 
+                    width: `${(brand.percentage / maxShare) * 100}%`,
+                    backgroundColor: brand.color || "hsl(var(--primary))",
+                  }}
                 >
                   <span className="text-[10px] font-semibold text-primary-foreground">
                     {brand.percentage.toFixed(1)}%
@@ -140,8 +144,11 @@ export function CompetitiveGapTracker({ entities, isLoading, metricLabel = "ment
                 <div className="flex-1">
                   <div className="h-6 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-slate-400 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-                      style={{ width: `${(competitor.percentage / maxShare) * 100}%` }}
+                      className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                      style={{ 
+                        width: `${(competitor.percentage / maxShare) * 100}%`,
+                        backgroundColor: competitor.color || "#64748b",
+                      }}
                     >
                       <span className="text-[10px] font-semibold text-white">
                         {competitor.percentage.toFixed(1)}%

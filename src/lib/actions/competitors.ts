@@ -44,7 +44,7 @@ export async function getCompetitorsByRegion(projectId: string, region: string =
   // Get ALL active competitors first (filter in JavaScript is more reliable)
   const { data: allCompetitors, error } = await supabase
     .from("competitors")
-    .select("id, name, domain, region")
+    .select("id, name, domain, region, color")
     .eq("project_id", projectId)
     .eq("is_active", true)
     .order("name", { ascending: true });

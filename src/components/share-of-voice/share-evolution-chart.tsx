@@ -17,6 +17,7 @@ interface Entity {
   id: string;
   name: string;
   domain: string;
+  color?: string;
   isBrand: boolean;
 }
 
@@ -39,6 +40,12 @@ const COLORS = [
 ];
 
 export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutionChartProps) {
+  // Helper function to get color for entity
+  const getEntityColor = (entity: Entity, index: number): string => {
+    if (entity.color) return entity.color;
+    return COLORS[index % COLORS.length];
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -125,7 +132,7 @@ export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutio
             <div key={entity.id} className="flex items-center gap-1.5">
               <div
                 className="w-3 h-3 rounded-sm"
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                style={{ backgroundColor: getEntityColor(entity, index) }}
               />
               <BrandLogo domain={entity.domain || entity.name} name={entity.name} size={14} />
               <span className="text-xs text-muted-foreground">{entity.name}</span>
@@ -139,12 +146,15 @@ export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutio
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
-                {entities.map((entity, index) => (
-                  <linearGradient key={entity.id} id={`gradient-${entity.id}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.8} />
-                    <stop offset="95%" stopColor={COLORS[index % COLORS.length]} stopOpacity={0.3} />
-                  </linearGradient>
-                ))}
+                {entities.map((entity, index) => {
+                  const entityColor = getEntityColor(entity, index);
+                  return (
+                    <linearGradient key={entity.id} id={`gradient-${entity.id}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={entityColor} stopOpacity={0.8} />
+                      <stop offset="95%" stopColor={entityColor} stopOpacity={0.3} />
+                    </linearGradient>
+                  );
+                })}
               </defs>
 
               <CartesianGrid
@@ -180,7 +190,7 @@ export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutio
                   dataKey={entity.id}
                   name={entity.name}
                   stackId="1"
-                  stroke={COLORS[index % COLORS.length]}
+                  stroke={getEntityColor(entity, index)}
                   fill={`url(#gradient-${entity.id})`}
                   strokeWidth={1.5}
                 />

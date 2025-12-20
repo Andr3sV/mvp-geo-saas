@@ -36,6 +36,7 @@ export function ProjectsSettings() {
   const [newProjectColor, setNewProjectColor] = useState("#3B82F6");
   const [editProjectName, setEditProjectName] = useState("");
   const [editProjectUrl, setEditProjectUrl] = useState("");
+  const [editProjectColor, setEditProjectColor] = useState("#3B82F6");
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -99,6 +100,7 @@ export function ProjectsSettings() {
     const result = await updateProjectDetails(selectedProject.id, {
       name: editProjectName,
       client_url: editProjectUrl || undefined,
+      color: editProjectColor,
     });
 
     setActionLoading(false);
@@ -110,6 +112,9 @@ export function ProjectsSettings() {
 
     setIsEditOpen(false);
     setSelectedProject(null);
+    setEditProjectName("");
+    setEditProjectUrl("");
+    setEditProjectColor("#3B82F6");
     loadData();
     router.refresh();
   };
@@ -263,6 +268,11 @@ export function ProjectsSettings() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
+                      <div
+                        className="h-4 w-4 rounded-full border border-border"
+                        style={{ backgroundColor: project.color || "#3B82F6" }}
+                        title={`Brand color: ${project.color || "#3B82F6"}`}
+                      />
                       <h3 className="font-semibold">{project.name}</h3>
                       <Badge variant="secondary">{project.slug}</Badge>
                     </div>
@@ -332,6 +342,31 @@ export function ProjectsSettings() {
                 onChange={(e) => setEditProjectUrl(e.target.value)}
                 disabled={actionLoading}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-project-color">Brand Color</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="edit-project-color"
+                  type="color"
+                  value={editProjectColor}
+                  onChange={(e) => setEditProjectColor(e.target.value)}
+                  disabled={actionLoading}
+                  className="h-10 w-20 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <Input
+                  type="text"
+                  value={editProjectColor}
+                  onChange={(e) => setEditProjectColor(e.target.value)}
+                  placeholder="#3B82F6"
+                  disabled={actionLoading}
+                  className="flex-1"
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose a color to represent this brand in charts and visualizations
+              </p>
             </div>
           </div>
           <DialogFooter>

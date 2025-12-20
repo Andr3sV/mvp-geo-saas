@@ -67,8 +67,10 @@ export default function CitationsPage() {
   const [evolutionData, setEvolutionData] = useState<any[]>([]);
   const [evolutionBrandName, setEvolutionBrandName] = useState("");
   const [evolutionBrandDomain, setEvolutionBrandDomain] = useState("");
+  const [evolutionBrandColor, setEvolutionBrandColor] = useState<string | undefined>(undefined);
   const [evolutionCompetitorName, setEvolutionCompetitorName] = useState("");
   const [evolutionCompetitorDomain, setEvolutionCompetitorDomain] = useState("");
+  const [evolutionCompetitorColor, setEvolutionCompetitorColor] = useState<string | undefined>(undefined);
   const [regionFilteredCompetitors, setRegionFilteredCompetitors] = useState<any[]>([]);
   const [isLoadingEvolution, setIsLoadingEvolution] = useState(false);
 
@@ -145,8 +147,10 @@ export default function CitationsPage() {
       setEvolutionData(evolution.data);
       setEvolutionBrandName(evolution.brandName);
       setEvolutionBrandDomain(evolution.brandDomain);
+      setEvolutionBrandColor(evolution.brandColor);
       setEvolutionCompetitorName(evolution.competitorName);
       setEvolutionCompetitorDomain(evolution.competitorDomain);
+      setEvolutionCompetitorColor(evolution.competitorColor);
     } catch (error) {
       console.error("Error loading evolution data:", error);
     } finally {
@@ -338,8 +342,10 @@ export default function CitationsPage() {
         data={evolutionData}
         brandName={evolutionBrandName}
         brandDomain={evolutionBrandDomain}
+        brandColor={evolutionBrandColor || citationsRanking?.brand?.color}
         competitorName={evolutionCompetitorName}
         competitorDomain={evolutionCompetitorDomain}
+        competitorColor={evolutionCompetitorColor || (selectedCompetitorId ? regionFilteredCompetitors.find(c => c.id === selectedCompetitorId)?.color : undefined)}
         competitors={regionFilteredCompetitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
@@ -368,6 +374,7 @@ export default function CitationsPage() {
             id: "brand",
             name: citationsRanking?.brand?.name || "Your Brand",
             domain: citationsRanking?.brand?.domain || "",
+            color: citationsRanking?.brand?.color,
             mentions: citationsRanking?.brand?.citations || 0,
             percentage:
               filteredTotalCitations > 0
@@ -380,6 +387,7 @@ export default function CitationsPage() {
             id: comp.id,
             name: comp.name,
             domain: comp.domain,
+            color: comp.color,
             mentions: comp.citations || 0,
             percentage:
               filteredTotalCitations > 0

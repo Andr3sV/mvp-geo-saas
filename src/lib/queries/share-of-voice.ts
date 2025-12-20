@@ -49,10 +49,10 @@ export async function getShareOfVoice(
 ) {
   const supabase = await createClient();
 
-  // Get project info (name and client_url for favicon)
+  // Get project info (name, client_url for favicon, and color)
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -114,7 +114,7 @@ export async function getShareOfVoice(
   // =============================================
   let competitorQuery = supabase
     .from("daily_brand_stats")
-    .select("competitor_id, entity_name, mentions_count, competitors!inner(id, name, domain, is_active)")
+    .select("competitor_id, entity_name, mentions_count, competitors!inner(id, name, domain, is_active, color)")
     .eq("project_id", projectId)
     .eq("entity_type", "competitor")
     .not("competitor_id", "is", null)
@@ -143,7 +143,7 @@ export async function getShareOfVoice(
   // Get ALL active competitors (for the region if filtered, or all if GLOBAL)
   let allCompetitorsQuery = supabase
     .from("competitors")
-    .select("id, name, domain")
+    .select("id, name, domain, color")
     .eq("project_id", projectId)
     .eq("is_active", true);
 
@@ -152,7 +152,7 @@ export async function getShareOfVoice(
   const { data: allCompetitors } = await allCompetitorsQuery;
 
   // Aggregate competitor mentions by competitor_id
-  const competitorMentionsMap = new Map<string, { id: string; name: string; domain: string; mentions: number }>();
+  const competitorMentionsMap = new Map<string, { id: string; name: string; domain: string; color?: string; mentions: number }>();
   
   // Initialize with all active competitors (with 0 mentions)
   allCompetitors?.forEach((competitor: any) => {
@@ -160,6 +160,7 @@ export async function getShareOfVoice(
       id: competitor.id,
       name: competitor.name,
       domain: competitor.domain || "",
+      color: competitor.color || undefined,
       mentions: 0,
     });
   });
@@ -175,6 +176,7 @@ export async function getShareOfVoice(
         id: competitorId,
         name: competitor.name || stat.entity_name || "Unknown",
         domain: competitor.domain || "",
+        color: competitor.color || undefined,
         mentions: 0,
       });
     }
@@ -198,6 +200,7 @@ export async function getShareOfVoice(
     id: comp.id,
     name: comp.name,
     domain: comp.domain || comp.name,
+    color: comp.color,
     mentions: comp.mentions,
     percentage: totalMentions > 0 ? Number(((comp.mentions / totalMentions) * 100).toFixed(1)) : 0,
   }));
@@ -217,6 +220,7 @@ export async function getShareOfVoice(
     brand: {
       name: project?.name || "Your Brand",
       domain: project?.client_url || project?.name || "",
+      color: project?.color || "#3B82F6",
       mentions: brandMentions,
       percentage: Number(brandPercentage.toFixed(1)),
     },
@@ -277,7 +281,7 @@ export async function getShareOfVoiceTrends(
   const buildStatsQuery = (startDate: string, endDate: string, entityType: "brand" | "competitor") => {
     let query = supabase
       .from("daily_brand_stats")
-      .select("mentions_count, competitor_id, entity_name, competitors!inner(name, is_active)")
+      .select("mentions_count, competitor_id, entity_name, competitors!inner(name, is_active, color)")
     .eq("project_id", projectId)
       .eq("entity_type", entityType)
       .gte("stat_date", startDate)
@@ -550,16 +554,18 @@ export async function getShareOfVoiceOverTime(
   // Get competitor info if selected
   let competitorName = "";
   let competitorDomain = "";
+  let competitorColor: string | undefined = undefined;
 
   if (competitorId) {
     const { data: compData } = await supabase
       .from("competitors")
-      .select("name, domain")
+      .select("name, domain, color")
       .eq("id", competitorId)
       .single();
 
     competitorName = compData?.name || "Competitor";
     competitorDomain = compData?.domain || "";
+    competitorColor = compData?.color || undefined;
   }
 
   // Use optimized SQL function
@@ -594,8 +600,10 @@ export async function getShareOfVoiceOverTime(
       data: dailyData,
       brandName: project?.name || "Your Brand",
       brandDomain: project?.client_url || project?.name || "",
+      brandColor: project?.color || undefined,
       competitorName,
       competitorDomain,
+      competitorColor,
     };
   }
 
@@ -633,8 +641,10 @@ export async function getShareOfVoiceOverTime(
     data: dailyData,
     brandName: project?.name || "Your Brand",
     brandDomain: project?.client_url || project?.name || "",
+    brandColor: project?.color || undefined,
     competitorName,
     competitorDomain,
+    competitorColor,
   };
 }
 
@@ -709,14 +719,14 @@ export async function getShareEvolution(
   // Get active competitors
   const { data: competitors } = await supabase
     .from("competitors")
-    .select("id, name, domain")
+    .select("id, name, domain, color")
     .eq("project_id", projectId)
     .eq("is_active", true);
 
   // Create entity list (brand + competitors)
   const entityList = [
-    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", isBrand: true },
-    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", isBrand: false })),
+    { id: "brand", name: project?.name || "Your Brand", domain: project?.client_url || "", color: project?.color || undefined, isBrand: true },
+    ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", color: c.color || undefined, isBrand: false })),
   ];
 
   // Group stats by date
