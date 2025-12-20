@@ -10,7 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Link2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface OpportunityData {
   domain: string;
@@ -20,6 +25,7 @@ interface OpportunityData {
   opportunityScore: number;
   priority: string;
   topics: string[];
+  pages?: string[]; // URLs/pages where competitors are mentioned
 }
 
 interface HighValueOpportunitiesTableProps {
@@ -63,9 +69,10 @@ export function HighValueOpportunitiesTable({
             <TableHeader>
               <TableRow>
                 <TableHead>Domain</TableHead>
-                <TableHead className="text-center">DR</TableHead>
+                <TableHead>Pages</TableHead>
                 <TableHead>Competitors Mentioned</TableHead>
                 <TableHead className="text-center">Citations</TableHead>
+                <TableHead className="text-center">DR</TableHead>
                 <TableHead className="text-center">Score</TableHead>
                 <TableHead>Priority</TableHead>
               </TableRow>
@@ -74,7 +81,7 @@ export function HighValueOpportunitiesTable({
               {data.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={7}
                     className="text-center py-8 text-muted-foreground"
                   >
                     <div className="flex flex-col items-center gap-2">
@@ -102,10 +109,56 @@ export function HighValueOpportunitiesTable({
                         <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </a>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <span className={getDRColor(opportunity.domainRating)}>
-                        {opportunity.domainRating}
-                      </span>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2 max-w-lg">
+                        {opportunity.pages && opportunity.pages.length > 0 ? (
+                          <>
+                            {opportunity.pages.slice(0, 5).map((url, idx) => {
+                              // Normalize URL
+                              let normalizedUrl = url;
+                              if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                                normalizedUrl = `https://${url}`;
+                              }
+                              
+                              return (
+                                <Tooltip key={idx}>
+                                  <TooltipTrigger asChild>
+                                    <a
+                                      href={normalizedUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center justify-center"
+                                    >
+                                      <div className="p-1.5 rounded-md border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors cursor-pointer">
+                                        <Link2 className="h-4 w-4" />
+                                      </div>
+                                    </a>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-md break-all">
+                                    <p className="text-xs">{url}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                            {opportunity.pages.length > 5 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="px-2 py-1 rounded-md border border-border bg-muted/50">
+                                    <span className="text-xs font-medium">+{opportunity.pages.length - 5}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-md">
+                                  <p className="text-xs">
+                                    {opportunity.pages.length - 5} more pages
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">No pages</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
@@ -115,14 +168,35 @@ export function HighValueOpportunitiesTable({
                           </Badge>
                         ))}
                         {opportunity.competitorsMentioned.length > 3 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{opportunity.competitorsMentioned.length - 3}
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="text-xs cursor-help">
+                                +{opportunity.competitorsMentioned.length - 3}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent 
+                              side="top" 
+                              className="max-w-xs bg-background border border-border text-foreground shadow-md p-2"
+                            >
+                              <div className="flex flex-wrap gap-1">
+                                {opportunity.competitorsMentioned.slice(3).map((comp) => (
+                                  <Badge key={comp} variant="secondary" className="text-xs">
+                                    {comp}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-medium">
                       {opportunity.citationFrequency}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className={getDRColor(opportunity.domainRating)}>
+                        {opportunity.domainRating}
+                      </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <span className="font-semibold">

@@ -988,6 +988,7 @@ export async function getHighValueOpportunities(
               domain,
               text,
               url,
+              uri,
               ai_response_id,
               ai_responses!inner(
                 project_id,
@@ -1031,6 +1032,7 @@ export async function getHighValueOpportunities(
     competitorsMentioned: Set<string>;
     citationFrequency: number;
     responseIds: Set<string>;
+    urls: Set<string>; // Track unique URLs for this domain
   }>();
 
   allCitations.forEach((citation: any) => {
@@ -1070,6 +1072,7 @@ export async function getHighValueOpportunities(
         competitorsMentioned: new Set<string>(),
         citationFrequency: 0,
         responseIds: new Set<string>(),
+        urls: new Set<string>(),
       });
     }
 
@@ -1084,6 +1087,17 @@ export async function getHighValueOpportunities(
     mentionedCompetitors.forEach((compName) => {
       domainInfo.competitorsMentioned.add(compName);
     });
+
+    // Add URL/URI if this citation mentions competitors
+    // We'll filter later to only show URLs for domains that don't mention brand
+    if (mentionedCompetitors.size > 0) {
+      // Use uri (original from Gemini/Vertex) if available, otherwise use url
+      // uri is the original source, url is the transformed version
+      const citationUrl = citation.uri || citation.url;
+      if (citationUrl) {
+        domainInfo.urls.add(citationUrl);
+      }
+    }
 
     // Increment citation frequency
     domainInfo.citationFrequency++;
@@ -1136,6 +1150,7 @@ export async function getHighValueOpportunities(
         opportunityScore: Math.round(opportunityScore),
         priority,
         topics: ["GEO Opportunity"], // Could be enhanced with actual topic detection
+        pages: Array.from(domainInfo.urls), // URLs where competitors are mentioned
       };
     })
     .sort((a, b) => b.opportunityScore - a.opportunityScore)
