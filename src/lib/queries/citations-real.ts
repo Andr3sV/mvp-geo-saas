@@ -1164,6 +1164,228 @@ export async function getHighValueOpportunities(
   return opportunities;
 }
 
+/**
+ * Find domains that cite neither your brand nor competitors
+ * These are untapped opportunities for brand awareness and content strategy
+ * 
+ * Uses the citations table directly, searching for brand and competitor mentions
+ * in the text and domain fields using ILIKE pattern matching.
+ */
+export async function getUnmentionedSources(
+  projectId: string,
+  limit: number = 10,
+  filters: CitationFilterOptions = {}
+) {
+  const supabase = await createClient();
+
+  // Step 1: Get brand name from project
+  const { data: project } = await supabase
+    .from("projects")
+    .select("brand_name")
+    .eq("id", projectId)
+    .single();
+
+  const brandName = project?.brand_name || "";
+
+  if (!brandName) {
+    console.warn("No brand_name found for project", projectId);
+    return [];
+  }
+
+  // Step 2: Get active competitors for this project
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  const competitorNames = competitors?.map((c) => c.name).filter(Boolean) || [];
+
+  // Step 3: Get all citations for this project with filters
+  let citationsQuery = applyTopicFilter(
+    applyRegionFilter(
+      applyPlatformFilter(
+        applyDateFilter(
+          supabase
+            .from("citations")
+            .select(`
+              id,
+              domain,
+              text,
+              url,
+              uri,
+              ai_response_id,
+              ai_responses!inner(
+                project_id,
+                platform,
+                prompt_tracking!inner(region, topic_id)
+              )
+            `)
+            .eq("ai_responses.project_id", projectId)
+            .not("domain", "is", null)
+            .limit(10000),
+          filters
+        ),
+        filters
+      ),
+      filters
+    ),
+    filters
+  );
+
+  const { data: allCitations, error } = await citationsQuery;
+
+  if (error) {
+    console.error("❌ Error fetching citations:", error);
+    return [];
+  }
+
+  if (!allCitations || allCitations.length === 0) {
+    console.log("⚠️ No citations found for project", projectId);
+    return [];
+  }
+
+  console.log(`📊 Found ${allCitations.length} citations for unmentioned sources`);
+  console.log(`🔍 Brand name: "${brandName}"`);
+  console.log(`🏢 Competitors (${competitorNames.length}):`, competitorNames);
+
+  // Step 4: Process citations to identify domains with NO mentions
+  const domainData = new Map<string, {
+    domain: string;
+    brandMentioned: boolean;
+    competitorsMentioned: Set<string>;
+    citationFrequency: number;
+    responseIds: Set<string>;
+    urls: Set<string>;
+  }>();
+
+  allCitations.forEach((citation: any) => {
+    const domain = citation.domain;
+    if (!domain) return;
+
+    // Get text from citation (can be null/empty)
+    const text = (citation.text || "").toLowerCase();
+    const url = (citation.url || "").toLowerCase();
+    const domainLower = (domain || "").toLowerCase();
+    const brandNameLower = brandName.toLowerCase();
+
+    // Check if brand is mentioned in text, url, or domain
+    const brandMentioned = 
+      text.includes(brandNameLower) || 
+      url.includes(brandNameLower) ||
+      domainLower.includes(brandNameLower);
+
+    // Check which competitors are mentioned
+    const mentionedCompetitors = new Set<string>();
+    competitorNames.forEach((compName) => {
+      const compNameLower = compName.toLowerCase();
+      if (
+        text.includes(compNameLower) || 
+        url.includes(compNameLower) ||
+        domainLower.includes(compNameLower)
+      ) {
+        mentionedCompetitors.add(compName);
+      }
+    });
+
+    // Initialize domain entry if not exists
+    if (!domainData.has(domain)) {
+      domainData.set(domain, {
+        domain,
+        brandMentioned: false,
+        competitorsMentioned: new Set<string>(),
+        citationFrequency: 0,
+        responseIds: new Set<string>(),
+        urls: new Set<string>(),
+      });
+    }
+
+    const domainInfo = domainData.get(domain)!;
+
+    // Update brand mention status (once true, stays true)
+    if (brandMentioned) {
+      domainInfo.brandMentioned = true;
+    }
+
+    // Add competitor mentions
+    mentionedCompetitors.forEach((compName) => {
+      domainInfo.competitorsMentioned.add(compName);
+    });
+
+    // Add URL if this citation doesn't mention brand or competitors
+    // These are the citations we're interested in
+    if (!brandMentioned && mentionedCompetitors.size === 0) {
+      const citationUrl = citation.uri || citation.url;
+      if (citationUrl) {
+        domainInfo.urls.add(citationUrl);
+      }
+    }
+
+    // Increment citation frequency
+    domainInfo.citationFrequency++;
+    if (citation.ai_response_id) {
+      domainInfo.responseIds.add(citation.ai_response_id);
+    }
+  });
+
+  // Step 5: Filter domains that mention NEITHER brand NOR competitors
+  console.log(`📈 Processing ${domainData.size} unique domains for unmentioned sources`);
+  
+  const unmentionedSources = Array.from(domainData.values())
+    .filter((domainInfo) => {
+      // Must NOT mention brand
+      if (domainInfo.brandMentioned) {
+        return false;
+      }
+      // Must NOT mention any competitors
+      if (domainInfo.competitorsMentioned.size > 0) {
+        return false;
+      }
+      return true;
+    })
+    .map((domainInfo) => {
+      // Estimate DR based on citation frequency (simulated)
+      const estimatedDR = Math.min(100, 50 + (domainInfo.citationFrequency * 8));
+
+      // Calculate opportunity score
+      // Higher score = higher DR + more citations
+      // Since there are no competitor mentions, we focus on frequency and DR
+      const frequencyWeight = Math.min(40, domainInfo.citationFrequency * 5);
+      const drWeight = estimatedDR * 0.5;
+      const opportunityScore = Math.min(100, frequencyWeight + drWeight);
+
+      // Determine priority
+      let priority: "high" | "medium" | "low" = "medium";
+      if (opportunityScore >= 70 || domainInfo.citationFrequency >= 10) {
+        priority = "high";
+      } else if (opportunityScore >= 45 || domainInfo.citationFrequency >= 5) {
+        priority = "medium";
+      } else {
+        priority = "low";
+      }
+
+      return {
+        domain: domainInfo.domain,
+        domainRating: estimatedDR,
+        competitorsMentioned: [], // Empty since no competitors mentioned
+        citationFrequency: domainInfo.citationFrequency,
+        opportunityScore: Math.round(opportunityScore),
+        priority,
+        topics: ["Untapped Opportunity"],
+        pages: Array.from(domainInfo.urls),
+      };
+    })
+    .sort((a, b) => b.opportunityScore - a.opportunityScore)
+    .slice(0, limit);
+
+  console.log(`✅ Found ${unmentionedSources.length} unmentioned sources after filtering`);
+  if (unmentionedSources.length > 0) {
+    console.log("📋 Sample unmentioned source:", unmentionedSources[0]);
+  }
+
+  return unmentionedSources;
+}
+
 // =============================================
 // CITATION SOURCES (INDIVIDUAL URLs)
 // =============================================

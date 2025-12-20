@@ -1547,6 +1547,313 @@ Stores brands detected in responses that are not the client brand or known compe
 
 ---
 
+## High Value Sources Tables
+
+### Overview
+
+The High Value Sources feature identifies strategic opportunities for brand outreach by analyzing citation patterns in the `citations` table. It consists of two complementary tables that help identify different types of opportunities:
+
+1. **High Value Sources Not Mentioning You**: Domains where competitors are cited but your brand is not
+2. **Sources Not Mentioning You or Competitors**: Domains with no brand or competitor mentions (untapped opportunities)
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    citations Table                          │
+│                                                             │
+│  - Contains all web search citations from AI responses     │
+│  - Fields: domain, text, url, uri, ai_response_id          │
+│  - Linked to projects via ai_responses                     │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        │ Query with filters
+                        │ (date, platform, region, topic)
+                        │
+        ┌───────────────┴───────────────┐
+        │                               │
+        │                               │
+┌───────▼────────┐            ┌─────────▼──────────┐
+│ getHighValue   │            │ getUnmentioned     │
+│ Opportunities  │            │ Sources            │
+│                │            │                    │
+│ Filters:       │            │ Filters:           │
+│ - Mentions     │            │ - NO brand         │
+│   competitors  │            │   mentions         │
+│ - NO brand     │            │ - NO competitor    │
+│   mentions     │            │   mentions         │
+└───────┬────────┘            └─────────┬──────────┘
+        │                               │
+        │                               │
+        └───────────────┬───────────────┘
+                        │
+            ┌───────────▼───────────┐
+            │   Frontend Tables     │
+            │                       │
+            │ - HighValue           │
+            │   OpportunitiesTable  │
+            │ - UnmentionedSources  │
+            │   Table               │
+            └───────────────────────┘
+```
+
+### Data Source: citations Table
+
+Both tables use the `citations` table directly (not `citations_detail` or `competitor_citations`). This provides:
+
+- **Direct Access**: No need for complex joins with legacy tables
+- **Text-Based Detection**: Flexible mention detection using text search
+- **Complete Coverage**: All citations from all AI responses
+
+**Key Fields Used**:
+
+- `domain`: Domain name extracted from URL/URI
+- `text`: Text fragment that was cited (optional, can be null)
+- `url`: Real URL after URI transformation
+- `uri`: Original URI from Vertex (Gemini) or similar
+- `ai_response_id`: Links to `ai_responses` for filtering by project, platform, region, topic
+
+### Mention Detection Logic
+
+Both functions use **case-insensitive partial text matching** to identify mentions:
+
+1. **Brand Detection**:
+
+   - Searches for `brand_name` (from `projects` table) in:
+     - `citations.text` (lowercase)
+     - `citations.url` (lowercase)
+     - `citations.domain` (lowercase)
+   - Uses `.includes()` for partial matching (equivalent to SQL `ILIKE '%name%'`)
+
+2. **Competitor Detection**:
+   - Gets all active competitors for the project
+   - For each competitor name, searches in:
+     - `citations.text` (lowercase)
+     - `citations.url` (lowercase)
+     - `citations.domain` (lowercase)
+   - Tracks which competitors are mentioned per domain
+
+**Why Text-Based Detection?**:
+
+- More flexible than exact domain matching
+- Captures mentions in article text, not just domain names
+- Handles variations and partial matches
+- Works even when `text` field is null (falls back to URL/domain search)
+
+### Function: getHighValueOpportunities
+
+**Purpose**: Find domains where competitors are cited but your brand is not
+
+**Location**: `src/lib/queries/citations-real.ts`
+
+**Algorithm**:
+
+1. **Fetch Project Data**:
+
+   - Get `brand_name` from `projects` table
+   - Get all active competitors with their names
+
+2. **Query Citations**:
+
+   - Fetch all citations for the project with applied filters (date, platform, region, topic)
+   - Join with `ai_responses` to access project_id, platform, region, topic_id
+   - Limit to 10,000 citations for performance
+
+3. **Process Citations**:
+
+   - Group citations by `domain`
+   - For each citation, check if brand/competitors are mentioned in `text`, `url`, or `domain`
+   - Track per domain:
+     - `brandMentioned`: Boolean (true if brand found in any citation)
+     - `competitorsMentioned`: Set of competitor names
+     - `citationFrequency`: Count of citations from this domain
+     - `urls`: Set of unique URLs/URIs where competitors are mentioned
+
+4. **Filter Domains**:
+
+   - Must mention at least one competitor (`competitorsMentioned.size > 0`)
+   - Must NOT mention brand (`brandMentioned === false`)
+
+5. **Calculate Metrics**:
+
+   - `domainRating`: Estimated DR based on citation frequency (50 + frequency \* 8, max 100)
+   - `opportunityScore`: Weighted score combining:
+     - Competitor weight: `competitorsMentioned.length * 15`
+     - Frequency weight: `min(30, citationFrequency * 5)`
+     - DR weight: `estimatedDR * 0.4`
+   - `priority`: "high" | "medium" | "low" based on score and competitor count
+
+6. **Return Results**:
+   - Sorted by `opportunityScore` (descending)
+   - Limited to specified `limit` (default 10, page uses 100)
+   - Includes `pages` array with URLs/URIs where competitors are mentioned
+
+**Output Structure**:
+
+```typescript
+{
+  domain: string;
+  domainRating: number;
+  competitorsMentioned: string[];
+  citationFrequency: number;
+  opportunityScore: number;
+  priority: "high" | "medium" | "low";
+  topics: string[];
+  pages: string[]; // URLs/URIs where competitors are mentioned
+}
+```
+
+### Function: getUnmentionedSources
+
+**Purpose**: Find domains that cite neither your brand nor competitors (untapped opportunities)
+
+**Location**: `src/lib/queries/citations-real.ts`
+
+**Algorithm**:
+
+1. **Fetch Project Data**:
+
+   - Get `brand_name` from `projects` table
+   - Get all active competitors (can be empty array if no competitors)
+
+2. **Query Citations**:
+
+   - Same as `getHighValueOpportunities`: fetch all citations with filters
+   - Join with `ai_responses` for filtering
+
+3. **Process Citations**:
+
+   - Group citations by `domain`
+   - For each citation, check if brand/competitors are mentioned
+   - Track per domain:
+     - `brandMentioned`: Boolean
+     - `competitorsMentioned`: Set of competitor names
+     - `citationFrequency`: Count of citations
+     - `urls`: Set of unique URLs/URIs (only from citations that don't mention brand/competitors)
+
+4. **Filter Domains**:
+
+   - Must NOT mention brand (`brandMentioned === false`)
+   - Must NOT mention any competitors (`competitorsMentioned.size === 0`)
+
+5. **Calculate Metrics**:
+
+   - `domainRating`: Same estimation as high value opportunities
+   - `opportunityScore`: Focused on frequency and DR (no competitor weight):
+     - Frequency weight: `min(40, citationFrequency * 5)`
+     - DR weight: `estimatedDR * 0.5`
+   - `priority`: Based on score and citation frequency thresholds
+
+6. **Return Results**:
+   - Sorted by `opportunityScore` (descending)
+   - Limited to specified `limit`
+   - `competitorsMentioned` is always empty array
+   - Includes `pages` array with URLs/URIs from unmentioned citations
+
+**Output Structure**:
+
+```typescript
+{
+  domain: string;
+  domainRating: number;
+  competitorsMentioned: string[]; // Always empty
+  citationFrequency: number;
+  opportunityScore: number;
+  priority: "high" | "medium" | "low";
+  topics: string[];
+  pages: string[]; // URLs/URIs from citations with no mentions
+}
+```
+
+### Frontend Components
+
+#### HighValueOpportunitiesTable
+
+**Location**: `src/components/citations/high-value-opportunities-table.tsx`
+
+**Features**:
+
+- Displays domains where competitors are mentioned but brand is not
+- Columns: Domain, Pages, Competitors Mentioned, Citations, DR, Score, Priority
+- **Pages Column**: Shows clickable link icons (up to 5 visible) with tooltips showing full URL
+- **Competitors Column**: Shows first 3 competitors as badges, "+N" badge with tooltip for remaining
+- **Pagination**: 20 items per page with styled controls matching AI responses page
+- **Default Date Range**: Current week (Monday to yesterday)
+
+**Pagination**:
+
+- Uses same styling as AI responses table
+- Previous/Next buttons with chevron icons
+- Page number buttons (up to 5 visible)
+- Shows "Showing X - Y of Z" counter
+
+#### UnmentionedSourcesTable
+
+**Location**: `src/components/citations/unmentioned-sources-table.tsx`
+
+**Features**:
+
+- Displays domains with no brand or competitor mentions
+- Columns: Domain, Pages, Citations, DR, Score, Priority
+- **No Competitors Column**: Not applicable since no competitors are mentioned
+- Same pagination and styling as HighValueOpportunitiesTable
+- Same Pages column with clickable icons
+
+### Page Integration
+
+**Location**: `src/app/(dashboard)/dashboard/opportunities/page.tsx`
+
+**Implementation**:
+
+- Loads both tables in parallel using `Promise.all()`
+- Applies same filters (date range, platform, region) to both queries
+- Default date range: Current week (Monday to yesterday)
+- Shows loading state while fetching data
+- Displays both tables stacked vertically
+
+**Filter Application**:
+
+- Filters are applied at the query level via helper functions:
+  - `applyDateFilter`: Filters by `created_at` in citations
+  - `applyPlatformFilter`: Filters by `ai_responses.platform`
+  - `applyRegionFilter`: Filters by `ai_responses.prompt_tracking.region`
+  - `applyTopicFilter`: Filters by `ai_responses.prompt_tracking.topic_id`
+
+### Performance Considerations
+
+1. **Query Limits**: Both functions limit citations query to 10,000 rows
+2. **In-Memory Processing**: Mention detection happens in JavaScript after fetching citations
+3. **Efficient Grouping**: Uses `Map` data structure for O(1) domain lookups
+4. **Pagination**: Frontend pagination (20 items) reduces render load
+5. **Parallel Loading**: Both queries execute in parallel for faster page load
+
+### Use Cases
+
+**High Value Sources Not Mentioning You**:
+
+- Identify domains where competitors have presence but you don't
+- Prioritize outreach to high-authority domains
+- Track competitor coverage gaps
+- Focus on domains with multiple competitor mentions (higher opportunity score)
+
+**Sources Not Mentioning You or Competitors**:
+
+- Discover untapped markets
+- Identify new content opportunities
+- Find domains for brand awareness campaigns
+- Explore domains with high citation frequency but no brand presence
+
+### Future Improvements
+
+1. **Caching**: Cache results for common filter combinations
+2. **Incremental Updates**: Update tables incrementally as new citations arrive
+3. **Domain Rating**: Integrate real DR data from external APIs (e.g., Ahrefs, Moz)
+4. **Mention Confidence**: Add confidence scoring for text-based mention detection
+5. **Historical Tracking**: Track how opportunity scores change over time
+6. **Export**: Allow exporting opportunities to CSV for outreach campaigns
+
+---
+
 ## Future Improvements
 
 1. **Redis Integration**: Shared rate limiting across instances

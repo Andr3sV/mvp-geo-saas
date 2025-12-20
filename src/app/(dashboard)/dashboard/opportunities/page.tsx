@@ -5,7 +5,8 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { HighValueOpportunitiesTable } from "@/components/citations/high-value-opportunities-table";
-import { getHighValueOpportunities } from "@/lib/queries/citations-real";
+import { UnmentionedSourcesTable } from "@/components/citations/unmentioned-sources-table";
+import { getHighValueOpportunities, getUnmentionedSources } from "@/lib/queries/citations-real";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { startOfWeek } from "date-fns";
 
@@ -21,6 +22,7 @@ export default function OpportunitiesPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [unmentionedSources, setUnmentionedSources] = useState<any[]>([]);
 
   // Date range state (default to current week - Monday to yesterday)
   // Today's data won't be available until tomorrow, so max date is yesterday
@@ -60,19 +62,32 @@ export default function OpportunitiesPage() {
         filters: filtersPayload,
       });
 
-      const opportunitiesResult = await getHighValueOpportunities(
-        selectedProjectId,
-        100, // Get more opportunities for the dedicated page
-        filtersPayload
-      );
+      const [opportunitiesResult, unmentionedResult] = await Promise.all([
+        getHighValueOpportunities(
+          selectedProjectId,
+          100, // Get more opportunities for the dedicated page
+          filtersPayload
+        ),
+        getUnmentionedSources(
+          selectedProjectId,
+          100, // Get more unmentioned sources for the dedicated page
+          filtersPayload
+        ),
+      ]);
 
       console.log("✅ Opportunities result:", {
         count: Array.isArray(opportunitiesResult) ? opportunitiesResult.length : 0,
         sample: Array.isArray(opportunitiesResult) && opportunitiesResult.length > 0 ? opportunitiesResult[0] : null,
       });
 
-      // The function returns an array directly, not { error, data }
+      console.log("✅ Unmentioned sources result:", {
+        count: Array.isArray(unmentionedResult) ? unmentionedResult.length : 0,
+        sample: Array.isArray(unmentionedResult) && unmentionedResult.length > 0 ? unmentionedResult[0] : null,
+      });
+
+      // The functions return arrays directly, not { error, data }
       setOpportunities(Array.isArray(opportunitiesResult) ? opportunitiesResult : []);
+      setUnmentionedSources(Array.isArray(unmentionedResult) ? unmentionedResult : []);
     } catch (error) {
       console.error("❌ Error loading opportunities:", error);
       setOpportunities([]);
@@ -127,6 +142,9 @@ export default function OpportunitiesPage() {
 
       {/* High Value Opportunities Table */}
       <HighValueOpportunitiesTable data={opportunities} />
+
+      {/* Unmentioned Sources Table */}
+      <UnmentionedSourcesTable data={unmentionedSources} />
     </div>
   );
 }
