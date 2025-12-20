@@ -63,6 +63,13 @@ export function CompetitorsList({
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
+                {competitor.color && (
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: competitor.color }}
+                    aria-label="Competitor color"
+                  />
+                )}
                 <h3 className="font-semibold truncate">{competitor.name}</h3>
                 {!competitor.isActive && (
                   <Badge variant="secondary">Inactive</Badge>

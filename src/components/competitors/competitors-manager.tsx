@@ -23,6 +23,7 @@ export interface Competitor {
   domain: string;
   region: string;
   favicon?: string;
+  color?: string;
   isActive: boolean;
   createdAt: string;
 }
@@ -52,6 +53,7 @@ export function CompetitorsManager() {
       domain: c.domain,
       region: c.region,
       favicon: c.favicon,
+      color: c.color || "#3B82F6",
       isActive: c.is_active,
       createdAt: c.created_at,
     }));
@@ -74,6 +76,7 @@ export function CompetitorsManager() {
       domain: competitor.domain,
       region: competitor.region,
       favicon: competitor.favicon,
+      color: competitor.color,
     });
 
     if (result.error) {

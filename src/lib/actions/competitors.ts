@@ -10,6 +10,7 @@ export interface Competitor {
   domain: string;
   region: string;
   favicon?: string;
+  color?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -87,6 +88,7 @@ export async function createCompetitor(data: {
   domain: string;
   region: string;
   favicon?: string;
+  color?: string;
 }) {
   const supabase = await createClient();
   const {
@@ -105,6 +107,7 @@ export async function createCompetitor(data: {
       domain: data.domain,
       region: data.region || "GLOBAL",
       favicon: data.favicon,
+      color: data.color || "#3B82F6",
       is_active: true,
     })
     .select()
@@ -129,6 +132,7 @@ export async function updateCompetitor(
     domain?: string;
     region?: string;
     favicon?: string;
+    color?: string;
     is_active?: boolean;
   }
 ) {

@@ -23,6 +23,7 @@ interface AddCompetitorDialogProps {
     domain: string;
     region: string;
     favicon?: string;
+    color?: string;
   }) => void;
 }
 
@@ -35,7 +36,22 @@ export function AddCompetitorDialog({
   const [domain, setDomain] = useState("");
   const [region, setRegion] = useState("GLOBAL");
   const [favicon, setFavicon] = useState<string | undefined>();
+  const [color, setColor] = useState("#3B82F6");
   const [isFetchingFavicon, setIsFetchingFavicon] = useState(false);
+
+  // Predefined color palette
+  const colorPalette = [
+    "#3B82F6", // Blue
+    "#10B981", // Green
+    "#F59E0B", // Amber
+    "#EF4444", // Red
+    "#8B5CF6", // Purple
+    "#EC4899", // Pink
+    "#06B6D4", // Cyan
+    "#84CC16", // Lime
+    "#F97316", // Orange
+    "#6366F1", // Indigo
+  ];
 
   // Fetch favicon when domain changes
   useEffect(() => {
@@ -73,6 +89,7 @@ export function AddCompetitorDialog({
       domain: cleanDomain,
       region,
       favicon,
+      color,
     });
 
     // Reset form
@@ -80,6 +97,7 @@ export function AddCompetitorDialog({
     setDomain("");
     setRegion("GLOBAL");
     setFavicon(undefined);
+    setColor("#3B82F6");
   };
 
   return (
@@ -149,6 +167,38 @@ export function AddCompetitorDialog({
               />
               <p className="text-xs text-muted-foreground">
                 Specify the primary region to track this competitor
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="color">Color</Label>
+              <div className="flex gap-2 items-center">
+                <div className="flex gap-1 flex-wrap flex-1">
+                  {colorPalette.map((paletteColor) => (
+                    <button
+                      key={paletteColor}
+                      type="button"
+                      onClick={() => setColor(paletteColor)}
+                      className={`w-8 h-8 rounded-md border-2 transition-all ${
+                        color === paletteColor
+                          ? "border-foreground scale-110"
+                          : "border-border hover:scale-105"
+                      }`}
+                      style={{ backgroundColor: paletteColor }}
+                      aria-label={`Select color ${paletteColor}`}
+                    />
+                  ))}
+                </div>
+                <input
+                  type="color"
+                  id="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-10 h-10 rounded-md border cursor-pointer"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Choose a color to visually distinguish this competitor in charts
               </p>
             </div>
           </div>
