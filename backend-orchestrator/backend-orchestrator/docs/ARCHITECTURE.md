@@ -890,14 +890,24 @@ CREATE TABLE citations (
 #### Storage Logic
 
 1. **Validation**: Citations must have `url` OR `uri` (not null)
-2. **Backfilling**: If `uri` is missing, use `url` (and vice versa) to avoid nulls
-3. **Classification**: Each citation is automatically classified during insertion:
+2. **Deduplication**: Citations with the same URI within a single AI response are combined:
+   - Normalizes URIs by removing protocol, www, trailing slash, and fragments
+   - Groups citations by normalized URI
+   - Combines text fragments from all occurrences with ` [...] ` separator
+   - Stores occurrence count and all text fragments in metadata
+   - Prevents inflated citation metrics from repeated sources (common in Gemini responses)
+3. **Backfilling**: If `uri` is missing, use `url` (and vice versa) to avoid nulls
+4. **Classification**: Each citation is automatically classified during insertion:
    - Compares normalized domain against project `client_url` (brand)
    - Compares normalized domain against active competitor domains (competitor)
    - Defaults to `other` if no match
    - Uses `normalize_domain()` function to handle protocol, www, and path variations
-4. **Filtering**: Invalid citations (no URL/URI) are skipped with logging
-5. **Batch Insert**: All valid citations are inserted in a single transaction with classification
+5. **Filtering**: Invalid citations (no URL/URI) are skipped with logging
+6. **Batch Insert**: All valid, deduplicated citations are inserted in a single transaction with classification
+
+**Deduplication Example**:
+- **Before**: URI `https://example.com/article` cited 3 times = 3 rows
+- **After**: Same URI = 1 row with combined text and `metadata.occurrence_count: 3`
 
 #### Storage Process
 
@@ -907,12 +917,16 @@ const validCitations = citationsData.filter(
   (citation) => citation.url || citation.uri
 );
 
-// 2. Fetch project and competitor data for classification
+// 2. Deduplicate by URI (combines text fragments from same source)
+const deduplicatedCitations = deduplicateCitations(validCitations);
+// Result: Multiple occurrences of same URI → 1 citation with combined text
+
+// 3. Fetch project and competitor data for classification
 const project = await fetchProject(projectId);
 const competitors = await fetchActiveCompetitors(projectId);
 
-// 3. Prepare records with classification
-const records = validCitations.map((citation) => {
+// 4. Prepare records with classification
+const records = deduplicatedCitations.map((citation) => {
   const domain = citation.domain || extractDomain(citation.url || citation.uri);
   const classification = classifyCitation(
     domain,
@@ -924,19 +938,24 @@ const records = validCitations.map((citation) => {
     ai_response_id: aiResponseId,
     project_id: projectId, // Required for classification
     web_search_query: citation.web_search_query || null,
-    uri: citation.uri || citation.url || null, // Backfill
-    url: citation.url || citation.uri || null, // Backfill
+    uri: citation.uri || null,
+    url: citation.url || null,
     domain: domain || null,
-    start_index: citation.start_index ?? null,
-    end_index: citation.end_index ?? null,
-    text: citation.text || null,
+    start_index: citation.start_indices[0] ?? null, // First occurrence
+    end_index: citation.end_indices[0] ?? null,
+    text: citation.text_fragments.join(' [...] '), // Combined text
     citation_type: classification.type, // 'brand', 'competitor', or 'other'
     competitor_id: classification.competitorId || null,
-    metadata: citation.metadata || {},
+    metadata: {
+      ...citation.metadata,
+      occurrence_count: citation.occurrence_count,
+      all_text_fragments: citation.text_fragments.length > 1 ? citation.text_fragments : undefined,
+      all_indices: citation.start_indices.length > 1 ? /* all index pairs */ : undefined
+    },
   };
 });
 
-// 4. Insert into database
+// 5. Insert into database
 await supabase.from("citations").insert(records);
 ```
 
@@ -993,7 +1012,8 @@ The Daily Brand Stats system pre-aggregates daily metrics for brands and competi
             │  (Pre-aggregated)      │
             │                        │
             │ - One row per entity  │
-            │   per day              │
+            │   per dimension combo │
+            │   (platform/region/topic)│
             │ - Fast frontend queries│
             └───────────────────────┘
 ```
@@ -1015,6 +1035,11 @@ CREATE TABLE daily_brand_stats (
   competitor_id UUID REFERENCES competitors(id), -- NULL for brand
   entity_name TEXT NOT NULL, -- Cached name
 
+  -- Dimension fields (for granular analytics)
+  platform TEXT CHECK (platform IN ('openai', 'gemini') OR platform IS NULL),
+  region TEXT DEFAULT 'GLOBAL',
+  topic_id UUID REFERENCES topics(id) ON DELETE SET NULL,
+
   -- Aggregated metrics
   mentions_count INTEGER NOT NULL DEFAULT 0,
   citations_count INTEGER NOT NULL DEFAULT 0,
@@ -1027,40 +1052,71 @@ CREATE TABLE daily_brand_stats (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  UNIQUE(project_id, stat_date, COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid))
+  UNIQUE(project_id, stat_date, 
+    COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    COALESCE(platform, 'ALL'),
+    COALESCE(region, 'GLOBAL'),
+    COALESCE(topic_id, '00000000-0000-0000-0000-000000000000'::uuid)
+  )
 );
 ```
+
+**Dimensions**:
+- **platform**: AI platform that generated the response ('openai' or 'gemini')
+- **region**: Geographic region from prompt_tracking (ISO country code or 'GLOBAL')
+- **topic_id**: Topic ID from prompt_tracking (NULL if no topic assigned)
+
+**Query Pattern**: Frontend can filter by any combination of dimensions and sum results when dimensions are omitted.
 
 ### Aggregation Functions
 
 #### aggregate_brand_stats_only
 
-Optimized SQL function to aggregate stats for a single client brand:
+Optimized SQL function to aggregate stats for a single client brand with dimensions:
+
+**Signature**: `aggregate_brand_stats_only(project_id, date, platform, region, topic_id)`
 
 - Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage
+- Joins with `ai_responses` and `prompt_tracking` to filter by platform, region, and topic
 - Consolidates 7 subqueries into 3 efficient queries
 - Processes brand mentions, citations, and sentiment in separate queries
 - Returns 1 on success, 0 on failure
 
 #### aggregate_competitor_stats_only
 
-Optimized SQL function to aggregate stats for a single competitor:
+Optimized SQL function to aggregate stats for a single competitor with dimensions:
+
+**Signature**: `aggregate_competitor_stats_only(project_id, competitor_id, date, platform, region, topic_id)`
 
 - Same optimization approach as brand aggregation
-- Filters by `competitor_id` for all queries
+- Filters by `competitor_id`, platform, region, and topic for all queries
 - Validates competitor exists and is active before processing
+
+#### get_dimension_combinations
+
+Helper function to discover unique dimension combinations for a project on a given date:
+
+**Signature**: `get_dimension_combinations(project_id, date)`
+
+- Returns distinct `(platform, region, topic_id)` combinations
+- Used by aggregation workflow to determine which dimension sets need processing
 
 ### Performance Optimizations
 
 1. **Timestamp Ranges**: Uses `created_at >= start AND created_at < end` instead of `DATE(created_at)` to allow PostgreSQL to use indexes
-2. **Query Consolidation**: Reduces 7 separate subqueries to 3 consolidated queries per entity
-3. **Composite Indexes**: Specialized indexes on `(project_id, brand_type, created_at)` and similar patterns
-4. **Per-Entity Processing**: Each entity (brand or competitor) is processed in a separate, small SQL transaction to prevent timeouts
+2. **Query Consolidation**: Reduces 7 separate subqueries to 3 consolidated queries per entity×dimension combination
+3. **Composite Indexes**: Specialized indexes on `(project_id, brand_type, created_at)`, `(project_id, platform, region, topic_id)`, and similar patterns
+4. **Per-Entity×Dimension Processing**: Each entity (brand or competitor) × dimension combination is processed in a separate, small SQL transaction to prevent timeouts
+5. **Dimension Discovery**: Uses `get_dimension_combinations` to only process combinations that actually exist in the data
 
 **Performance Improvement**:
 
 - Before: 10+ seconds (timeout) for large projects
-- After: 50-100ms per entity
+- After: 50-100ms per entity×dimension combination
+
+**Scaling**: 
+- With 2 platforms × 3 regions × 2 topics = 12 dimension combinations per entity
+- Still fast because each combination is a small, optimized query
 
 ### Data Flow
 
@@ -1072,14 +1128,16 @@ Optimized SQL function to aggregate stats for a single competitor:
 3. Get all projects with data for yesterday
    ↓
 4. For each project:
+   - Get unique dimension combinations (platform, region, topic_id) via get_dimension_combinations
    - Get client brand
    - Get all active competitors
    ↓
-5. For each entity (brand + competitors):
-   - Call aggregate_brand_stats_only or aggregate_competitor_stats_only
-   - Upsert into daily_brand_stats
+5. For each entity (brand + competitors) × each dimension combination:
+   - Call aggregate_brand_stats_only(project, date, platform, region, topic_id)
+     OR aggregate_competitor_stats_only(project, competitor, date, platform, region, topic_id)
+   - Upsert into daily_brand_stats (one row per entity×dimension combination)
    ↓
-6. Frontend queries daily_brand_stats (fast!)
+6. Frontend queries daily_brand_stats with optional dimension filters (fast!)
 ```
 
 ### Integration with Frontend
