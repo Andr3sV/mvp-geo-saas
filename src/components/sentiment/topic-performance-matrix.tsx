@@ -102,14 +102,14 @@ export function TopicPerformanceMatrix({
       return `rgb(${r}, ${g}, ${b})`;
     } else {
       // Negative: red to yellow with balanced saturation
-      // Red: rgb(255, 140, 140) -> Yellow: rgb(255, 235, 150)
-      const intensity = Math.abs(clampedScore); // 0 to 1
+      // Red: rgb(255, 140, 140) when score = -1 -> Yellow: rgb(255, 235, 150) when score = 0
+      const intensity = Math.abs(clampedScore); // 0 to 1 (1 when score = -1, 0 when score = 0)
       const easedIntensity = Math.pow(intensity, 0.8);
       
-      // Balanced transition from red to yellow
+      // Balanced transition from red (when intensity = 1) to yellow (when intensity = 0)
       const r = 255; // Always 255 for both red and yellow
-      const g = Math.round(140 + (easedIntensity * 95)); // 140 to 235
-      const b = Math.round(140 + (easedIntensity * 10)); // 140 to 150
+      const g = Math.round(235 - (easedIntensity * 95)); // 235 (yellow) to 140 (red)
+      const b = Math.round(150 - (easedIntensity * 10)); // 150 (yellow) to 140 (red)
       return `rgb(${r}, ${g}, ${b})`;
     }
   };
@@ -147,92 +147,87 @@ export function TopicPerformanceMatrix({
       <CardHeader>
         <CardTitle>Sentiment Category Performance Matrix</CardTitle>
         <CardDescription>
-          Heatmap showing sentiment scores across categories.
+          Sentiment scores across categories and entities (color intensity = sentiment score)
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-6">
-        <div className="w-full">
-          {/* Legend */}
-          <div className="mb-6 flex flex-wrap items-center gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md shadow-sm border border-border/50" style={{ backgroundColor: getColor(-1) }}></div>
-              <span className="font-medium">Negative (-1)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md shadow-sm border border-border/50" style={{ backgroundColor: getColor(0) }}></div>
-              <span className="font-medium">Neutral (0)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md shadow-sm border border-border/50" style={{ backgroundColor: getColor(0.5) }}></div>
-              <span className="font-medium">Positive (0.5)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md shadow-sm border border-border/50" style={{ backgroundColor: getColor(1) }}></div>
-              <span className="font-medium">Positive (1)</span>
-            </div>
-          </div>
-
-          {/* Heatmap Table */}
-          <div className="overflow-x-auto rounded-lg border border-border bg-background shadow-sm">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-muted/30">
-                  <th className="sticky left-0 bg-muted/30 z-20 px-4 py-3 text-left text-sm font-semibold text-foreground border-r border-b border-border">
-                    Entity
-                  </th>
-                  {heatmapData.topics.map((topic) => (
-                    <th
-                      key={topic}
-                      className="px-3 py-3 text-xs font-semibold text-foreground border-b border-r border-border min-w-[90px] max-w-[110px] bg-muted/30"
-                      title={topic}
-                    >
-                      <div className="leading-tight break-words">{topic}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {heatmapData.entities.map((entity, entityIdx) => {
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="p-2 text-left text-xs font-medium text-muted-foreground border-b">
+                  Sentiment Category
+                </th>
+                {heatmapData.entities.map((entity) => {
                   const entityDomain = getEntityDomain(entity);
-                  
                   return (
-                    <tr 
-                      key={entity} 
-                      className={entityIdx % 2 === 0 ? "bg-muted/40" : "bg-muted/30"}
-                    >
-                      <td className="sticky left-0 z-10 px-4 py-3 text-sm font-semibold text-foreground border-r border-b border-border bg-inherit">
-                        <div className="flex items-center gap-2">
-                          <BrandLogo domain={entityDomain} name={entity} size={20} className="flex-shrink-0" />
-                          <span>{entity}</span>
-                        </div>
-                      </td>
-                    {heatmapData.topics.map((topic) => {
-                      const cell = heatmapData.cells.find(
-                        (c) => c.topic === topic && c.entity === entity
-                      );
-                      const score = cell?.score ?? 0;
-                      const color = getColor(score);
-
-                      return (
-                        <td
-                          key={`${entity}-${topic}`}
-                          className="px-3 py-3 text-center border-r border-b border-border/50 group relative"
-                          style={{ backgroundColor: color }}
-                          title={`${entity} - ${topic}: ${score.toFixed(2)}`}
-                        >
-                          <span className="text-sm font-semibold text-gray-900 transition-opacity group-hover:opacity-80">
-                            {score.toFixed(2)}
-                          </span>
-                          {/* Subtle hover effect */}
-                          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                        </td>
-                      );
-                    })}
-                    </tr>
+                    <th key={entity} className="p-2 text-center border-b min-w-[80px]">
+                      <div className="flex flex-col items-center gap-1">
+                        <BrandLogo domain={entityDomain} name={entity} size={20} />
+                        <span className="text-[9px] text-muted-foreground truncate max-w-[70px]" title={entity}>
+                          {entity.length > 12 ? entity.substring(0, 12) + "..." : entity}
+                        </span>
+                      </div>
+                    </th>
                   );
                 })}
-              </tbody>
-            </table>
+              </tr>
+            </thead>
+            <tbody>
+              {heatmapData.topics.map((topic, rowIndex) => (
+                <tr key={`row-${rowIndex}`} className="hover:bg-muted/20">
+                  <td className="p-2 text-xs border-b max-w-[200px] truncate" title={topic}>
+                    {topic.length > 35 ? topic.substring(0, 35) + "..." : topic}
+                  </td>
+                  {heatmapData.entities.map((entity) => {
+                    const cell = heatmapData.cells.find(
+                      (c) => c.topic === topic && c.entity === entity
+                    );
+                    const score = cell?.score ?? 0;
+                    const color = getColor(score);
+                    
+                    // Determine text color based on background brightness
+                    const textColor = Math.abs(score) > 0.5 ? "white" : "text-gray-900";
+
+                    return (
+                      <td
+                        key={`${topic}-${entity}`}
+                        className="p-1 text-center border-b"
+                      >
+                        <div
+                          className="mx-auto w-12 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors"
+                          style={{
+                            backgroundColor: score !== 0 ? color : "transparent",
+                            color: score !== 0 && Math.abs(score) > 0.5 ? "white" : score !== 0 ? "#1e293b" : "transparent",
+                          }}
+                          title={`${entity} - ${topic}: ${score.toFixed(2)}`}
+                        >
+                          {score !== 0 ? score.toFixed(2) : ""}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Legend */}
+        <div className="mt-4 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+          <span>Top {heatmapData.topics.length} categories × {heatmapData.entities.length} entities</span>
+          <div className="flex items-center gap-2">
+            <span>Negative</span>
+            <div className="flex items-center gap-0.5">
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(-1) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(-0.66) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(-0.33) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(0) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(0.33) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(0.66) }} />
+              <div className="w-4 h-3 rounded" style={{ backgroundColor: getColor(1) }} />
+            </div>
+            <span>Positive</span>
           </div>
         </div>
       </CardContent>
