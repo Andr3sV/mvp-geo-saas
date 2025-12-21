@@ -27,6 +27,13 @@ export async function updateProject(projectId: string, data: {
     return { error: "Not authenticated", data: null };
   }
 
+  // Get current project to check if client_url changed
+  const { data: currentProject } = await supabase
+    .from("projects")
+    .select("client_url")
+    .eq("id", projectId)
+    .single();
+
   const updateData: any = {};
   
   if (data.name) {
@@ -56,6 +63,29 @@ export async function updateProject(projectId: string, data: {
 
   if (error) {
     return { error: error.message, data: null };
+  }
+
+  // Trigger brand website analysis if client_url was added or changed
+  const urlChanged = data.client_url && data.client_url !== currentProject?.client_url;
+  if (urlChanged) {
+    try {
+      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      await fetch(`${backendUrl}/api/analyze-brand-website`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_id: projectId,
+          client_url: data.client_url,
+          force_refresh: true, // Force refresh since URL changed
+        }),
+      });
+      console.log(`[INFO] Brand website analysis triggered for project ${projectId} (URL updated)`);
+    } catch (error) {
+      // Log error but don't fail project update
+      console.error('[WARN] Failed to trigger brand website analysis:', error);
+    }
   }
 
   revalidatePath("/", "layout");

@@ -55,6 +55,35 @@ const app = new Elysia()
       return { success: false, error: error.message };
     }
   })
+  // Trigger brand website analysis (called when a project is created with a client_url)
+  .post("/api/analyze-brand-website", async ({ body }: { body: any }) => {
+    try {
+      const { project_id, client_url, force_refresh } = body as {
+        project_id: string;
+        client_url: string;
+        force_refresh?: boolean;
+      };
+
+      if (!project_id || !client_url) {
+        return { success: false, error: "Missing project_id or client_url" };
+      }
+
+      const event = await inngest.send({
+        name: "brand/analyze-website",
+        data: {
+          project_id,
+          client_url,
+          force_refresh: force_refresh || false,
+        }
+      });
+
+      console.log(`[INFO] Brand website analysis triggered for project ${project_id}`);
+      return { success: true, eventId: event.ids[0], message: "Brand website analysis triggered" };
+    } catch (error: any) {
+      console.error(`[ERROR] Failed to trigger brand website analysis:`, error.message);
+      return { success: false, error: error.message };
+    }
+  })
   .all("/api/inngest", async ({ request }) => {
     return handler(request);
   })

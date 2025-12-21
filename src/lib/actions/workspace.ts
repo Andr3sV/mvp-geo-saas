@@ -111,6 +111,28 @@ export async function createProject(data: {
     return { error: memberError.message, data: null };
   }
 
+  // Trigger brand website analysis if client_url is provided
+  if (data.client_url) {
+    try {
+      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      await fetch(`${backendUrl}/api/analyze-brand-website`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_id: project.id,
+          client_url: data.client_url,
+          force_refresh: false,
+        }),
+      });
+      console.log(`[INFO] Brand website analysis triggered for project ${project.id}`);
+    } catch (error) {
+      // Log error but don't fail project creation
+      console.error('[WARN] Failed to trigger brand website analysis:', error);
+    }
+  }
+
   revalidatePath("/", "layout");
   return { error: null, data: project };
 }
