@@ -381,7 +381,7 @@ export const manualSentimentEvaluation = inngest.createFunction(
     const project = await step.run('fetch-project', async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, name, brand_name, industry')
+        .select('id, name, brand_name, industry, extracted_topics')
         .eq('id', project_id)
         .limit(1);
 
