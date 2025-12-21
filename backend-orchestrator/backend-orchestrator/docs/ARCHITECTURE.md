@@ -1910,6 +1910,270 @@ Both functions use **case-insensitive partial text matching** to identify mentio
 
 ---
 
+## Topic-Based Sentiment Evaluation System
+
+### Overview
+
+The Topic-Based Sentiment Evaluation system provides granular, structured sentiment analysis for brands and competitors using AI-powered topic evaluations. Unlike the response-based sentiment analysis (which analyzes existing AI responses via Groq), this system proactively generates evaluations using Gemini 2.5 Flash Lite with web search based on extracted industry topics.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Project Creation/Update                        │
+│              (with client_url)                              │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        │ Event: brand/analyze-website
+                        │
+            ┌───────────▼───────────┐
+            │ analyze-brand-website │
+            │ (Event-driven)        │
+            │                       │
+            │ - Gemini 2.5 Flash    │
+            │   Lite + Web Search   │
+            │ - Extract industry    │
+            │ - Extract topics      │
+            │   (15-30 topics)      │
+            └───────────┬───────────┘
+                        │
+                        │ Updates projects table:
+                        │ - industry
+                        │ - extracted_topics (JSONB)
+                        │ - topics_extracted_at
+                        │
+                        │
+            ┌───────────▼───────────┐
+            │ Daily Cron (7:00 AM)  │
+            │                       │
+            │ daily-sentiment-      │
+            │ evaluation            │
+            └───────────┬───────────┘
+                        │
+                        │ For each project:
+                        │ - Get industry & topics
+                        │ - Get regions from prompt_tracking
+                        │
+                        │
+        ┌───────────────┴───────────────┐
+        │                               │
+        │                               │
+┌───────▼────────┐            ┌─────────▼──────────┐
+│ For each topic │            │ For each region    │
+│                │            │                    │
+│ "Evaluate the  │            │ (GLOBAL, ES, US,   │
+│  [INDUSTRY]    │            │  etc.)             │
+│  company       │            │                    │
+│  [BRAND] on    │            │ - Enrich prompt    │
+│  [TOPIC]"      │            │   with region      │
+│                │            │   context          │
+└───────┬────────┘            └─────────┬──────────┘
+        │                               │
+        └───────────────┬───────────────┘
+                        │
+            ┌───────────▼───────────┐
+            │ Gemini 2.5 Flash Lite │
+            │ + Google Search       │
+            │                       │
+            │ - Structured analysis │
+            │ - Natural response    │
+            │ - Web search queries  │
+            │ - Domains used        │
+            └───────────┬───────────┘
+                        │
+                        │ Parse & Save
+                        │
+            ┌───────────▼───────────┐
+            │ brand_evaluations     │
+            │ table                 │
+            │                       │
+            │ - sentiment           │
+            │ - sentiment_score     │
+            │ - positive_attributes │
+            │ - negative_attributes │
+            │ - natural_response    │
+            │ - region              │
+            │ - query_search        │
+            │ - domains             │
+            └───────────────────────┘
+```
+
+### Key Features
+
+1. **Proactive Evaluation**: Generates sentiment evaluations proactively using structured prompts, rather than analyzing existing responses
+2. **Topic-Based**: Evaluates brands/competitors on specific topics extracted from their website (e.g., "pricing", "customer support", "ease of use")
+3. **Region-Aware**: Generates separate evaluations for each active region (e.g., GLOBAL, ES, US) with region-specific context
+4. **Web-Grounded**: Uses Gemini 2.5 Flash Lite with Google Search for real-time web information
+5. **Dual Output**: Provides both structured data (sentiment, attributes) and natural language responses for user-facing display
+
+### Database Schema
+
+#### brand_evaluations
+
+Stores topic-based sentiment evaluations:
+
+```sql
+CREATE TABLE brand_evaluations (
+  id UUID PRIMARY KEY,
+  project_id UUID NOT NULL REFERENCES projects(id),
+  
+  -- Entity being evaluated
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('brand', 'competitor')),
+  entity_name TEXT NOT NULL,
+  competitor_id UUID REFERENCES competitors(id) ON DELETE CASCADE,
+  
+  -- Evaluation details
+  topic TEXT NOT NULL,
+  evaluation_prompt TEXT NOT NULL,
+  
+  -- AI Response
+  response_text TEXT,
+  
+  -- Sentiment analysis
+  sentiment TEXT CHECK (sentiment IN ('positive', 'neutral', 'negative', 'mixed')),
+  sentiment_score DECIMAL(3,2) CHECK (sentiment_score >= -1 AND sentiment_score <= 1),
+  
+  -- Attributes (arrays of strings)
+  positive_attributes JSONB DEFAULT '[]'::jsonb,
+  negative_attributes JSONB DEFAULT '[]'::jsonb,
+  
+  -- Natural language response (for user display)
+  natural_response TEXT,
+  
+  -- Region context
+  region TEXT DEFAULT 'GLOBAL',
+  
+  -- Web search metadata
+  query_search JSONB DEFAULT '[]'::jsonb,  -- Array of search queries used
+  domains JSONB DEFAULT '[]'::jsonb,       -- Array of domains cited
+  
+  -- Reference
+  ai_response_id UUID REFERENCES ai_responses(id) ON DELETE SET NULL,
+  
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Key Fields**:
+
+- `topic`: The specific topic being evaluated (e.g., "pricing", "customer support")
+- `evaluation_prompt`: Full prompt sent to AI (e.g., "Evaluate the B2B CRM company Salesforce on pricing")
+- `sentiment`: Overall sentiment classification
+- `sentiment_score`: Numerical score from -1 (negative) to 1 (positive)
+- `positive_attributes`: JSONB array of positive attributes extracted
+- `negative_attributes`: JSONB array of negative attributes extracted
+- `natural_response`: Human-readable evaluation (2-3 paragraphs) for direct user display
+- `region`: Geographic region for which evaluation was performed (defaults to 'GLOBAL')
+- `query_search`: Array of web search queries used by Gemini during evaluation
+- `domains`: Array of unique domains cited in the evaluation
+
+#### projects (Extended)
+
+The `projects` table now includes fields for industry and topics:
+
+```sql
+ALTER TABLE projects ADD COLUMN industry TEXT;
+ALTER TABLE projects ADD COLUMN extracted_topics JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE projects ADD COLUMN topics_extracted_at TIMESTAMPTZ;
+```
+
+### Workflow
+
+#### Phase 1: Brand Website Analysis (On Project Creation/Update)
+
+1. **Trigger**: Project created or updated with `client_url`
+2. **Function**: `analyze-brand-website`
+3. **Process**:
+   - Fetches website content using Gemini 2.5 Flash Lite with web search
+   - Extracts industry/company type (e.g., "B2B CRM software company")
+   - Extracts 15-30 topics/user intents (e.g., ["pricing", "customer support", "ease of use"])
+   - Updates `projects` table with `industry`, `extracted_topics`, and `topics_extracted_at`
+4. **Rate Limiting**: Skips if analyzed within last 7 days (unless `force_refresh=true`)
+
+#### Phase 2: Daily Sentiment Evaluation
+
+1. **Trigger**: Daily cron at 7:00 AM UTC
+2. **Function**: `daily-sentiment-evaluation`
+3. **Process**:
+   - Fetches all projects with `extracted_topics` populated
+   - For each project:
+     - Gets brand name and active competitors
+     - Gets distinct regions from `prompt_tracking` for the project
+     - For each topic in `extracted_topics`:
+       - Builds evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+       - For each region:
+         - Enriches prompt with region-specific context if region is not GLOBAL
+         - Calls Gemini 2.5 Flash Lite with web search
+         - Parses structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
+         - Extracts natural response (2-3 paragraphs after "=== NATURAL_RESPONSE ===" marker)
+         - Extracts `webSearchQueries` and `domains` from Gemini's `groundingMetadata`
+         - Saves to `brand_evaluations` table
+       - Repeats process for each active competitor
+4. **Important Notes**:
+   - Skips deleted competitors (checks if competitor still exists before processing)
+   - These evaluations do NOT contribute to mention or citation metrics
+   - Each evaluation is independent and topic-specific
+
+### Evaluation Prompt Structure
+
+The evaluation prompt follows this format:
+
+```
+Evaluate the [INDUSTRY] company [BRAND] on [TOPIC].
+
+Provide your evaluation in two parts:
+
+PART 1 - STRUCTURED ANALYSIS:
+[Sentiment classification, score, strengths, weaknesses, summary]
+
+PART 2 - NATURAL RESPONSE:
+=== NATURAL_RESPONSE ===
+[2-3 paragraphs of natural, fluent evaluation]
+```
+
+**Region Enrichment**: If region is not GLOBAL, the prompt is enriched with:
+```
+Note: Please provide information relevant to [REGION]. Focus on local context, regional brands, and country-specific information when applicable.
+```
+
+### Integration with Frontend
+
+The frontend uses `brand_evaluations` for sentiment data through:
+
+1. **getMentionsSummary**: Aggregates sentiment from `brand_evaluations` by entity (brand/competitor) and date range
+2. **getSentimentFromDailyStats**: Retrieves sentiment metrics from `brand_evaluations` instead of `daily_brand_stats`
+3. **Brand Evaluations Queries**: Direct queries to `brand_evaluations` for topic-based sentiment analysis, trends, and comparisons
+
+### Coexistence with Response-Based Analysis
+
+This new system **coexists** with the existing Groq-based response analysis:
+
+- **Response-Based Analysis** (`brand_sentiment_attributes`): Analyzes sentiment from AI-generated responses, focuses on what was said in responses
+- **Topic-Based Evaluation** (`brand_evaluations`): Proactive evaluations on specific topics, provides structured topic-level insights
+
+Both systems provide different perspectives:
+- Response-based: "What sentiment did this response express about the brand?"
+- Topic-based: "What is the current sentiment about this brand regarding pricing?"
+
+### Performance Considerations
+
+1. **Rate Limiting**: Gemini 2.5 Flash Lite has rate limits (3,800 RPM configured in rate limiter)
+2. **Batch Processing**: Processes one project at a time (concurrency: 1) to avoid rate limit issues
+3. **Topic Count**: With 15-30 topics per project × multiple regions × brand + competitors, this can generate many evaluations per day
+4. **Cost**: Gemini 2.5 Flash Lite is cost-effective, but large-scale deployments may need monitoring
+
+### Future Improvements
+
+1. **Incremental Updates**: Only evaluate topics that haven't been evaluated recently
+2. **Topic Prioritization**: Focus on high-value topics first
+3. **Caching**: Cache natural responses for similar evaluations
+4. **Historical Tracking**: Track sentiment trends over time per topic
+5. **Alerting**: Alert on significant sentiment changes
+
+---
+
 ## Future Improvements
 
 1. **Redis Integration**: Shared rate limiting across instances
