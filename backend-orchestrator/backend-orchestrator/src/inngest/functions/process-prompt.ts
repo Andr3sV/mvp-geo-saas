@@ -1,7 +1,8 @@
 import { inngest } from "../client";
 import { createSupabaseClient, logInfo, logError } from "../../lib/utils";
 import { callAI, getAPIKey } from "../../lib/ai-clients";
-import { triggerCitationProcessing } from "../../lib/citation-processing";
+// NOTE: citation-processing.ts removed - was inserting into legacy citations_detail table
+// import { triggerCitationProcessing } from "../../lib/citation-processing";
 import { saveCitations } from "../../lib/citation-storage";
 import { waitForRateLimit } from "../../lib/rate-limiter";
 import type { AIProvider, AICompletionResult, AIClientConfig } from "../../lib/types";
@@ -274,14 +275,17 @@ export const processPrompt = inngest.createFunction(
             });
           }
 
-          await triggerCitationProcessing(
-            supabase,
-            aiResponse.id,
-            job.id,
-            project_id,
-            result.text,
-            result.citations || []
-          );
+          // NOTE: triggerCitationProcessing removed - it was inserting into legacy citations_detail table
+          // Brand mentions are now handled by brand analysis (analyze-single-response function)
+          // Citations are saved via saveCitations() above which uses the citations table
+          // await triggerCitationProcessing(
+          //   supabase,
+          //   aiResponse.id,
+          //   job.id,
+          //   project_id,
+          //   result.text,
+          //   result.citations || []
+          // );
 
           return { platform, status: "success", aiResponseId: aiResponse.id };
 
