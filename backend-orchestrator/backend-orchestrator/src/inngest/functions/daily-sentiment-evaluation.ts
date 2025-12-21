@@ -9,19 +9,33 @@ import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 import { callGemini, getAPIKey } from '../../lib/ai-clients';
 
 /**
+ * Enrich prompt with region-specific context
+ */
+function enrichPromptWithRegion(prompt: string, region: string): string {
+  if (!region || region === 'GLOBAL') {
+    return prompt;
+  }
+  return `${prompt}\n\nNote: Please provide information relevant to ${region}. Focus on local context, regional brands, and country-specific information when applicable.`;
+}
+
+/**
  * Prompt template for sentiment evaluation
  * Format: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+ * Now includes natural response generation
  */
-function buildEvaluationPrompt(industry: string, brandName: string, topic: string): string {
-  return `Evaluate the ${industry} company ${brandName} on ${topic}.
+function buildEvaluationPrompt(industry: string, brandName: string, topic: string, region?: string): string {
+  let prompt = `Evaluate the ${industry} company ${brandName} on ${topic}.
 
+Provide your evaluation in two parts:
+
+PART 1 - STRUCTURED ANALYSIS:
 Provide a comprehensive evaluation covering:
 1. Overall sentiment (positive, neutral, negative, or mixed)
 2. Key strengths related to this topic
 3. Key weaknesses or areas for improvement
 4. Notable attributes or characteristics
 
-Format your response as:
+Format your structured analysis as:
 
 SENTIMENT: [positive/neutral/negative/mixed]
 SENTIMENT_SCORE: [number from -1.0 to 1.0, where -1 is very negative, 0 is neutral, 1 is very positive]
@@ -42,11 +56,26 @@ ATTRIBUTES:
 ...
 
 SUMMARY:
-[Brief 2-3 sentence summary of the evaluation]`;
+[Brief 2-3 sentence summary of the evaluation]
+
+PART 2 - NATURAL RESPONSE:
+After the structured analysis, write a natural, fluent evaluation (2-3 paragraphs) that could be shown directly to users. Start with an introduction, provide detailed analysis, and conclude with a summary. Use clear, professional language without bullet points or structured formatting.
+
+Format your natural response as:
+
+=== NATURAL_RESPONSE ===
+[Your natural evaluation here in 2-3 paragraphs]`;
+
+  // Add region context if provided
+  if (region) {
+    prompt = enrichPromptWithRegion(prompt, region);
+  }
+
+  return prompt;
 }
 
 /**
- * Parse the evaluation response to extract structured data
+ * Parse the evaluation response to extract structured data and natural response
  */
 function parseEvaluationResponse(responseText: string): {
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';
@@ -55,6 +84,7 @@ function parseEvaluationResponse(responseText: string): {
   weaknesses: string[];
   attributes: string[];
   summary: string;
+  naturalResponse: string;
 } {
   const lines = responseText.split('\n').map(line => line.trim());
   
@@ -64,8 +94,13 @@ function parseEvaluationResponse(responseText: string): {
   const weaknesses: string[] = [];
   const attributes: string[] = [];
   let summary = '';
+  let naturalResponse = '';
   
-  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'attributes' | 'summary' = 'none';
+  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'attributes' | 'summary' | 'natural' = 'none';
+  
+  // Check if natural response section exists
+  const naturalResponseMarker = '=== NATURAL_RESPONSE ===';
+  const naturalResponseIndex = responseText.indexOf(naturalResponseMarker);
   
   for (const line of lines) {
     const lowerLine = line.toLowerCase();
@@ -106,6 +141,12 @@ function parseEvaluationResponse(responseText: string): {
       continue;
     }
     
+    // Detect natural response section
+    if (line.includes('=== NATURAL_RESPONSE ===') || lowerLine.includes('part 2') || lowerLine.includes('natural response')) {
+      currentSection = 'natural';
+      continue;
+    }
+    
     // Parse content based on section
     if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
       const content = line.replace(/^[-•*]\s*/, '').trim();
@@ -122,9 +163,16 @@ function parseEvaluationResponse(responseText: string): {
           attributes.push(content);
           break;
       }
-    } else if (currentSection === 'summary' && line) {
+    } else if (currentSection === 'summary' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
       summary += (summary ? ' ' : '') + line;
+    } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
+      naturalResponse += (naturalResponse ? ' ' : '') + line;
     }
+  }
+  
+  // If natural response wasn't found in structured parsing, extract it from the marker
+  if (!naturalResponse && naturalResponseIndex >= 0) {
+    naturalResponse = responseText.substring(naturalResponseIndex + naturalResponseMarker.length).trim();
   }
   
   return {
@@ -134,6 +182,7 @@ function parseEvaluationResponse(responseText: string): {
     weaknesses,
     attributes,
     summary: summary.trim(),
+    naturalResponse: naturalResponse.trim(),
   };
 }
 
@@ -215,83 +264,56 @@ export const dailySentimentEvaluation = inngest.createFunction(
         let projectEvaluations = 0;
         let projectErrors = 0;
 
+        // Get distinct regions from prompt_tracking for this project
+        const { data: regionsData, error: regionsError } = await supabase
+          .from('prompt_tracking')
+          .select('region')
+          .eq('project_id', project.id)
+          .eq('is_active', true)
+          .not('region', 'is', null);
+
+        if (regionsError) {
+          logError('daily-sentiment-evaluation', `Failed to fetch regions for project ${project.id}`, regionsError);
+        }
+
+        const distinctRegions = [...new Set(regionsData?.map(r => r.region) || [])];
+        // If no regions or only GLOBAL, default to ['GLOBAL']
+        const regionsToProcess = distinctRegions.length > 0 && !distinctRegions.includes('GLOBAL') 
+          ? distinctRegions 
+          : ['GLOBAL'];
+
+        logInfo('daily-sentiment-evaluation', `Processing project ${project.id} with regions: ${regionsToProcess.join(', ')}`);
+
         // Evaluate each topic for the brand and competitors
         // Limit to first 5 topics per day to avoid rate limits
         const topicsToEvaluate = topics.slice(0, 5);
 
-        for (const topic of topicsToEvaluate) {
-          // Evaluate brand
-          try {
-            const brandPrompt = buildEvaluationPrompt(industry, brandName, topic);
-            const brandResult = await callGemini(brandPrompt, {
-              apiKey: geminiApiKey,
-              model: 'gemini-2.5-flash-lite',
-              temperature: 0.3,
-              maxTokens: 1500,
-            });
-
-            const parsed = parseEvaluationResponse(brandResult.text);
-
-            // Save to brand_evaluations
-            const { error: insertError } = await supabase
-              .from('brand_evaluations')
-              .insert({
-                project_id: project.id,
-                entity_type: 'brand',
-                entity_name: brandName,
-                competitor_id: null,
-                topic,
-                evaluation_prompt: brandPrompt,
-                response_text: brandResult.text,
-                sentiment: parsed.sentiment,
-                sentiment_score: parsed.sentimentScore,
-                attributes: {
-                  strengths: parsed.strengths,
-                  weaknesses: parsed.weaknesses,
-                  attributes: parsed.attributes,
-                  summary: parsed.summary,
-                },
-                platform: 'gemini',
-              });
-
-            if (insertError) {
-              logError('daily-sentiment-evaluation', `Failed to save brand evaluation`, insertError);
-              projectErrors++;
-            } else {
-              projectEvaluations++;
-            }
-
-            // Small delay to avoid rate limits
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (error: any) {
-            logError('daily-sentiment-evaluation', `Brand evaluation failed for ${brandName} on ${topic}`, error);
-            projectErrors++;
-          }
-
-          // Evaluate each competitor
-          for (const competitor of activeCompetitors) {
+        // Process each region
+        for (const region of regionsToProcess) {
+          for (const topic of topicsToEvaluate) {
+            // Evaluate brand
             try {
-              const competitorPrompt = buildEvaluationPrompt(industry, competitor.name, topic);
-              const competitorResult = await callGemini(competitorPrompt, {
+              const brandPrompt = buildEvaluationPrompt(industry, brandName, topic, region);
+              const brandResult = await callGemini(brandPrompt, {
                 apiKey: geminiApiKey,
                 model: 'gemini-2.5-flash-lite',
                 temperature: 0.3,
-                maxTokens: 1500,
+                maxTokens: 2000, // Increased for natural response
               });
 
-              const parsed = parseEvaluationResponse(competitorResult.text);
+              const parsed = parseEvaluationResponse(brandResult.text);
 
               // Save to brand_evaluations
               const { error: insertError } = await supabase
                 .from('brand_evaluations')
                 .insert({
                   project_id: project.id,
-                  entity_type: 'competitor',
-                  entity_name: competitor.name,
-                  competitor_id: competitor.id,
+                  entity_type: 'brand',
+                  entity_name: brandName,
+                  competitor_id: null,
                   topic,
-                  evaluation_prompt: competitorPrompt,
-                  response_text: competitorResult.text,
+                  evaluation_prompt: brandPrompt,
+                  response_text: brandResult.text,
                   sentiment: parsed.sentiment,
                   sentiment_score: parsed.sentimentScore,
                   attributes: {
@@ -300,11 +322,15 @@ export const dailySentimentEvaluation = inngest.createFunction(
                     attributes: parsed.attributes,
                     summary: parsed.summary,
                   },
+                  natural_response: parsed.naturalResponse || null,
+                  region: region || 'GLOBAL',
+                  query_search: brandResult.webSearchQueries || [],
+                  domains: brandResult.domains || [],
                   platform: 'gemini',
                 });
 
               if (insertError) {
-                logError('daily-sentiment-evaluation', `Failed to save competitor evaluation`, insertError);
+                logError('daily-sentiment-evaluation', `Failed to save brand evaluation`, insertError);
                 projectErrors++;
               } else {
                 projectEvaluations++;
@@ -313,8 +339,62 @@ export const dailySentimentEvaluation = inngest.createFunction(
               // Small delay to avoid rate limits
               await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error: any) {
-              logError('daily-sentiment-evaluation', `Competitor evaluation failed for ${competitor.name} on ${topic}`, error);
+              logError('daily-sentiment-evaluation', `Brand evaluation failed for ${brandName} on ${topic} (region: ${region})`, error);
               projectErrors++;
+            }
+
+            // Evaluate each competitor
+            for (const competitor of activeCompetitors) {
+              try {
+                const competitorPrompt = buildEvaluationPrompt(industry, competitor.name, topic, region);
+                const competitorResult = await callGemini(competitorPrompt, {
+                  apiKey: geminiApiKey,
+                  model: 'gemini-2.5-flash-lite',
+                  temperature: 0.3,
+                  maxTokens: 2000, // Increased for natural response
+                });
+
+                const parsed = parseEvaluationResponse(competitorResult.text);
+
+                // Save to brand_evaluations
+                const { error: insertError } = await supabase
+                  .from('brand_evaluations')
+                  .insert({
+                    project_id: project.id,
+                    entity_type: 'competitor',
+                    entity_name: competitor.name,
+                    competitor_id: competitor.id,
+                    topic,
+                    evaluation_prompt: competitorPrompt,
+                    response_text: competitorResult.text,
+                    sentiment: parsed.sentiment,
+                    sentiment_score: parsed.sentimentScore,
+                    attributes: {
+                      strengths: parsed.strengths,
+                      weaknesses: parsed.weaknesses,
+                      attributes: parsed.attributes,
+                      summary: parsed.summary,
+                    },
+                    natural_response: parsed.naturalResponse || null,
+                    region: region || 'GLOBAL',
+                    query_search: competitorResult.webSearchQueries || [],
+                    domains: competitorResult.domains || [],
+                    platform: 'gemini',
+                  });
+
+                if (insertError) {
+                  logError('daily-sentiment-evaluation', `Failed to save competitor evaluation`, insertError);
+                  projectErrors++;
+                } else {
+                  projectEvaluations++;
+                }
+
+                // Small delay to avoid rate limits
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } catch (error: any) {
+                logError('daily-sentiment-evaluation', `Competitor evaluation failed for ${competitor.name} on ${topic} (region: ${region})`, error);
+                projectErrors++;
+              }
             }
           }
         }
@@ -402,14 +482,17 @@ export const manualSentimentEvaluation = inngest.createFunction(
     const evaluations: any[] = [];
     const topicsToEvaluate = topics || project.extracted_topics || [];
 
+    // Get region from event data (optional, defaults to GLOBAL)
+    const region = event.data.region || 'GLOBAL';
+
     for (const topic of topicsToEvaluate.slice(0, 10)) {
       const result = await step.run(`evaluate-${topic}`, async () => {
-        const prompt = buildEvaluationPrompt(project.industry, entity_name, topic);
+        const prompt = buildEvaluationPrompt(project.industry, entity_name, topic, region);
         const response = await callGemini(prompt, {
           apiKey: geminiApiKey,
           model: 'gemini-2.5-flash-lite',
           temperature: 0.3,
-          maxTokens: 1500,
+          maxTokens: 2000, // Increased for natural response
         });
 
         const parsed = parseEvaluationResponse(response.text);
@@ -432,6 +515,10 @@ export const manualSentimentEvaluation = inngest.createFunction(
               attributes: parsed.attributes,
               summary: parsed.summary,
             },
+            natural_response: parsed.naturalResponse || null,
+            region: region || 'GLOBAL',
+            query_search: response.webSearchQueries || [],
+            domains: response.domains || [],
             platform: 'gemini',
           });
 

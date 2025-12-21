@@ -247,7 +247,49 @@ export async function callGemini(
     // Extract structured citations using new extraction function
     const citationsData = extractGeminiCitations(data);
 
-    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${cleanedCitations.length}, Structured Citations: ${citationsData.length}, Time: ${executionTime}ms`);
+    // Extract web search queries and domains from grounding metadata
+    const webSearchQueries: string[] = [];
+    const domainsSet = new Set<string>();
+
+    if (groundingMetadata) {
+      // Extract web search queries
+      if (Array.isArray(groundingMetadata.webSearchQueries)) {
+        webSearchQueries.push(...groundingMetadata.webSearchQueries);
+      }
+
+      // Extract unique domains from grounding chunks
+      if (Array.isArray(groundingMetadata.groundingChunks)) {
+        for (const chunk of groundingMetadata.groundingChunks) {
+          if (chunk?.web) {
+            // Extract domain from URI
+            if (chunk.web.uri) {
+              try {
+                const url = new URL(chunk.web.uri);
+                domainsSet.add(url.hostname.replace(/^www\./, ''));
+              } catch {
+                // If URI is not a valid URL, skip
+              }
+            }
+            // Extract domain from title (if it looks like a URL)
+            if (chunk.web.title) {
+              const title = chunk.web.title.trim();
+              if (title.includes('.')) {
+                try {
+                  const url = title.startsWith('http') ? new URL(title) : new URL(`https://${title}`);
+                  domainsSet.add(url.hostname.replace(/^www\./, ''));
+                } catch {
+                  // If title is not a valid URL, skip
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const domains = Array.from(domainsSet);
+
+    logInfo('Gemini', `Completion successful. Est. Tokens: ${estimatedTokens}, Citations: ${cleanedCitations.length}, Structured Citations: ${citationsData.length}, Queries: ${webSearchQueries.length}, Domains: ${domains.length}, Time: ${executionTime}ms`);
 
     return {
       text,
@@ -258,6 +300,8 @@ export async function callGemini(
       citations: cleanedCitations.length > 0 ? cleanedCitations : undefined,
       has_web_search: true,
       citationsData: citationsData.length > 0 ? citationsData : undefined,
+      webSearchQueries: webSearchQueries.length > 0 ? webSearchQueries : undefined,
+      domains: domains.length > 0 ? domains : undefined,
     };
   } catch (error) {
     logError('Gemini', 'API call failed', error);

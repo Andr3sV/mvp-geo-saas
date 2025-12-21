@@ -111,6 +111,8 @@ export interface AICompletionResult {
   citations?: string[]; // URLs from web search results (for backward compatibility)
   has_web_search?: boolean; // Whether this model used web search
   citationsData?: CitationData[]; // Structured citation data with complete metadata
+  webSearchQueries?: string[]; // Array of web search queries used (Gemini only)
+  domains?: string[]; // Array of unique domains from citations (Gemini only)
 }
 
 export interface AIClientError {

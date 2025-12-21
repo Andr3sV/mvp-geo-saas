@@ -26,6 +26,10 @@ export interface BrandEvaluation {
     attributes?: string[];
     summary?: string;
   };
+  natural_response: string | null;
+  region: string | null;
+  query_search: string[] | null;
+  domains: string[] | null;
   platform: string;
   created_at: string;
   updated_at: string;
