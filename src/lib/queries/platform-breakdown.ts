@@ -275,7 +275,10 @@ export async function getPlatformEntityBreakdown(
 
   if (error) {
     console.error("Error fetching platform entity breakdown:", error);
-    return { openai: [], gemini: [] };
+    return {
+      openai: { entities: [], totalMentions: 0 },
+      gemini: { entities: [], totalMentions: 0 },
+    };
   }
 
   // Process data per platform
