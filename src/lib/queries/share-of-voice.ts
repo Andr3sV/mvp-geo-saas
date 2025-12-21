@@ -537,7 +537,7 @@ export async function getShareOfVoiceOverTime(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -669,7 +669,7 @@ export async function getShareEvolution(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
@@ -797,7 +797,7 @@ export async function getPlatformPerformance(
   // Get project info
   const { data: project } = await supabase
     .from("projects")
-    .select("name, client_url")
+    .select("name, client_url, color")
     .eq("id", projectId)
     .single();
 
