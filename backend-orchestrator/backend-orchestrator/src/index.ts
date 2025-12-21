@@ -8,7 +8,8 @@ import { analyzeBrandsBatch } from "./inngest/functions/analyze-brands-batch";
 import { analyzeSingleResponse } from "./inngest/functions/analyze-single-response";
 import { aggregateDailyStats, backfillProjectStats } from "./inngest/functions/aggregate-daily-stats";
 import { analyzeBrandWebsite } from "./inngest/functions/analyze-brand-website";
-import { dailySentimentEvaluation, manualSentimentEvaluation } from "./inngest/functions/daily-sentiment-evaluation";
+import { scheduleSentimentEvaluation } from "./inngest/functions/schedule-sentiment-evaluation";
+import { processSingleSentimentEvaluation } from "./inngest/functions/process-single-sentiment-evaluation";
 
 // Create Inngest handler
 const handler = serve({
@@ -23,8 +24,8 @@ const handler = serve({
     aggregateDailyStats,
     backfillProjectStats,
     analyzeBrandWebsite,
-    dailySentimentEvaluation,
-    manualSentimentEvaluation,
+    scheduleSentimentEvaluation,
+    processSingleSentimentEvaluation,
   ],
 });
 
@@ -118,4 +119,4 @@ console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
 );
 console.log(`📡 Inngest endpoint available at /api/inngest`);
-console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt, test-function, manual-schedule-analysis, analyze-brands-batch, analyze-single-response, aggregate-daily-stats, backfill-project-stats, analyze-brand-website, daily-sentiment-evaluation, manual-sentiment-evaluation`);
+console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt, test-function, manual-schedule-analysis, analyze-brands-batch, analyze-single-response, aggregate-daily-stats, backfill-project-stats, analyze-brand-website, schedule-sentiment-evaluation, process-single-sentiment-evaluation`);
