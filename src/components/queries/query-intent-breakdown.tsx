@@ -8,6 +8,7 @@ interface IntentData {
   intent: string;
   count: number;
   color: string;
+  [key: string]: any; // Index signature for recharts compatibility
 }
 
 interface QueryIntentBreakdownProps {
