@@ -33,7 +33,6 @@ Provide a comprehensive evaluation covering:
 1. Overall sentiment (positive, neutral, negative, or mixed)
 2. Key strengths related to this topic
 3. Key weaknesses or areas for improvement
-4. Notable attributes or characteristics
 
 Format your structured analysis as:
 
@@ -48,11 +47,6 @@ STRENGTHS:
 WEAKNESSES:
 - [weakness 1]
 - [weakness 2]
-...
-
-ATTRIBUTES:
-- [key attribute 1]
-- [key attribute 2]
 ...
 
 SUMMARY:
@@ -82,7 +76,6 @@ function parseEvaluationResponse(responseText: string): {
   sentimentScore: number;
   strengths: string[];
   weaknesses: string[];
-  attributes: string[];
   summary: string;
   naturalResponse: string;
 } {
@@ -92,11 +85,10 @@ function parseEvaluationResponse(responseText: string): {
   let sentimentScore = 0;
   const strengths: string[] = [];
   const weaknesses: string[] = [];
-  const attributes: string[] = [];
   let summary = '';
   let naturalResponse = '';
   
-  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'attributes' | 'summary' | 'natural' = 'none';
+  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'summary' | 'natural' = 'none';
   
   // Check if natural response section exists
   const naturalResponseMarker = '=== NATURAL_RESPONSE ===';
@@ -132,10 +124,6 @@ function parseEvaluationResponse(responseText: string): {
       currentSection = 'weaknesses';
       continue;
     }
-    if (lowerLine.startsWith('attributes:') || lowerLine === 'attributes') {
-      currentSection = 'attributes';
-      continue;
-    }
     if (lowerLine.startsWith('summary:') || lowerLine === 'summary') {
       currentSection = 'summary';
       continue;
@@ -159,9 +147,6 @@ function parseEvaluationResponse(responseText: string): {
         case 'weaknesses':
           weaknesses.push(content);
           break;
-        case 'attributes':
-          attributes.push(content);
-          break;
       }
     } else if (currentSection === 'summary' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
       summary += (summary ? ' ' : '') + line;
@@ -180,7 +165,6 @@ function parseEvaluationResponse(responseText: string): {
     sentimentScore,
     strengths,
     weaknesses,
-    attributes,
     summary: summary.trim(),
     naturalResponse: naturalResponse.trim(),
   };
@@ -199,7 +183,7 @@ export const dailySentimentEvaluation = inngest.createFunction(
     },
     retries: 2,
   },
-  { cron: '0 3 * * *' }, // 3:00 AM UTC daily
+  { cron: '0 7 * * *' }, // 7:00 AM UTC daily
   async ({ step }) => {
     const supabase = createSupabaseClient();
     const startTime = Date.now();
@@ -316,12 +300,8 @@ export const dailySentimentEvaluation = inngest.createFunction(
                   response_text: brandResult.text,
                   sentiment: parsed.sentiment,
                   sentiment_score: parsed.sentimentScore,
-                  attributes: {
-                    strengths: parsed.strengths,
-                    weaknesses: parsed.weaknesses,
-                    attributes: parsed.attributes,
-                    summary: parsed.summary,
-                  },
+                  positive_attributes: parsed.strengths,
+                  negative_attributes: parsed.weaknesses,
                   natural_response: parsed.naturalResponse || null,
                   region: region || 'GLOBAL',
                   query_search: brandResult.webSearchQueries || [],
@@ -369,12 +349,8 @@ export const dailySentimentEvaluation = inngest.createFunction(
                     response_text: competitorResult.text,
                     sentiment: parsed.sentiment,
                     sentiment_score: parsed.sentimentScore,
-                    attributes: {
-                      strengths: parsed.strengths,
-                      weaknesses: parsed.weaknesses,
-                      attributes: parsed.attributes,
-                      summary: parsed.summary,
-                    },
+                    positive_attributes: parsed.strengths,
+                    negative_attributes: parsed.weaknesses,
                     natural_response: parsed.naturalResponse || null,
                     region: region || 'GLOBAL',
                     query_search: competitorResult.webSearchQueries || [],
@@ -509,12 +485,8 @@ export const manualSentimentEvaluation = inngest.createFunction(
             response_text: response.text,
             sentiment: parsed.sentiment,
             sentiment_score: parsed.sentimentScore,
-            attributes: {
-              strengths: parsed.strengths,
-              weaknesses: parsed.weaknesses,
-              attributes: parsed.attributes,
-              summary: parsed.summary,
-            },
+            positive_attributes: parsed.strengths,
+            negative_attributes: parsed.weaknesses,
             natural_response: parsed.naturalResponse || null,
             region: region || 'GLOBAL',
             query_search: response.webSearchQueries || [],

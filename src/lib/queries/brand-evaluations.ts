@@ -20,12 +20,8 @@ export interface BrandEvaluation {
   response_text: string | null;
   sentiment: "positive" | "neutral" | "negative" | "mixed" | null;
   sentiment_score: number | null;
-  attributes: {
-    strengths?: string[];
-    weaknesses?: string[];
-    attributes?: string[];
-    summary?: string;
-  };
+  positive_attributes: string[] | null;
+  negative_attributes: string[] | null;
   natural_response: string | null;
   region: string | null;
   query_search: string[] | null;
@@ -346,11 +342,11 @@ export async function getEntityEvaluationSummary(
       totalScore += eval_.sentiment_score;
       scoreCount++;
     }
-    if (eval_.attributes?.strengths) {
-      allStrengths.push(...eval_.attributes.strengths);
+    if (eval_.positive_attributes) {
+      allStrengths.push(...eval_.positive_attributes);
     }
-    if (eval_.attributes?.weaknesses) {
-      allWeaknesses.push(...eval_.attributes.weaknesses);
+    if (eval_.negative_attributes) {
+      allWeaknesses.push(...eval_.negative_attributes);
     }
   });
 
@@ -504,8 +500,8 @@ export async function compareSentimentByTopic(
         competitor_id: eval_.competitor_id,
         sentiment: eval_.sentiment,
         score: eval_.sentiment_score,
-        strengths: eval_.attributes?.strengths || [],
-        weaknesses: eval_.attributes?.weaknesses || [],
+        strengths: eval_.positive_attributes || [],
+        weaknesses: eval_.negative_attributes || [],
       });
     }
   });
