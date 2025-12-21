@@ -115,31 +115,58 @@ export async function createProject(data: {
   if (data.client_url) {
     try {
       const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
-      console.log(`[INFO] Triggering brand website analysis for project ${project.id} with URL: ${data.client_url}`);
-      console.log(`[INFO] Backend URL: ${backendUrl}`);
       
+      // Log to both console and potentially to a monitoring service
+      console.log('[BRAND_ANALYSIS_TRIGGER] Starting trigger', {
+        project_id: project.id,
+        client_url: data.client_url,
+        backend_url: backendUrl,
+        timestamp: new Date().toISOString(),
+      });
+      
+      const requestBody = {
+        project_id: project.id,
+        client_url: data.client_url,
+        force_refresh: false,
+      };
+
       const response = await fetch(`${backendUrl}/analyze-brand-website`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          project_id: project.id,
-          client_url: data.client_url,
-          force_refresh: false,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[ERROR] Brand website analysis failed: ${response.status} ${response.statusText}`, errorText);
+        console.error('[BRAND_ANALYSIS_TRIGGER] Failed', {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseData,
+          request_body: requestBody,
+        });
       } else {
-        const result = await response.json();
-        console.log(`[INFO] Brand website analysis triggered successfully for project ${project.id}`, result);
+        console.log('[BRAND_ANALYSIS_TRIGGER] Success', {
+          project_id: project.id,
+          response: responseData,
+        });
       }
     } catch (error: any) {
       // Log error but don't fail project creation
-      console.error('[WARN] Failed to trigger brand website analysis:', error?.message || error);
+      console.error('[BRAND_ANALYSIS_TRIGGER] Exception', {
+        error: error?.message || String(error),
+        stack: error?.stack,
+        project_id: project.id,
+        client_url: data.client_url,
+      });
     }
   }
 

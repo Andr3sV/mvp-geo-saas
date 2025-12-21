@@ -57,10 +57,26 @@ const app = new Elysia()
   })
   // Trigger brand website analysis (called when a project is created with a client_url)
   // This route must be defined BEFORE /api/inngest to avoid conflicts
-  .post("/analyze-brand-website", async ({ body }: { body: any }) => {
+  .post("/analyze-brand-website", async ({ body, request }) => {
     try {
-      // Parse body if it's a string (Elysia sometimes receives it as string)
-      const parsedBody = typeof body === 'string' ? JSON.parse(body) : body;
+      // Elysia should parse JSON automatically, but handle both cases
+      let parsedBody: any;
+      if (typeof body === 'string') {
+        try {
+          parsedBody = JSON.parse(body);
+        } catch {
+          // If body is string but not JSON, read from request
+          parsedBody = await request.json();
+        }
+      } else if (body && typeof body === 'object') {
+        parsedBody = body;
+      } else {
+        // Fallback: read from request
+        parsedBody = await request.json();
+      }
+
+      console.log(`[DEBUG] Received body type: ${typeof body}, parsedBody:`, JSON.stringify(parsedBody));
+
       const { project_id, client_url, force_refresh } = parsedBody as {
         project_id: string;
         client_url: string;
@@ -68,7 +84,7 @@ const app = new Elysia()
       };
 
       if (!project_id || !client_url) {
-        console.error(`[ERROR] Missing project_id or client_url. Received:`, parsedBody);
+        console.error(`[ERROR] Missing project_id or client_url. Received:`, JSON.stringify(parsedBody));
         return { success: false, error: "Missing project_id or client_url" };
       }
 
@@ -87,7 +103,7 @@ const app = new Elysia()
       return { success: true, eventId: event.ids[0], message: "Brand website analysis triggered" };
     } catch (error: any) {
       console.error(`[ERROR] Failed to trigger brand website analysis:`, error.message, error.stack);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || "Unknown error" };
     }
   })
   .all("/api/inngest", async ({ request }) => {
