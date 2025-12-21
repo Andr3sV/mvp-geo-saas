@@ -69,7 +69,13 @@ export async function updateProject(projectId: string, data: {
   const urlChanged = data.client_url && data.client_url !== currentProject?.client_url;
   if (urlChanged) {
     try {
-      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      let backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      
+      // Ensure URL has protocol (https://)
+      if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+        backendUrl = `https://${backendUrl}`;
+      }
+      
       console.log(`[INFO] Triggering brand website analysis for project ${projectId} (URL updated): ${data.client_url}`);
       console.log(`[INFO] Backend URL: ${backendUrl}`);
       

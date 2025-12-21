@@ -114,7 +114,12 @@ export async function createProject(data: {
   // Trigger brand website analysis if client_url is provided
   if (data.client_url) {
     try {
-      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      let backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      
+      // Ensure URL has protocol (https://)
+      if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+        backendUrl = `https://${backendUrl}`;
+      }
       
       // Log to both console and potentially to a monitoring service
       console.log('[BRAND_ANALYSIS_TRIGGER] Starting trigger', {
