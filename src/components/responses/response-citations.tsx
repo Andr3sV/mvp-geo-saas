@@ -10,7 +10,7 @@ interface Citation {
   id: string;
   web_search_query: string | null;
   url: string | null;
-  uri: string | null;
+  uri?: string | null; // Optional - not all citation sources provide uri
   domain: string | null;
 }
 
