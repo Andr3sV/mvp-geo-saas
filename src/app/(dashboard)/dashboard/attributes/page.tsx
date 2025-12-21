@@ -7,18 +7,18 @@ import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Sentiment Analysis Components
-import { EntitySentimentTable } from "@/components/sentiment/entity-sentiment-table";
+// Attribute Components
 import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
+import { AttributeEvolutionTimeline } from "@/components/sentiment/attribute-evolution-timeline";
 
 // Queries
 import {
-  getEntitySentiments,
-  getAttributeBreakdown,
-  SentimentFilterOptions,
-  EntitySentiment,
-} from "@/lib/queries/sentiment-analysis";
+  getAttributeBreakdownFromEvaluations,
+  getAttributeEvolution,
+  getProjectTopics,
+} from "@/lib/queries/brand-evaluations";
 
 export default function AttributesPage() {
   const { selectedProjectId } = useProject();
@@ -31,17 +31,12 @@ export default function AttributesPage() {
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
+  const [selectedTopic, setSelectedTopic] = useState<string>("all");
 
   // Data states
-  const [entities, setEntities] = useState<EntitySentiment[]>([]);
   const [attributes, setAttributes] = useState<any>(null);
-
-  // Create filters object
-  const filtersPayload: SentimentFilterOptions = {
-    dateRange: dateRange.from && dateRange.to ? { from: dateRange.from, to: dateRange.to } : undefined,
-    platform: platform !== "all" ? platform : undefined,
-    region: region !== "GLOBAL" ? region : undefined,
-  };
+  const [attributeEvolutionData, setAttributeEvolutionData] = useState<any[]>([]);
+  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
 
   // Load attributes data
   const loadAttributesData = async () => {
@@ -49,16 +44,30 @@ export default function AttributesPage() {
 
     setIsLoading(true);
     try {
-      const [entitiesData, attributesData] = await Promise.all([
-        getEntitySentiments(selectedProjectId, filtersPayload),
-        getAttributeBreakdown(selectedProjectId, filtersPayload),
+      // Load available topics
+      const projectTopics = await getProjectTopics(selectedProjectId);
+      setAvailableTopics(projectTopics.topics || []);
+
+      const [attributesData, evolutionData] = await Promise.all([
+        getAttributeBreakdownFromEvaluations(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
+        getAttributeEvolution(
+          selectedProjectId,
+          selectedTopic !== "all" ? selectedTopic : undefined,
+          "both",
+          dateRange.from,
+          dateRange.to
+        ),
       ]);
 
-      console.log('👥 Entities:', entitiesData?.length);
       console.log('🏷️ Attributes:', attributesData);
+      console.log('📈 Attribute Evolution:', evolutionData?.length);
 
-      setEntities(entitiesData);
       setAttributes(attributesData);
+      setAttributeEvolutionData(evolutionData || []);
     } catch (error: any) {
       console.error("Failed to load attributes data:", error);
       toast.error("Failed to load attributes data");
@@ -73,19 +82,23 @@ export default function AttributesPage() {
       loadAttributesData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region, selectedTopic]);
 
   // Handle filters change
   const handleFiltersChange = (filters: {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
+    topicId?: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
+    if (filters.topicId !== undefined) {
+      setSelectedTopic(filters.topicId);
+    }
   };
 
   if (isLoading) {
@@ -93,7 +106,7 @@ export default function AttributesPage() {
       <div className="space-y-6">
         <PageHeader
           title="Attributes"
-          description="Entity sentiment analysis and attribute breakdown"
+          description="Attribute analysis from topic-based evaluations"
         />
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -109,31 +122,54 @@ export default function AttributesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Attributes"
-        description="Entity sentiment analysis and attribute breakdown"
+        description="Attribute analysis from topic-based evaluations using Gemini with web search"
       />
 
       {/* Filters Toolbar */}
-      <FiltersToolbar
-        dateRange={dateRange}
-        platform={platform}
-        region={region}
-        onApply={handleFiltersChange}
-      />
+      <div className="flex flex-col gap-4">
+        <FiltersToolbar
+          dateRange={dateRange}
+          platform={platform}
+          region={region}
+          topicId={selectedTopic}
+          onApply={handleFiltersChange}
+        />
 
-      {/* Entity Sentiment Analysis */}
-      <EntitySentimentTable
-        entities={entities}
-        isLoading={isLoading}
-      />
+        {/* Topic Filter for Brand Evaluations */}
+        {availableTopics.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Filter by Topic (Evaluations):</label>
+            <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="All Topics" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {availableTopics.map((topic) => (
+                  <SelectItem key={topic} value={topic}>
+                    {topic}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
-      {/* Attribute Analysis */}
+      {/* Attribute Breakdown */}
       <AttributeBreakdown
         brandAttributes={attributes?.brandAttributes || []}
         competitorAttributes={attributes?.competitorAttributes || []}
         isLoading={isLoading}
         detailed={true}
       />
+
+      {/* Attribute Evolution Timeline */}
+      <AttributeEvolutionTimeline
+        data={attributeEvolutionData}
+        topics={availableTopics}
+        isLoading={isLoading}
+      />
     </div>
   );
 }
-

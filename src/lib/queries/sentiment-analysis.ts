@@ -303,12 +303,11 @@ export async function getEntitySentiments(
   try {
     const supabase = createClient();
 
-    // Query brand_sentiment_attributes with brand_mentions for entity names
+    // Query brand_sentiment_attributes - entity_name is already in the table
     const { data: sentimentData, error } = await supabase
       .from('brand_sentiment_attributes')
       .select(`
         *,
-        brand_mentions!inner(entity_name),
         ai_responses!inner(platform, created_at)
       `)
       .eq('project_id', projectId);
@@ -322,7 +321,7 @@ export async function getEntitySentiments(
     const entityMap = new Map<string, any[]>();
 
     (sentimentData || []).forEach((analysis: any) => {
-      const entityName = analysis.brand_mentions?.entity_name || 'Unknown';
+      const entityName = analysis.entity_name || 'Unknown';
       const key = `${entityName}-${analysis.brand_type}`;
       if (!entityMap.has(key)) {
         entityMap.set(key, []);
@@ -333,7 +332,7 @@ export async function getEntitySentiments(
     // Process each entity
     return Array.from(entityMap.entries()).map(([key, analyses]) => {
       const firstAnalysis = analyses[0];
-      const entityName = firstAnalysis.brand_mentions?.entity_name || 'Unknown';
+      const entityName = firstAnalysis.entity_name || 'Unknown';
       const totalMentions = analyses.length;
       
       // Average sentiment (convert from -1..1 to 0..1)
@@ -406,17 +405,17 @@ export async function getAttributeAnalysis(
   const supabase = createClient();
 
   try {
-    // Query brand_sentiment_attributes with joins
+    // Query brand_sentiment_attributes - entity_name is already in the table
   let query = supabase
       .from('brand_sentiment_attributes')
     .select(`
         brand_type,
+        entity_name,
       positive_attributes,
       negative_attributes,
         sentiment_rating,
       analyzed_text,
       created_at,
-        brand_mentions!inner(entity_name),
       ai_responses!inner(platform, prompt_tracking!inner(region))
     `)
     .eq('project_id', projectId);
@@ -461,7 +460,7 @@ export async function getAttributeAnalysis(
   }>();
 
   (data || []).forEach((analysis: any) => {
-      const entityName = analysis.brand_mentions?.entity_name || 'Unknown';
+      const entityName = analysis.entity_name || 'Unknown';
       const analysisType = analysis.brand_type === 'client' ? 'brand' : 'competitor';
       
     const processAttributes = (attributes: string[], sentimentType: 'positive' | 'neutral' | 'negative') => {

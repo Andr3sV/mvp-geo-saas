@@ -7,6 +7,7 @@ import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Smile,
   TrendingUp,
@@ -17,8 +18,13 @@ import {
 // Sentiment Analysis Components
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
-import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
+// New Topic-Based Components
+import { TopicPerformanceMatrix } from "@/components/sentiment/topic-performance-matrix";
+import { TopicSentimentTrends } from "@/components/sentiment/topic-sentiment-trends";
+import { CompetitivePositioningRadar } from "@/components/sentiment/competitive-positioning-radar";
+import { TopicGapAnalysis } from "@/components/sentiment/topic-gap-analysis";
+import { TopPerformingTopicsScorecard } from "@/components/sentiment/top-performing-topics-scorecard";
 
 // Queries
 import {
@@ -31,6 +37,18 @@ import {
   SentimentTrend,
   EntitySentiment,
 } from "@/lib/queries/sentiment-analysis";
+// Brand Evaluations Queries
+import {
+  getTopicPerformanceMatrix,
+  getTopicSentimentTrends,
+  getTopicGapAnalysis,
+  getSentimentDistribution,
+  getTopPerformingTopics,
+  getSourceQualityMetrics,
+  getProjectTopics,
+  getSentimentTrendsFromEvaluations,
+  getEntitySentimentsFromEvaluations,
+} from "@/lib/queries/brand-evaluations";
 
 export default function SentimentPage() {
   const { selectedProjectId } = useProject();
@@ -43,18 +61,26 @@ export default function SentimentPage() {
   });
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
+  const [selectedTopic, setSelectedTopic] = useState<string>("all");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
+  
+  // Topic-based evaluation data states
+  const [topicMatrixData, setTopicMatrixData] = useState<any[]>([]);
+  const [topicTrendsData, setTopicTrendsData] = useState<any[]>([]);
+  const [gapAnalysisData, setGapAnalysisData] = useState<any[]>([]);
+  const [topTopicsData, setTopTopicsData] = useState<any[]>([]);
+  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
 
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
   const [trends, setTrends] = useState<SentimentTrend[]>([]);
   const [competitorTrends, setCompetitorTrends] = useState<SentimentTrend[]>([]);
   const [entities, setEntities] = useState<EntitySentiment[]>([]);
-  const [attributes, setAttributes] = useState<any>(null);
   const [totalResponses, setTotalResponses] = useState(0);
   const [competitors, setCompetitors] = useState<any[]>([]);
   const [brandName, setBrandName] = useState("");
   const [brandDomain, setBrandDomain] = useState("");
+  const [brandColor, setBrandColor] = useState<string>("#3b82f6");
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -72,10 +98,10 @@ export default function SentimentPage() {
       // Get total AI responses count and analyzed count
       const supabase = (await import('@/lib/supabase/client')).createClient();
       
-      // Get project details (brand name and client_url as domain)
+      // Get project details (brand name, client_url as domain, and color)
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
-        .select('brand_name, client_url')
+        .select('brand_name, client_url, color')
         .eq('id', selectedProjectId)
         .single();
       
@@ -84,8 +110,13 @@ export default function SentimentPage() {
       if (projectData) {
         setBrandName(projectData.brand_name || '');
         setBrandDomain(projectData.client_url || '');
-        console.log('✅ Brand set:', projectData.brand_name, projectData.client_url);
+        setBrandColor(projectData.color || '#3b82f6');
+        console.log('✅ Brand set:', projectData.brand_name, projectData.client_url, projectData.color);
       }
+      
+      // Load available topics from brand_evaluations
+      const projectTopics = await getProjectTopics(selectedProjectId);
+      setAvailableTopics(projectTopics.topics || []);
       
       // Total successful AI responses
       const { count: totalCount } = await supabase
@@ -110,11 +141,52 @@ export default function SentimentPage() {
       // Update metrics to show correct analyzed count
       const actualAnalyzedCount = uniqueAnalyzedIds.size;
 
-      const [metricsData, trendsData, entitiesData, attributesData] = await Promise.all([
+      const [
+        metricsData,
+        trendsData,
+        entitiesData,
+        topicMatrix,
+        topicTrends,
+        gapAnalysis,
+        topTopics,
+        // Get trends from brand_evaluations instead of brand_sentiment_attributes
+        trendsFromEvaluations,
+        // Get entity sentiments from brand_evaluations
+        entitiesFromEvaluations,
+      ] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
         getSentimentTrends(selectedProjectId, { ...filtersPayload, analysisType: 'brand' }),
         getEntitySentiments(selectedProjectId, filtersPayload),
-        getAttributeBreakdown(selectedProjectId, filtersPayload),
+        // Brand evaluations queries
+        getTopicPerformanceMatrix(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
+        getTopicSentimentTrends(
+          selectedProjectId,
+          selectedTopic !== "all" ? selectedTopic : undefined,
+          undefined,
+          undefined,
+          dateRange.from,
+          dateRange.to
+        ),
+        getTopicGapAnalysis(selectedProjectId, dateRange.from, dateRange.to),
+        getTopPerformingTopics(selectedProjectId, dateRange.from, dateRange.to, 10),
+        // Get sentiment trends from brand_evaluations
+        getSentimentTrendsFromEvaluations(
+          selectedProjectId,
+          "brand",
+          undefined,
+          dateRange.from,
+          dateRange.to
+        ),
+        // Get entity sentiments from brand_evaluations
+        getEntitySentimentsFromEvaluations(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
       ]);
 
       // Override with correct unique response count
@@ -124,14 +196,19 @@ export default function SentimentPage() {
       }
 
       console.log('📊 Sentiment Metrics:', metricsData);
-      console.log('📈 Trends:', trendsData?.length, 'days');
-      console.log('👥 Entities:', entitiesData?.length);
-      console.log('🏷️ Attributes:', attributesData);
+      console.log('📈 Topic-Based Data Loaded');
 
       setMetrics(metricsData);
-      setTrends(trendsData);
-      setEntities(entitiesData);
-      setAttributes(attributesData);
+      // Use trends from brand_evaluations instead of brand_sentiment_attributes
+      setTrends(trendsFromEvaluations || trendsData);
+      // Use entity sentiments from brand_evaluations
+      setEntities(entitiesFromEvaluations || entitiesData);
+      
+      // Set topic-based data
+      setTopicMatrixData(topicMatrix || []);
+      setTopicTrendsData(topicTrends || []);
+      setGapAnalysisData(gapAnalysis || []);
+      setTopTopicsData(topTopics || []);
     } catch (error: any) {
       console.error("Failed to load sentiment data:", error);
       toast.error("Failed to load sentiment data");
@@ -147,7 +224,7 @@ export default function SentimentPage() {
       loadCompetitors();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region, selectedTopic]);
 
   // Load competitors
   const loadCompetitors = async () => {
@@ -161,6 +238,7 @@ export default function SentimentPage() {
           id: c.id,
           name: c.name,
           domain: c.domain || c.name,
+          color: c.color, // Include color
         }));
         setCompetitors(competitorsForSelector);
       }
@@ -174,12 +252,16 @@ export default function SentimentPage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
+    topicId?: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
+    if (filters.topicId !== undefined) {
+      setSelectedTopic(filters.topicId);
+    }
   };
 
   // Handle analysis completion
@@ -195,11 +277,14 @@ export default function SentimentPage() {
     }
 
     try {
-      const competitorTrendsData = await getSentimentTrends(selectedProjectId, {
-        ...filtersPayload,
-        competitorId: competitorId,
-        analysisType: 'competitor',
-      });
+      // Use brand_evaluations instead of brand_sentiment_attributes
+      const competitorTrendsData = await getSentimentTrendsFromEvaluations(
+        selectedProjectId,
+        "competitor",
+        competitorId,
+        dateRange.from,
+        dateRange.to
+      );
       
       console.log('📊 Competitor Trends:', competitorTrendsData?.length, 'days for competitor', competitorId);
       setCompetitorTrends(competitorTrendsData);
@@ -240,48 +325,100 @@ export default function SentimentPage() {
       />
 
       {/* Filters Toolbar with Analysis Trigger */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
-        <div className="flex-1">
-          <FiltersToolbar
-            dateRange={dateRange}
-            platform={platform}
-            region={region}
-            onApply={handleFiltersChange}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
+          <div className="flex-1">
+            <FiltersToolbar
+              dateRange={dateRange}
+              platform={platform}
+              region={region}
+              topicId={selectedTopic}
+              onApply={handleFiltersChange}
+            />
+          </div>
+          <SentimentAnalysisTrigger
+            projectId={selectedProjectId!}
+            onAnalysisComplete={handleAnalysisComplete}
+            totalResponses={totalResponses}
+            analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
           />
         </div>
-        <SentimentAnalysisTrigger
-          projectId={selectedProjectId!}
-          onAnalysisComplete={handleAnalysisComplete}
-          totalResponses={totalResponses}
-          analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
-        />
+        
+        {/* Topic Filter for Brand Evaluations */}
+        {availableTopics.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Filter by Topic (Evaluations):</label>
+            <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="All Topics" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Topics</SelectItem>
+                {availableTopics.map((topic) => (
+                  <SelectItem key={topic} value={topic}>
+                    {topic}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
-      {/* Sentiment Pulse and Key Attributes - Side by Side */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Legacy Response-Based Analysis Section */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Response-Based Sentiment Analysis</h2>
+        
+        {/* Sentiment Pulse - Full Width */}
         <SentimentComparison
           entities={entities}
           isLoading={isLoading}
         />
-        <AttributeBreakdown
-          brandAttributes={attributes?.brandAttributes || []}
-          competitorAttributes={attributes?.competitorAttributes || []}
+
+        {/* Competitive Positioning Radar - Full Width */}
+          <CompetitivePositioningRadar
+            data={topicMatrixData}
+            competitors={competitors}
+            brandName={brandName}
+            brandDomain={brandDomain}
+            brandColor={brandColor}
+            availableTopics={availableTopics}
+            isLoading={isLoading}
+          />
+
+        {/* Sentiment Trends Chart - Full Width */}
+        <SentimentTrendsChart
+          trends={trends}
+          competitorTrends={competitorTrends}
+          entities={entities}
+          competitors={competitors}
+          selectedCompetitorId={selectedCompetitorId}
+          onCompetitorChange={handleCompetitorChange}
+          brandName={brandName}
+          brandDomain={brandDomain}
           isLoading={isLoading}
         />
       </div>
 
-      {/* Sentiment Trends Chart - Full Width */}
-      <SentimentTrendsChart
-        trends={trends}
-        competitorTrends={competitorTrends}
-        entities={entities}
-        competitors={competitors}
-        selectedCompetitorId={selectedCompetitorId}
-        onCompetitorChange={handleCompetitorChange}
-        brandName={brandName}
-        brandDomain={brandDomain}
-        isLoading={isLoading}
-      />
+      {/* Topic-Based Evaluation Section */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold">Topic-Based Sentiment Evaluation</h2>
+        <p className="text-sm text-muted-foreground">
+          Strategic insights from topic-based evaluations using Gemini with web search
+        </p>
+
+        {/* Top Performing Topics Scorecard */}
+        <TopPerformingTopicsScorecard data={topTopicsData} isLoading={isLoading} />
+
+        {/* Topic Performance Matrix - Full Width */}
+        <TopicPerformanceMatrix data={topicMatrixData} isLoading={isLoading} />
+
+        {/* Gap Analysis - Full Width */}
+        <TopicGapAnalysis data={gapAnalysisData} isLoading={isLoading} />
+
+        {/* Topic Sentiment Trends */}
+        <TopicSentimentTrends data={topicTrendsData} isLoading={isLoading} />
+      </div>
     </div>
   );
 }

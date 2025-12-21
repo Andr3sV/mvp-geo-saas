@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Check, MoreHorizontal } from "lucide-react";
 import { SentimentTrend, EntitySentiment } from "@/lib/queries/sentiment-analysis";
 import { format } from "date-fns";
 import {
@@ -14,6 +15,13 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 interface Competitor {
   id: string;
@@ -44,6 +52,12 @@ export function SentimentTrendsChart({
   brandDomain,
   isLoading 
 }: SentimentTrendsChartProps) {
+  const [showAllCompetitors, setShowAllCompetitors] = useState(false);
+  const MAX_VISIBLE_COMPETITORS = 6;
+  const visibleCompetitors = competitors.slice(0, MAX_VISIBLE_COMPETITORS);
+  const hiddenCompetitors = competitors.slice(MAX_VISIBLE_COMPETITORS);
+  const hasMoreCompetitors = competitors.length > MAX_VISIBLE_COMPETITORS;
+
   // Debug logs
   console.log('📊 SentimentTrendsChart props:', {
     brandName,
@@ -173,6 +187,7 @@ export function SentimentTrendsChart({
         <div className="flex flex-wrap gap-2">
           {/* Brand Button (always shown, always selected) */}
           <button
+            disabled={isLoading}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border bg-primary text-primary-foreground border-primary hover:border-primary/50"
           >
             {brandName ? (
@@ -190,21 +205,21 @@ export function SentimentTrendsChart({
                 <span>Loading...</span>
               </>
             )}
-            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+            <Check className="h-3 w-3" />
           </button>
 
-          {/* Competitor Buttons */}
-          {competitors.map((competitor) => (
+          {/* Visible Competitor Buttons (max 6) */}
+          {visibleCompetitors.map((competitor) => (
             <button
               key={competitor.id}
-              onClick={() => onCompetitorChange(competitor.id === selectedCompetitorId ? '' : competitor.id)}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border hover:border-primary/50 ${
+              onClick={() => onCompetitorChange(competitor.id === selectedCompetitorId ? null : competitor.id)}
+              disabled={isLoading}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all border hover:border-primary/50",
                 selectedCompetitorId === competitor.id
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background hover:bg-muted"
-              }`}
+              )}
             >
               <BrandLogo 
                 domain={competitor.domain} 
@@ -213,13 +228,55 @@ export function SentimentTrendsChart({
               />
               <span>{competitor.name}</span>
               {selectedCompetitorId === competitor.id && (
-                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+                <Check className="h-3 w-3" />
               )}
             </button>
           ))}
+
+          {/* More Competitors Dropdown (3 dots) */}
+          {hasMoreCompetitors && (
+            <DropdownMenu open={showAllCompetitors} onOpenChange={setShowAllCompetitors}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  disabled={isLoading}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all",
+                    "border hover:border-primary/50 bg-background hover:bg-muted"
+                  )}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-[300px] overflow-y-auto">
+                {hiddenCompetitors.map((competitor) => (
+                  <DropdownMenuItem
+                    key={competitor.id}
+                    onClick={() => {
+                      onCompetitorChange(competitor.id === selectedCompetitorId ? null : competitor.id);
+                      setShowAllCompetitors(false);
+                    }}
+                    className={cn(
+                      "flex items-center gap-2 cursor-pointer",
+                      selectedCompetitorId === competitor.id && "bg-muted"
+                    )}
+                  >
+                    <BrandLogo domain={competitor.domain} name={competitor.name} size={16} />
+                    <span>{competitor.name}</span>
+                    {selectedCompetitorId === competitor.id && (
+                      <Check className="h-3 w-3 ml-auto" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
+
+        {competitors.length === 0 && (
+          <p className="text-xs text-muted-foreground italic mt-2">
+            Add competitors in Competitor Management to compare
+          </p>
+        )}
       </CardHeader>
 
       <CardContent>

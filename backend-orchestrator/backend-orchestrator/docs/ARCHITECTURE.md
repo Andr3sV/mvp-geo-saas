@@ -1099,7 +1099,7 @@ CREATE TABLE daily_brand_stats (
   mentions_count INTEGER NOT NULL DEFAULT 0,
   citations_count INTEGER NOT NULL DEFAULT 0,
   responses_analyzed INTEGER NOT NULL DEFAULT 0,
-  
+
   -- Note: Sentiment metrics removed (December 2024)
   -- Sentiment data is now sourced from brand_evaluations table
 
@@ -2016,40 +2016,40 @@ Stores topic-based sentiment evaluations:
 CREATE TABLE brand_evaluations (
   id UUID PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES projects(id),
-  
+
   -- Entity being evaluated
   entity_type TEXT NOT NULL CHECK (entity_type IN ('brand', 'competitor')),
   entity_name TEXT NOT NULL,
   competitor_id UUID REFERENCES competitors(id) ON DELETE CASCADE,
-  
+
   -- Evaluation details
   topic TEXT NOT NULL,
   evaluation_prompt TEXT NOT NULL,
-  
+
   -- AI Response
   response_text TEXT,
-  
+
   -- Sentiment analysis
   sentiment TEXT CHECK (sentiment IN ('positive', 'neutral', 'negative', 'mixed')),
   sentiment_score DECIMAL(3,2) CHECK (sentiment_score >= -1 AND sentiment_score <= 1),
-  
+
   -- Attributes (arrays of strings)
   positive_attributes JSONB DEFAULT '[]'::jsonb,
   negative_attributes JSONB DEFAULT '[]'::jsonb,
-  
+
   -- Natural language response (for user display)
   natural_response TEXT,
-  
+
   -- Region context
   region TEXT DEFAULT 'GLOBAL',
-  
+
   -- Web search metadata
   query_search JSONB DEFAULT '[]'::jsonb,  -- Array of search queries used
   domains JSONB DEFAULT '[]'::jsonb,       -- Array of domains cited
-  
+
   -- Reference
   ai_response_id UUID REFERENCES ai_responses(id) ON DELETE SET NULL,
-  
+
   -- Timestamps
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -2134,6 +2134,7 @@ PART 2 - NATURAL RESPONSE:
 ```
 
 **Region Enrichment**: If region is not GLOBAL, the prompt is enriched with:
+
 ```
 Note: Please provide information relevant to [REGION]. Focus on local context, regional brands, and country-specific information when applicable.
 ```
@@ -2154,6 +2155,7 @@ This new system **coexists** with the existing Groq-based response analysis:
 - **Topic-Based Evaluation** (`brand_evaluations`): Proactive evaluations on specific topics, provides structured topic-level insights
 
 Both systems provide different perspectives:
+
 - Response-based: "What sentiment did this response express about the brand?"
 - Topic-based: "What is the current sentiment about this brand regarding pricing?"
 
