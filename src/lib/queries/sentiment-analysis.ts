@@ -375,10 +375,12 @@ export async function getEntitySentiments(
           platform: a.ai_responses?.platform || 'Unknown',
         }));
 
+      const analysisType: 'brand' | 'competitor' = firstAnalysis.brand_type === 'client' ? 'brand' : 'competitor';
+      
       return {
         entityName,
         entityDomain: '', // Not stored in brand_sentiment_attributes
-        analysisType: firstAnalysis.brand_type === 'client' ? 'brand' : 'competitor',
+        analysisType,
         totalMentions,
         averageSentiment,
         sentimentLabel,
