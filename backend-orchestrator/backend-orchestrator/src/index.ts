@@ -56,17 +56,23 @@ const app = new Elysia()
     }
   })
   // Trigger brand website analysis (called when a project is created with a client_url)
-  .post("/api/analyze-brand-website", async ({ body }: { body: any }) => {
+  // This route must be defined BEFORE /api/inngest to avoid conflicts
+  .post("/analyze-brand-website", async ({ body }: { body: any }) => {
     try {
-      const { project_id, client_url, force_refresh } = body as {
+      // Parse body if it's a string (Elysia sometimes receives it as string)
+      const parsedBody = typeof body === 'string' ? JSON.parse(body) : body;
+      const { project_id, client_url, force_refresh } = parsedBody as {
         project_id: string;
         client_url: string;
         force_refresh?: boolean;
       };
 
       if (!project_id || !client_url) {
+        console.error(`[ERROR] Missing project_id or client_url. Received:`, parsedBody);
         return { success: false, error: "Missing project_id or client_url" };
       }
+
+      console.log(`[INFO] Received brand website analysis request for project ${project_id}, URL: ${client_url}`);
 
       const event = await inngest.send({
         name: "brand/analyze-website",
@@ -77,10 +83,10 @@ const app = new Elysia()
         }
       });
 
-      console.log(`[INFO] Brand website analysis triggered for project ${project_id}`);
+      console.log(`[INFO] Brand website analysis triggered for project ${project_id}, event ID: ${event.ids[0]}`);
       return { success: true, eventId: event.ids[0], message: "Brand website analysis triggered" };
     } catch (error: any) {
-      console.error(`[ERROR] Failed to trigger brand website analysis:`, error.message);
+      console.error(`[ERROR] Failed to trigger brand website analysis:`, error.message, error.stack);
       return { success: false, error: error.message };
     }
   })

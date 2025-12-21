@@ -69,8 +69,11 @@ export async function updateProject(projectId: string, data: {
   const urlChanged = data.client_url && data.client_url !== currentProject?.client_url;
   if (urlChanged) {
     try {
-      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
-      await fetch(`${backendUrl}/api/analyze-brand-website`, {
+      const backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      console.log(`[INFO] Triggering brand website analysis for project ${projectId} (URL updated): ${data.client_url}`);
+      console.log(`[INFO] Backend URL: ${backendUrl}`);
+      
+      const response = await fetch(`${backendUrl}/analyze-brand-website`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,10 +84,17 @@ export async function updateProject(projectId: string, data: {
           force_refresh: true, // Force refresh since URL changed
         }),
       });
-      console.log(`[INFO] Brand website analysis triggered for project ${projectId} (URL updated)`);
-    } catch (error) {
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[ERROR] Brand website analysis failed: ${response.status} ${response.statusText}`, errorText);
+      } else {
+        const result = await response.json();
+        console.log(`[INFO] Brand website analysis triggered successfully for project ${projectId}`, result);
+      }
+    } catch (error: any) {
       // Log error but don't fail project update
-      console.error('[WARN] Failed to trigger brand website analysis:', error);
+      console.error('[WARN] Failed to trigger brand website analysis:', error?.message || error);
     }
   }
 
