@@ -15,7 +15,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │ - ai_responses  │
 │ - analysis_jobs │
 │ - brand_mentions│
-│ - brand_sentiment_attributes
+│ - brand_sentiment_attributes (legacy, still used for response-based analysis)
+│ - brand_evaluations (new topic-based sentiment evaluation)
 │ - potential_competitors
 │ - citations (with classification)
 │ - daily_brand_stats (pre-aggregated)
@@ -40,6 +41,10 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  │  (Cron: 2 AM daily)              │  │  │
 │  │  │  aggregate-daily-stats          │  │  │
 │  │  │  (Cron: 1:30 AM daily)           │  │  │
+│  │  │  daily-sentiment-evaluation     │  │  │
+│  │  │  (Cron: 7 AM daily)              │  │  │
+│  │  │  analyze-brand-website          │  │  │
+│  │  │  (Event-driven: on project create/update)
 │  │  └──────────┬───────────────────────┘  │  │
 │  │             │                           │  │
 │  │             │ emits events              │  │
@@ -197,6 +202,51 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   4. Each entity is processed in a separate, small SQL transaction (prevents timeouts)
   5. Results are upserted into `daily_brand_stats` table
 - **Optimization**: Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage, preventing timeouts on large datasets
+- **Note**: Sentiment metrics are no longer included in `daily_brand_stats`. Sentiment data is now sourced from `brand_evaluations` table (see Topic-Based Sentiment Evaluation section below)
+
+#### daily-sentiment-evaluation
+
+- **Type**: Scheduled (Cron)
+- **Schedule**: `0 7 * * *` (7:00 AM daily)
+- **Concurrency**: 1
+- **Purpose**: Perform daily sentiment evaluations for brands and competitors using topic-based prompts
+- **Steps**:
+  1. Fetch all projects with extracted industry and topics (from `projects.industry` and `projects.extracted_topics`)
+  2. For each project:
+     - Get brand name and active competitors
+     - Get distinct regions from `prompt_tracking` for the project
+     - For each topic in `extracted_topics`:
+       - Build evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+       - For each region (including GLOBAL):
+         - Enrich prompt with region-specific context if region is not GLOBAL
+         - Call Gemini 2.5 Flash Lite with web search
+         - Parse structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
+         - Extract natural response (2-3 paragraphs)
+         - Extract web search queries and domains from Gemini metadata
+         - Save to `brand_evaluations` table
+       - Repeat for each active competitor
+  3. Skips deleted competitors (checks if competitor still exists before processing)
+- **Important**: These evaluations do NOT contribute to mention or citation metrics
+- **Data Source**: Uses Gemini 2.5 Flash Lite with Google Search for web-grounded evaluations
+
+#### analyze-brand-website
+
+- **Type**: Event-Driven
+- **Trigger**: Called when a project is created or updated with a `client_url`
+- **Concurrency**: 1 (process one website analysis at a time)
+- **Purpose**: Extract industry and topics from a brand's website for sentiment evaluation
+- **Steps**:
+  1. Check if already analyzed recently (unless force_refresh)
+  2. Fetch website content using Gemini 2.5 Flash Lite with web search
+  3. Parse structured response to extract:
+     - Industry/company type (e.g., "B2B CRM software company")
+     - Topics/user intents (15-30 topics, e.g., "pricing", "customer support")
+  4. Update `projects` table with:
+     - `industry`: The extracted industry/company type
+     - `extracted_topics`: JSONB array of topics
+     - `topics_extracted_at`: Timestamp
+- **Rate Limiting**: Skips if analyzed within last 7 days (unless force_refresh)
+- **Data Source**: Uses Gemini 2.5 Flash Lite with Google Search to analyze brand website
 
 ### 3. AI Clients Layer
 
@@ -981,7 +1031,9 @@ await supabase.from("citations").insert(records);
 
 ### Overview
 
-The Daily Brand Stats system pre-aggregates daily metrics for brands and competitors to optimize frontend query performance. Instead of querying raw tables (`brand_mentions`, `citations`, `brand_sentiment_attributes`) on every request, the frontend queries the pre-aggregated `daily_brand_stats` table.
+The Daily Brand Stats system pre-aggregates daily metrics for brands and competitors to optimize frontend query performance. Instead of querying raw tables (`brand_mentions`, `citations`) on every request, the frontend queries the pre-aggregated `daily_brand_stats` table.
+
+**Important Change**: As of December 2024, sentiment metrics have been removed from `daily_brand_stats`. Sentiment data is now sourced from the `brand_evaluations` table (see Topic-Based Sentiment Evaluation section below). This provides more granular, topic-based sentiment analysis instead of aggregated counts.
 
 ### Architecture
 
@@ -991,7 +1043,9 @@ The Daily Brand Stats system pre-aggregates daily metrics for brands and competi
 │                                                               │
 │  - brand_mentions (mentions per response)                    │
 │  - citations (URL citations with classification)             │
-│  - brand_sentiment_attributes (sentiment per response)       │
+│                                                               │
+│  Note: Sentiment data now comes from brand_evaluations       │
+│  (see Topic-Based Sentiment Evaluation section)              │
 └───────────────────────┬─────────────────────────────────────┘
                         │
                         │ Daily Aggregation (1:30 AM)
@@ -1044,11 +1098,10 @@ CREATE TABLE daily_brand_stats (
   -- Aggregated metrics
   mentions_count INTEGER NOT NULL DEFAULT 0,
   citations_count INTEGER NOT NULL DEFAULT 0,
-  sentiment_positive_count INTEGER NOT NULL DEFAULT 0,
-  sentiment_neutral_count INTEGER NOT NULL DEFAULT 0,
-  sentiment_negative_count INTEGER NOT NULL DEFAULT 0,
-  sentiment_avg_rating DECIMAL(4,3), -- -1.000 to 1.000
   responses_analyzed INTEGER NOT NULL DEFAULT 0,
+  
+  -- Note: Sentiment metrics removed (December 2024)
+  -- Sentiment data is now sourced from brand_evaluations table
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1150,6 +1203,9 @@ The frontend has been migrated to use `daily_brand_stats` for:
 - Share of Voice trends
 - Citation statistics
 - Executive overview metrics
+- Mentions count aggregations
+
+**Sentiment Data**: Frontend sentiment queries now use the `brand_evaluations` table instead of aggregated sentiment columns. Functions like `getMentionsSummary` aggregate sentiment data from `brand_evaluations` by entity (brand/competitor) and date range.
 
 This replaces direct queries to `citations_detail` and `competitor_citations` (legacy tables).
 
