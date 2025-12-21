@@ -132,21 +132,18 @@ export default function TrendingPage() {
           value={metrics?.risingCount || 0}
           description="Increasing in volume"
           icon={TrendingUp}
-          isLoading={isLoading}
         />
         <StatCard
           title="Declining Queries"
           value={metrics?.decliningCount || 0}
           description="Decreasing in volume"
           icon={TrendingDown}
-          isLoading={isLoading}
         />
         <StatCard
           title="New Queries"
           value={metrics?.newCount || 0}
           description="Just appeared"
           icon={Zap}
-          isLoading={isLoading}
         />
         <StatCard
           title="Momentum Score"
@@ -154,7 +151,6 @@ export default function TrendingPage() {
           description="Overall trend"
           icon={Activity}
           trend={metrics ? { value: Math.abs(metrics.momentumScore), isPositive: metrics.momentumScore > 0 } : undefined}
-          isLoading={isLoading}
         />
       </div>
 
