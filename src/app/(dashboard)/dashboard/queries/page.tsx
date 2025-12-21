@@ -132,28 +132,24 @@ export default function QueriesPage() {
           value={overview?.totalQueries || 0}
           description="Search queries tracked"
           icon={Search}
-          isLoading={isLoading}
         />
         <StatCard
           title="Unique Queries"
           value={overview?.uniqueQueries || 0}
           description="Distinct search patterns"
           icon={Hash}
-          isLoading={isLoading}
         />
         <StatCard
           title="Top Platform"
           value={overview?.topPlatform || "N/A"}
           description="Most active platform"
           icon={Globe}
-          isLoading={isLoading}
         />
         <StatCard
           title="Avg Query Length"
           value={`${overview?.avgQueryLength || 0} chars`}
           description="Average query size"
           icon={Ruler}
-          isLoading={isLoading}
         />
       </div>
 
