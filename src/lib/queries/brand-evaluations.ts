@@ -307,7 +307,7 @@ export async function getEntityEvaluationSummary(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("entity_name, sentiment, sentiment_score, attributes")
+    .select("entity_name, sentiment, sentiment_score, positive_attributes, negative_attributes")
     .eq("project_id", projectId)
     .eq("entity_type", entityType)
     .gte("created_at", startDate.toISOString());
