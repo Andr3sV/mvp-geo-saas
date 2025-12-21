@@ -24,10 +24,6 @@ DECLARE
   v_end_ts TIMESTAMP;
   v_mentions_count INTEGER;
   v_citations_count INTEGER;
-  v_sentiment_positive INTEGER;
-  v_sentiment_neutral INTEGER;
-  v_sentiment_negative INTEGER;
-  v_sentiment_avg DECIMAL(3,2);
   v_responses_count INTEGER;
 BEGIN
   -- Calculate timestamp range (allows index usage)
@@ -77,34 +73,12 @@ BEGIN
     AND ar.created_at >= v_start_ts
     AND ar.created_at < v_end_ts;
 
-  -- Query 3: Sentiment aggregation with dimension filters (consolidated)
-  SELECT 
-    COUNT(*) FILTER (WHERE sentiment = 'positive'),
-    COUNT(*) FILTER (WHERE sentiment = 'neutral'),
-    COUNT(*) FILTER (WHERE sentiment = 'negative'),
-    AVG(sentiment_rating)
-  INTO v_sentiment_positive, v_sentiment_neutral, v_sentiment_negative, v_sentiment_avg
-  FROM brand_sentiment_attributes bsa
-  JOIN ai_responses ar ON ar.id = bsa.ai_response_id
-  JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
-  WHERE bsa.project_id = p_project_id
-    AND bsa.brand_type = 'client'
-    AND ar.platform = p_platform
-    AND pt.region = p_region
-    AND (
-      (p_topic_id IS NULL AND pt.topic_id IS NULL) OR 
-      pt.topic_id = p_topic_id
-    )
-    AND ar.created_at >= v_start_ts
-    AND ar.created_at < v_end_ts;
-
   -- Upsert brand stats with dimensions
   INSERT INTO daily_brand_stats (
     project_id, stat_date, entity_type, competitor_id, entity_name,
     platform, region, topic_id,
     mentions_count, citations_count,
-    sentiment_positive_count, sentiment_neutral_count, sentiment_negative_count,
-    sentiment_avg_rating, responses_analyzed
+    responses_analyzed
   )
   VALUES (
     p_project_id,
@@ -117,10 +91,6 @@ BEGIN
     p_topic_id,
     COALESCE(v_mentions_count, 0),
     COALESCE(v_citations_count, 0),
-    COALESCE(v_sentiment_positive, 0),
-    COALESCE(v_sentiment_neutral, 0),
-    COALESCE(v_sentiment_negative, 0),
-    v_sentiment_avg,
     COALESCE(v_responses_count, 0)
   )
   ON CONFLICT (
@@ -135,10 +105,6 @@ BEGIN
     entity_name = EXCLUDED.entity_name,
     mentions_count = EXCLUDED.mentions_count,
     citations_count = EXCLUDED.citations_count,
-    sentiment_positive_count = EXCLUDED.sentiment_positive_count,
-    sentiment_neutral_count = EXCLUDED.sentiment_neutral_count,
-    sentiment_negative_count = EXCLUDED.sentiment_negative_count,
-    sentiment_avg_rating = EXCLUDED.sentiment_avg_rating,
     responses_analyzed = EXCLUDED.responses_analyzed,
     updated_at = now();
 
@@ -165,10 +131,6 @@ DECLARE
   v_end_ts TIMESTAMP;
   v_mentions_count INTEGER;
   v_citations_count INTEGER;
-  v_sentiment_positive INTEGER;
-  v_sentiment_neutral INTEGER;
-  v_sentiment_negative INTEGER;
-  v_sentiment_avg DECIMAL(3,2);
   v_responses_count INTEGER;
 BEGIN
   -- Calculate timestamp range (allows index usage)
@@ -220,35 +182,12 @@ BEGIN
     AND ar.created_at >= v_start_ts
     AND ar.created_at < v_end_ts;
 
-  -- Query 3: Sentiment aggregation with dimension filters (consolidated)
-  SELECT 
-    COUNT(*) FILTER (WHERE sentiment = 'positive'),
-    COUNT(*) FILTER (WHERE sentiment = 'neutral'),
-    COUNT(*) FILTER (WHERE sentiment = 'negative'),
-    AVG(sentiment_rating)
-  INTO v_sentiment_positive, v_sentiment_neutral, v_sentiment_negative, v_sentiment_avg
-  FROM brand_sentiment_attributes bsa
-  JOIN ai_responses ar ON ar.id = bsa.ai_response_id
-  JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
-  WHERE bsa.project_id = p_project_id
-    AND bsa.brand_type = 'competitor'
-    AND bsa.competitor_id = p_competitor_id
-    AND ar.platform = p_platform
-    AND pt.region = p_region
-    AND (
-      (p_topic_id IS NULL AND pt.topic_id IS NULL) OR 
-      pt.topic_id = p_topic_id
-    )
-    AND ar.created_at >= v_start_ts
-    AND ar.created_at < v_end_ts;
-
   -- Upsert competitor stats with dimensions
   INSERT INTO daily_brand_stats (
     project_id, stat_date, entity_type, competitor_id, entity_name,
     platform, region, topic_id,
     mentions_count, citations_count,
-    sentiment_positive_count, sentiment_neutral_count, sentiment_negative_count,
-    sentiment_avg_rating, responses_analyzed
+    responses_analyzed
   )
   VALUES (
     p_project_id,
@@ -261,10 +200,6 @@ BEGIN
     p_topic_id,
     COALESCE(v_mentions_count, 0),
     COALESCE(v_citations_count, 0),
-    COALESCE(v_sentiment_positive, 0),
-    COALESCE(v_sentiment_neutral, 0),
-    COALESCE(v_sentiment_negative, 0),
-    v_sentiment_avg,
     COALESCE(v_responses_count, 0)
   )
   ON CONFLICT (
@@ -279,10 +214,6 @@ BEGIN
     entity_name = EXCLUDED.entity_name,
     mentions_count = EXCLUDED.mentions_count,
     citations_count = EXCLUDED.citations_count,
-    sentiment_positive_count = EXCLUDED.sentiment_positive_count,
-    sentiment_neutral_count = EXCLUDED.sentiment_neutral_count,
-    sentiment_negative_count = EXCLUDED.sentiment_negative_count,
-    sentiment_avg_rating = EXCLUDED.sentiment_avg_rating,
     responses_analyzed = EXCLUDED.responses_analyzed,
     updated_at = now();
 

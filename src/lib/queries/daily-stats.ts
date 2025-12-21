@@ -17,10 +17,6 @@ export interface DailyStats {
   entity_name: string;
   mentions_count: number;
   citations_count: number;
-  sentiment_positive_count: number;
-  sentiment_neutral_count: number;
-  sentiment_negative_count: number;
-  sentiment_avg_rating: number | null;
   responses_analyzed: number;
 }
 
@@ -97,7 +93,94 @@ export async function getShareOfVoiceTrend(
 // =============================================
 
 /**
+ * Get sentiment metrics from brand_evaluations table
+ * Aggregates by entity (brand/competitor) and date range
+ */
+async function getSentimentFromBrandEvaluations(
+  projectId: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<Map<string, {
+  sentiment_positive: number;
+  sentiment_neutral: number;
+  sentiment_negative: number;
+  sentiment_mixed: number;
+  total_sentiment_score: number;
+  count: number;
+}>> {
+  const supabase = await createClient();
+  const sentimentMap = new Map<string, {
+    sentiment_positive: number;
+    sentiment_neutral: number;
+    sentiment_negative: number;
+    sentiment_mixed: number;
+    total_sentiment_score: number;
+    count: number;
+  }>();
+
+  let query = supabase
+    .from("brand_evaluations")
+    .select("entity_type, competitor_id, sentiment, sentiment_score")
+    .eq("project_id", projectId);
+
+  if (startDate) {
+    query = query.gte("created_at", startDate.toISOString());
+  }
+
+  if (endDate) {
+    // Add one day and subtract 1ms to include the entire end date
+    const endDatePlusOne = new Date(endDate);
+    endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+    endDatePlusOne.setMilliseconds(endDatePlusOne.getMilliseconds() - 1);
+    query = query.lte("created_at", endDatePlusOne.toISOString());
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching sentiment from brand_evaluations:", error);
+    return sentimentMap;
+  }
+
+  // Aggregate sentiment by entity
+  (data || []).forEach((eval_) => {
+    const key = eval_.entity_type === "brand" ? "brand" : eval_.competitor_id || "unknown";
+
+    if (!sentimentMap.has(key)) {
+      sentimentMap.set(key, {
+        sentiment_positive: 0,
+        sentiment_neutral: 0,
+        sentiment_negative: 0,
+        sentiment_mixed: 0,
+        total_sentiment_score: 0,
+        count: 0,
+      });
+    }
+
+    const entry = sentimentMap.get(key)!;
+    entry.count++;
+
+    if (eval_.sentiment === "positive") {
+      entry.sentiment_positive++;
+    } else if (eval_.sentiment === "neutral") {
+      entry.sentiment_neutral++;
+    } else if (eval_.sentiment === "negative") {
+      entry.sentiment_negative++;
+    } else if (eval_.sentiment === "mixed") {
+      entry.sentiment_mixed++;
+    }
+
+    if (eval_.sentiment_score !== null) {
+      entry.total_sentiment_score += eval_.sentiment_score;
+    }
+  });
+
+  return sentimentMap;
+}
+
+/**
  * Get total mentions for brand and competitors over a period
+ * Now includes sentiment from brand_evaluations instead of daily_brand_stats
  */
 export async function getMentionsSummary(
   projectId: string,
@@ -105,6 +188,7 @@ export async function getMentionsSummary(
   endDate?: Date
 ) {
   const stats = await getDailyStats(projectId, startDate, endDate);
+  const sentimentData = await getSentimentFromBrandEvaluations(projectId, startDate, endDate);
 
   // Aggregate by entity
   const summary = new Map<
@@ -142,9 +226,30 @@ export async function getMentionsSummary(
     const entry = summary.get(key)!;
     entry.total_mentions += stat.mentions_count;
     entry.total_citations += stat.citations_count;
-    entry.sentiment_positive += stat.sentiment_positive_count;
-    entry.sentiment_neutral += stat.sentiment_neutral_count;
-    entry.sentiment_negative += stat.sentiment_negative_count;
+  });
+
+  // Add sentiment data from brand_evaluations
+  sentimentData.forEach((sentiment, key) => {
+    if (!summary.has(key)) {
+      // If we don't have stats for this entity, create entry with just sentiment
+      summary.set(key, {
+        entity_type: key === "brand" ? "brand" : "competitor",
+        entity_name: "",
+        competitor_id: key === "brand" ? null : key,
+        total_mentions: 0,
+        total_citations: 0,
+        sentiment_positive: 0,
+        sentiment_neutral: 0,
+        sentiment_negative: 0,
+        avg_sentiment: null,
+      });
+    }
+
+    const entry = summary.get(key)!;
+    entry.sentiment_positive += sentiment.sentiment_positive;
+    entry.sentiment_neutral += sentiment.sentiment_neutral;
+    entry.sentiment_negative += sentiment.sentiment_negative;
+    // Note: mixed sentiment is not included in the counts, but we could add it if needed
   });
 
   // Calculate average sentiment for each entity
@@ -201,8 +306,9 @@ export async function getSentimentFromDailyStats(
 // =============================================
 
 /**
- * Fallback: Get daily stats from source tables (brand_mentions, citations, brand_sentiment_attributes)
+ * Fallback: Get daily stats from source tables (brand_mentions, citations)
  * Used when daily_brand_stats table is not populated or needs real-time data
+ * Note: Sentiment data is now retrieved from brand_evaluations via getMentionsSummary
  */
 async function getDailyStatsRealTime(
   projectId: string,
@@ -240,22 +346,12 @@ async function getDailyStatsRealTime(
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString());
 
-  // Get sentiment data grouped by day
-  const { data: sentimentData } = await supabase
-    .from("brand_sentiment_attributes")
-    .select("created_at, brand_type, competitor_id, sentiment, sentiment_rating")
-    .eq("project_id", projectId)
-    .gte("created_at", startDate.toISOString())
-    .lte("created_at", endDate.toISOString());
-
   // Get competitors
   const { data: competitors } = await supabase
     .from("competitors")
     .select("id, name")
     .eq("project_id", projectId)
     .eq("is_active", true);
-
-  const competitorMap = new Map(competitors?.map((c) => [c.id, c.name]) || []);
 
   // Build daily stats
   allDays.forEach((day) => {
@@ -268,26 +364,12 @@ async function getDailyStatsRealTime(
     const dayCitations = citations?.filter(
       (c) => format(new Date(c.created_at), "yyyy-MM-dd") === dayStr
     );
-    const daySentiment = sentimentData?.filter(
-      (s) => format(new Date(s.created_at), "yyyy-MM-dd") === dayStr
-    );
 
     // Brand stats
     const brandMentionsCount =
       dayMentions?.filter((m) => m.brand_type === "client").length || 0;
     const brandCitationsCount =
       dayCitations?.filter((c) => c.citation_type === "brand").length || 0;
-    const brandSentiment = daySentiment?.filter((s) => s.brand_type === "client");
-    const brandSentimentPos =
-      brandSentiment?.filter((s) => s.sentiment === "positive").length || 0;
-    const brandSentimentNeu =
-      brandSentiment?.filter((s) => s.sentiment === "neutral").length || 0;
-    const brandSentimentNeg =
-      brandSentiment?.filter((s) => s.sentiment === "negative").length || 0;
-    const brandAvgRating = brandSentiment?.length
-      ? brandSentiment.reduce((sum, s) => sum + (s.sentiment_rating || 0), 0) /
-        brandSentiment.length
-      : null;
 
     results.push({
       stat_date: dayStr,
@@ -296,10 +378,6 @@ async function getDailyStatsRealTime(
       entity_name: brandName,
       mentions_count: brandMentionsCount,
       citations_count: brandCitationsCount,
-      sentiment_positive_count: brandSentimentPos,
-      sentiment_neutral_count: brandSentimentNeu,
-      sentiment_negative_count: brandSentimentNeg,
-      sentiment_avg_rating: brandAvgRating,
       responses_analyzed: 0, // Not calculated in real-time fallback
     });
 
@@ -313,19 +391,6 @@ async function getDailyStatsRealTime(
         dayCitations?.filter(
           (c) => c.citation_type === "competitor" && c.competitor_id === comp.id
         ).length || 0;
-      const compSentiment = daySentiment?.filter(
-        (s) => s.brand_type === "competitor" && s.competitor_id === comp.id
-      );
-      const compSentimentPos =
-        compSentiment?.filter((s) => s.sentiment === "positive").length || 0;
-      const compSentimentNeu =
-        compSentiment?.filter((s) => s.sentiment === "neutral").length || 0;
-      const compSentimentNeg =
-        compSentiment?.filter((s) => s.sentiment === "negative").length || 0;
-      const compAvgRating = compSentiment?.length
-        ? compSentiment.reduce((sum, s) => sum + (s.sentiment_rating || 0), 0) /
-          compSentiment.length
-        : null;
 
       results.push({
         stat_date: dayStr,
@@ -334,10 +399,6 @@ async function getDailyStatsRealTime(
         entity_name: comp.name,
         mentions_count: compMentionsCount,
         citations_count: compCitationsCount,
-        sentiment_positive_count: compSentimentPos,
-        sentiment_neutral_count: compSentimentNeu,
-        sentiment_negative_count: compSentimentNeg,
-        sentiment_avg_rating: compAvgRating,
         responses_analyzed: 0,
       });
     });
