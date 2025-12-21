@@ -449,7 +449,12 @@ export default function SentimentPage() {
       {/* Sentiment Category-Based Evaluation Section */}
       <div className="space-y-6">
         {/* Sentiment Category Performance Matrix - Full Width */}
-        <TopicPerformanceMatrix data={topicMatrixData} isLoading={isLoading} />
+        <TopicPerformanceMatrix 
+          data={topicMatrixData} 
+          isLoading={isLoading}
+          brandDomain={brandDomain}
+          competitors={competitors}
+        />
 
         {/* Gap Analysis - Full Width */}
         <TopicGapAnalysis data={gapAnalysisData} isLoading={isLoading} />
