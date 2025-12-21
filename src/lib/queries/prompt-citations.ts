@@ -7,14 +7,12 @@ export interface PromptCitationSummary {
   brandCitations: {
     count: number;
     platforms: string[];
-    sentiment: { positive: number; neutral: number; negative: number };
     citations: Array<{
       id: string;
-      citation_text: string;
+      text: string | null;
       platform: string;
-      sentiment: string;
-      cited_url?: string;
-      cited_domain?: string;
+      url: string | null;
+      domain: string | null;
       created_at: string;
     }>;
   };
@@ -64,18 +62,17 @@ export async function getPromptCitationSummary(
 
     // Get brand citations for these responses
     const { data: brandCitations } = await supabase
-      .from("citations_detail")
+      .from("citations")
       .select(`
         id,
-        citation_text,
-        sentiment,
-        cited_url,
-        cited_domain,
+        text,
+        url,
+        domain,
         created_at,
         ai_responses!inner(platform)
       `)
       .in("ai_response_id", responseIds)
-      .not("citation_text", "is", null); // Only actual brand mentions
+      .not("url", "is", null); // Only citations with URLs
 
     // Get competitor citations for these responses
     const { data: competitorCitations } = await supabase
@@ -92,12 +89,9 @@ export async function getPromptCitationSummary(
 
     // Process brand citations
     const brandPlatforms = new Set<string>();
-    const brandSentiment = { positive: 0, neutral: 0, negative: 0 };
     
     brandCitations?.forEach((citation: any) => {
       brandPlatforms.add(citation.ai_responses.platform);
-      const sentiment = citation.sentiment || "neutral";
-      brandSentiment[sentiment as keyof typeof brandSentiment]++;
     });
 
     // Process competitor citations
@@ -127,14 +121,12 @@ export async function getPromptCitationSummary(
       brandCitations: {
         count: brandCitations?.length || 0,
         platforms: Array.from(brandPlatforms),
-        sentiment: brandSentiment,
         citations: (brandCitations || []).map((c: any) => ({
           id: c.id,
-          citation_text: c.citation_text,
+          text: c.text,
           platform: c.ai_responses.platform,
-          sentiment: c.sentiment || "neutral",
-          cited_url: c.cited_url,
-          cited_domain: c.cited_domain,
+          url: c.url,
+          domain: c.domain,
           created_at: c.created_at,
         })),
       },

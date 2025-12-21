@@ -82,7 +82,7 @@ async function getVisibilityScore(
 
   // Current period: brand citations
   const { count: brandCurrent } = await supabase
-    .from("citations_detail")
+    .from("citations")
     .select("*", { count: "exact", head: true })
     .eq("project_id", projectId)
     .gte("created_at", from.toISOString())
@@ -90,7 +90,7 @@ async function getVisibilityScore(
 
   // Previous period: brand citations
   const { count: brandPrevious } = await supabase
-    .from("citations_detail")
+    .from("citations")
     .select("*", { count: "exact", head: true })
     .eq("project_id", projectId)
     .gte("created_at", previousFrom.toISOString())
@@ -180,7 +180,7 @@ async function getShareOfVoiceData(
 
   // Current period: total citations (brand + competitors)
   const { count: brandCurrent } = await supabase
-    .from("citations_detail")
+    .from("citations")
     .select("*", { count: "exact", head: true })
     .eq("project_id", projectId)
     .gte("created_at", from.toISOString())
@@ -196,7 +196,7 @@ async function getShareOfVoiceData(
 
   // Previous period: total citations
   const { count: brandPrevious } = await supabase
-    .from("citations_detail")
+    .from("citations")
     .select("*", { count: "exact", head: true })
     .eq("project_id", projectId)
     .gte("created_at", previousFrom.toISOString())

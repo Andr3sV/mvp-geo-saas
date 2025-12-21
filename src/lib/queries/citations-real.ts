@@ -339,13 +339,12 @@ export async function getCitationsOverTime(
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get citations grouped by date - only citations WITH URLs and direct mentions
+  // Get citations grouped by date - only citations WITH URLs
   const { data: citations } = await supabase
-    .from("citations_detail")
+    .from("citations")
     .select("created_at")
     .eq("project_id", projectId)
-    .eq("is_direct_mention", true) // ✅ Only count real mentions in text, not URLs without mentions
-    .not("cited_url", "is", null) // ✅ Only real citations with URLs
+    .not("url", "is", null) // Only real citations with URLs
     .gte("created_at", startDate.toISOString())
     .limit(10000); // Increase limit to handle large datasets
 

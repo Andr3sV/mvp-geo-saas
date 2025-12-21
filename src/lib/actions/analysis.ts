@@ -50,14 +50,18 @@ export interface CitationDetail {
   id: string;
   ai_response_id: string;
   project_id: string;
-  citation_text: string;
-  context_before: string | null;
-  context_after: string | null;
-  sentiment: string | null;
-  is_direct_mention: boolean;
-  confidence_score: number;
-  position_in_response: number;
+  web_search_query: string | null;
+  uri: string | null;
+  url: string | null;
+  domain: string | null;
+  start_index: number | null;
+  end_index: number | null;
+  text: string | null;
+  metadata: Record<string, any>;
+  citation_type: string | null;
+  competitor_id: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // =============================================
@@ -241,10 +245,10 @@ export async function getCitationsForResponse(aiResponseId: string) {
     }
 
     const { data, error } = await supabase
-      .from("citations_detail")
+      .from("citations")
       .select("*")
       .eq("ai_response_id", aiResponseId)
-      .order("position_in_response", { ascending: true });
+      .order("start_index", { ascending: true, nullsLast: true });
 
     if (error) {
       return { error: error.message, data: null };
@@ -273,7 +277,7 @@ export async function getCitationsByProject(projectId: string, limit = 50) {
     }
 
     const { data, error } = await supabase
-      .from("citations_detail")
+      .from("citations")
       .select("*, ai_responses:ai_response_id(platform, model_version)")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
@@ -320,7 +324,7 @@ export async function getAnalysisStats(projectId: string) {
 
     // Get total citations
     const { count: totalCitations } = await supabase
-      .from("citations_detail")
+      .from("citations")
       .select("*", { count: "exact", head: true })
       .eq("project_id", projectId);
 
@@ -371,7 +375,7 @@ export async function deleteAnalysisJob(jobId: string) {
       return { error: "Not authenticated", data: null };
     }
 
-    // Delete will cascade to ai_responses and citations_detail
+    // Delete will cascade to ai_responses and citations
     const { error } = await supabase
       .from("analysis_jobs")
       .delete()
