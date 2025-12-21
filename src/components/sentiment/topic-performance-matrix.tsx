@@ -62,18 +62,31 @@ export function TopicPerformanceMatrix({
   }, [data]);
 
   // Color scale: red (-1) -> yellow (0) -> green (1)
+  // More realistic and smooth color mapping with earlier green transition
   const getColor = (score: number) => {
-    if (score >= 0) {
-      // Positive: yellow to green
-      const intensity = Math.min(score, 1);
-      const green = Math.round(100 + intensity * 155);
-      return `rgb(255, ${255 - Math.round(intensity * 155)}, 0)`;
+    // Clamp score between -1 and 1
+    const clampedScore = Math.max(-1, Math.min(1, score));
+    
+    if (clampedScore >= 0) {
+      // Positive: yellow (255,255,150) to green (34,197,94)
+      // Use a smoother curve that transitions to green earlier
+      const intensity = clampedScore; // 0 to 1
+      // Apply a power curve to make transition smoother and earlier
+      const easedIntensity = Math.pow(intensity, 0.7);
+      
+      const r = Math.round(255 - (easedIntensity * 221)); // 255 to 34
+      const g = Math.round(255 - (easedIntensity * 58)); // 255 to 197
+      const b = Math.round(150 - (easedIntensity * 56)); // 150 to 94
+      return `rgb(${r}, ${g}, ${b})`;
     } else {
-      // Negative: red to yellow
-      const intensity = Math.min(Math.abs(score), 1);
-      const red = 255;
-      const green = Math.round(intensity * 255);
-      return `rgb(${red}, ${green}, 0)`;
+      // Negative: red (239,68,68) to yellow (255,255,150)
+      const intensity = Math.abs(clampedScore); // 0 to 1
+      const easedIntensity = Math.pow(intensity, 0.8);
+      
+      const r = Math.round(239 + (easedIntensity * 16)); // 239 to 255
+      const g = Math.round(68 + (easedIntensity * 187)); // 68 to 255
+      const b = Math.round(68 + (easedIntensity * 82)); // 68 to 150
+      return `rgb(${r}, ${g}, ${b})`;
     }
   };
 
@@ -81,7 +94,7 @@ export function TopicPerformanceMatrix({
     return (
       <Card className="h-full flex flex-col">
         <CardHeader>
-          <CardTitle>Topic Performance Matrix</CardTitle>
+          <CardTitle>Sentiment Category Performance Matrix</CardTitle>
           <CardDescription>Heatmap showing sentiment scores by topic and entity</CardDescription>
         </CardHeader>
         <CardContent className="flex-1">
@@ -95,7 +108,7 @@ export function TopicPerformanceMatrix({
     return (
       <Card className="h-full flex flex-col">
         <CardHeader>
-          <CardTitle>Topic Performance Matrix</CardTitle>
+          <CardTitle>Sentiment Category Matrix</CardTitle>
           <CardDescription>Heatmap showing sentiment scores by topic and entity</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 flex items-center justify-center">
@@ -108,9 +121,9 @@ export function TopicPerformanceMatrix({
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle>Topic Performance Matrix</CardTitle>
+        <CardTitle>Sentiment Category Performance Matrix</CardTitle>
         <CardDescription>
-          Heatmap showing sentiment scores across topics. Green = positive, Yellow = neutral, Red = negative
+          Heatmap showing sentiment scores across categories. Green = positive, Yellow = neutral, Red = negative
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto">
@@ -118,15 +131,19 @@ export function TopicPerformanceMatrix({
           {/* Legend */}
           <div className="mb-4 flex items-center gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-red-500"></div>
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getColor(-1) }}></div>
               <span>Negative (-1)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-yellow-500"></div>
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getColor(0) }}></div>
               <span>Neutral (0)</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getColor(0.5) }}></div>
+              <span>Positive (0.5)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded" style={{ backgroundColor: getColor(1) }}></div>
               <span>Positive (1)</span>
             </div>
           </div>
@@ -142,10 +159,10 @@ export function TopicPerformanceMatrix({
                   {heatmapData.topics.map((topic) => (
                     <th
                       key={topic}
-                      className="p-2 text-xs border-b border-r whitespace-nowrap min-w-[120px]"
+                      className="p-2 text-xs border-b border-r min-w-[80px] max-w-[100px]"
                       title={topic}
                     >
-                      <div className="transform -rotate-45 origin-left">{topic}</div>
+                      <div className="leading-tight break-words">{topic}</div>
                     </th>
                   ))}
                 </tr>
@@ -172,7 +189,7 @@ export function TopicPerformanceMatrix({
                         >
                           <span
                             className={`text-xs font-medium ${
-                              Math.abs(score) > 0.3 ? "text-white" : "text-gray-800"
+                              Math.abs(score) > 0.5 ? "text-white" : "text-gray-800"
                             }`}
                           >
                             {score.toFixed(2)}

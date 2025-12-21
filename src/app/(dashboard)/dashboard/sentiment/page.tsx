@@ -8,23 +8,23 @@ import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Smile,
   TrendingUp,
   Target,
   BarChart3,
+  Trophy,
 } from "lucide-react";
 
 // Sentiment Analysis Components
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
-import { SentimentAnalysisTrigger } from "@/components/sentiment/sentiment-analysis-trigger";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
-// New Topic-Based Components
+// New Sentiment Category-Based Components
 import { TopicPerformanceMatrix } from "@/components/sentiment/topic-performance-matrix";
 import { TopicSentimentTrends } from "@/components/sentiment/topic-sentiment-trends";
 import { CompetitivePositioningRadar } from "@/components/sentiment/competitive-positioning-radar";
 import { TopicGapAnalysis } from "@/components/sentiment/topic-gap-analysis";
-import { TopPerformingTopicsScorecard } from "@/components/sentiment/top-performing-topics-scorecard";
 
 // Queries
 import {
@@ -64,7 +64,7 @@ export default function SentimentPage() {
   const [selectedTopic, setSelectedTopic] = useState<string>("all");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   
-  // Topic-based evaluation data states
+  // Sentiment Category-based evaluation data states
   const [topicMatrixData, setTopicMatrixData] = useState<any[]>([]);
   const [topicTrendsData, setTopicTrendsData] = useState<any[]>([]);
   const [gapAnalysisData, setGapAnalysisData] = useState<any[]>([]);
@@ -114,7 +114,7 @@ export default function SentimentPage() {
         console.log('✅ Brand set:', projectData.brand_name, projectData.client_url, projectData.color);
       }
       
-      // Load available topics from brand_evaluations
+      // Load available sentiment categories from brand_evaluations
       const projectTopics = await getProjectTopics(selectedProjectId);
       setAvailableTopics(projectTopics.topics || []);
       
@@ -196,7 +196,7 @@ export default function SentimentPage() {
       }
 
       console.log('📊 Sentiment Metrics:', metricsData);
-      console.log('📈 Topic-Based Data Loaded');
+      console.log('📈 Sentiment Category-Based Data Loaded');
 
       setMetrics(metricsData);
       // Use trends from brand_evaluations instead of brand_sentiment_attributes
@@ -204,7 +204,7 @@ export default function SentimentPage() {
       // Use entity sentiments from brand_evaluations
       setEntities(entitiesFromEvaluations || entitiesData);
       
-      // Set topic-based data
+      // Set sentiment category-based data
       setTopicMatrixData(topicMatrix || []);
       setTopicTrendsData(topicTrends || []);
       setGapAnalysisData(gapAnalysis || []);
@@ -252,21 +252,16 @@ export default function SentimentPage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
-    topicId?: string;
+    sentimentTheme?: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
-    if (filters.topicId !== undefined) {
-      setSelectedTopic(filters.topicId);
+    if (filters.sentimentTheme !== undefined) {
+      setSelectedTopic(filters.sentimentTheme);
     }
-  };
-
-  // Handle analysis completion
-  const handleAnalysisComplete = () => {
-    loadSentimentData();
   };
 
   // Load competitor trends when competitor is selected
@@ -324,56 +319,107 @@ export default function SentimentPage() {
         description="AI-powered sentiment analysis of brand and competitor mentions across platforms"
       />
 
-      {/* Filters Toolbar with Analysis Trigger */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center">
-          <div className="flex-1">
-            <FiltersToolbar
-              dateRange={dateRange}
-              platform={platform}
-              region={region}
-              topicId={selectedTopic}
-              onApply={handleFiltersChange}
+      {/* Filters Toolbar */}
+      <FiltersToolbar
+        dateRange={dateRange}
+        platform={platform}
+        region={region}
+        sentimentTheme={selectedTopic}
+        hideTopicFilter={true}
+        showSentimentThemeFilter={true}
+        onApply={handleFiltersChange}
+      />
+
+      {/* Sentiment Analysis Section */}
+      <div className="space-y-6">
+        {/* Sentiment Pulse with Best Sentiment Score and Competitive Advantage */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sentiment Pulse - Takes 2 columns */}
+          <div className="lg:col-span-2">
+            <SentimentComparison
+              entities={entities}
+              isLoading={isLoading}
             />
           </div>
-          <SentimentAnalysisTrigger
-            projectId={selectedProjectId!}
-            onAnalysisComplete={handleAnalysisComplete}
-            totalResponses={totalResponses}
-            analyzedResponses={metrics.totalUniqueAnalyzedResponses || 0}
-          />
-        </div>
-        
-        {/* Topic Filter for Brand Evaluations */}
-        {availableTopics.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium">Filter by Topic (Evaluations):</label>
-            <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="All Topics" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Topics</SelectItem>
-                {availableTopics.map((topic) => (
-                  <SelectItem key={topic} value={topic}>
-                    {topic}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
+          
+          {/* Best Sentiment Score and Competitive Advantage - Takes 1 column */}
+          <div className="space-y-4">
+            {/* Best Sentiment Score */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Best Sentiment Score</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {topTopicsData
+                    .sort((a, b) => b.avg_sentiment_score - a.avg_sentiment_score)
+                    .slice(0, 5)
+                    .map((item, idx) => (
+                      <div key={item.topic} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-xs font-medium text-muted-foreground w-6">
+                            #{idx + 1}
+                          </span>
+                          <span className="text-sm truncate" title={item.topic}>
+                            {item.topic}
+                          </span>
+                        </div>
+                        <span className="text-sm font-semibold ml-2">
+                          {item.avg_sentiment_score.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  {topTopicsData.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No data available
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-      {/* Legacy Response-Based Analysis Section */}
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold">Response-Based Sentiment Analysis</h2>
-        
-        {/* Sentiment Pulse - Full Width */}
-        <SentimentComparison
-          entities={entities}
-          isLoading={isLoading}
-        />
+            {/* Competitive Advantage */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-muted-foreground" />
+                  <CardTitle className="text-base">Competitive Advantage</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {topTopicsData
+                    .sort((a, b) => b.competitive_advantage - a.competitive_advantage)
+                    .slice(0, 5)
+                    .map((item, idx) => (
+                      <div key={item.topic} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-xs font-medium text-muted-foreground w-6">
+                            #{idx + 1}
+                          </span>
+                          <span className="text-sm truncate" title={item.topic}>
+                            {item.topic}
+                          </span>
+                        </div>
+                        <span className="text-sm font-semibold ml-2">
+                          {item.competitive_advantage > 0 ? "+" : ""}
+                          {item.competitive_advantage.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  {topTopicsData.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No data available
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         {/* Competitive Positioning Radar - Full Width */}
           <CompetitivePositioningRadar
@@ -400,23 +446,15 @@ export default function SentimentPage() {
         />
       </div>
 
-      {/* Topic-Based Evaluation Section */}
+      {/* Sentiment Category-Based Evaluation Section */}
       <div className="space-y-6">
-        <h2 className="text-xl font-semibold">Topic-Based Sentiment Evaluation</h2>
-        <p className="text-sm text-muted-foreground">
-          Strategic insights from topic-based evaluations using Gemini with web search
-        </p>
-
-        {/* Top Performing Topics Scorecard */}
-        <TopPerformingTopicsScorecard data={topTopicsData} isLoading={isLoading} />
-
-        {/* Topic Performance Matrix - Full Width */}
+        {/* Sentiment Category Performance Matrix - Full Width */}
         <TopicPerformanceMatrix data={topicMatrixData} isLoading={isLoading} />
 
         {/* Gap Analysis - Full Width */}
         <TopicGapAnalysis data={gapAnalysisData} isLoading={isLoading} />
 
-        {/* Topic Sentiment Trends */}
+        {/* Sentiment Category Sentiment Trends */}
         <TopicSentimentTrends data={topicTrendsData} isLoading={isLoading} />
       </div>
     </div>
