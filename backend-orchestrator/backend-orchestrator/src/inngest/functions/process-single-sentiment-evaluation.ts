@@ -18,7 +18,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
     id: 'process-single-sentiment-evaluation',
     name: 'Process Single Sentiment Evaluation',
     concurrency: {
-      limit: 10, // Process multiple evaluations in parallel
+      limit: 5, // Process multiple evaluations in parallel (matches plan limit)
     },
     retries: 2,
   },
