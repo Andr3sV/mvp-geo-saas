@@ -7,6 +7,45 @@
 import { inngest } from '../client';
 import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 import { callGemini, getAPIKey } from '../../lib/ai-clients';
+import { waitForRateLimit } from '../../lib/rate-limiter';
+import type { AICompletionResult, AIClientConfig } from '../../lib/types';
+
+/**
+ * Call Gemini with automatic retry for rate limits
+ * Retries up to maxRetries times if rate limit is hit
+ */
+async function callGeminiWithRetry(
+  prompt: string,
+  config: AIClientConfig,
+  maxRetries: number = 3
+): Promise<AICompletionResult> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Wait for rate limit before calling Gemini
+      const waitTime = await waitForRateLimit('gemini');
+      if (waitTime > 0 && attempt === 1) {
+        logInfo('daily-sentiment-evaluation', `Waited ${Math.round(waitTime / 1000)}s for Gemini rate limit`);
+      }
+      
+      // Call Gemini
+      return await callGemini(prompt, config);
+    } catch (err: any) {
+      const isRateLimit = err?.isRateLimit || err?.statusCode === 429;
+      
+      if (isRateLimit && attempt < maxRetries) {
+        const waitTime = err?.retryAfter || 60000; // Default 60s if not specified
+        logInfo('daily-sentiment-evaluation', `Rate limit hit, waiting ${Math.round(waitTime / 1000)}s before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue; // Retry
+      }
+      
+      // Re-throw if not rate limit or max retries reached
+      throw err;
+    }
+  }
+  
+  throw new Error(`Failed to call Gemini after ${maxRetries} attempts`);
+}
 
 /**
  * Enrich prompt with region-specific context
@@ -269,8 +308,8 @@ export const dailySentimentEvaluation = inngest.createFunction(
         logInfo('daily-sentiment-evaluation', `Processing project ${project.id} with regions: ${regionsToProcess.join(', ')}`);
 
         // Evaluate each topic for the brand and competitors
-        // Limit to first 5 topics per day to avoid rate limits
-        const topicsToEvaluate = topics.slice(0, 5);
+        // Process all topics (rate limiting handled by waitForRateLimit)
+        const topicsToEvaluate = topics;
 
         // Process each region
         for (const region of regionsToProcess) {
@@ -278,7 +317,7 @@ export const dailySentimentEvaluation = inngest.createFunction(
             // Evaluate brand
             try {
               const brandPrompt = buildEvaluationPrompt(industry, brandName, topic, region);
-              const brandResult = await callGemini(brandPrompt, {
+              const brandResult = await callGeminiWithRetry(brandPrompt, {
                 apiKey: geminiApiKey,
                 model: 'gemini-2.5-flash-lite',
                 temperature: 0.3,
@@ -315,9 +354,6 @@ export const dailySentimentEvaluation = inngest.createFunction(
               } else {
                 projectEvaluations++;
               }
-
-              // Small delay to avoid rate limits
-              await new Promise(resolve => setTimeout(resolve, 1000));
             } catch (error: any) {
               logError('daily-sentiment-evaluation', `Brand evaluation failed for ${brandName} on ${topic} (region: ${region})`, error);
               projectErrors++;
@@ -327,7 +363,7 @@ export const dailySentimentEvaluation = inngest.createFunction(
             for (const competitor of activeCompetitors) {
               try {
                 const competitorPrompt = buildEvaluationPrompt(industry, competitor.name, topic, region);
-                const competitorResult = await callGemini(competitorPrompt, {
+                const competitorResult = await callGeminiWithRetry(competitorPrompt, {
                   apiKey: geminiApiKey,
                   model: 'gemini-2.5-flash-lite',
                   temperature: 0.3,
@@ -364,9 +400,6 @@ export const dailySentimentEvaluation = inngest.createFunction(
                 } else {
                   projectEvaluations++;
                 }
-
-                // Small delay to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 1000));
               } catch (error: any) {
                 logError('daily-sentiment-evaluation', `Competitor evaluation failed for ${competitor.name} on ${topic} (region: ${region})`, error);
                 projectErrors++;
