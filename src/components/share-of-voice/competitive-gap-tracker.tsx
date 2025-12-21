@@ -165,10 +165,14 @@ export function CompetitiveGapTracker({ entities, isLoading, metricLabel = "ment
                     {isAhead ? "+" : ""}{gap.toFixed(1)}
                   </span>
                   {gapClosing && (
-                    <AlertTriangle className="h-3 w-3 text-amber-500" title="Gap closing" />
+                    <span title="Gap closing">
+                      <AlertTriangle className="h-3 w-3 text-amber-500" />
+                    </span>
                   )}
                   {isAhead && !gapClosing && trendDiff > 2 && (
-                    <CheckCircle2 className="h-3 w-3 text-emerald-500" title="Gap widening" />
+                    <span title="Gap widening">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                    </span>
                   )}
                 </div>
                 <div className="w-16 text-right flex-shrink-0">
