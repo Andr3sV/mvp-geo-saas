@@ -41,8 +41,12 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  │  (Cron: 2 AM daily)              │  │  │
 │  │  │  aggregate-daily-stats          │  │  │
 │  │  │  (Cron: 1:30 AM daily)           │  │  │
-│  │  │  daily-sentiment-evaluation     │  │  │
+│  │  │  schedule-sentiment-evaluation  │  │  │
 │  │  │  (Cron: 7 AM daily)              │  │  │
+│  │  │  process-single-sentiment-      │  │  │
+│  │  │  evaluation                      │  │  │
+│  │  │  (Event-driven: sentiment/      │  │  │
+│  │  │  evaluate-single)                │  │  │
 │  │  │  analyze-brand-website          │  │  │
 │  │  │  (Event-driven: on project create/update)
 │  │  └──────────┬───────────────────────┘  │  │
@@ -204,30 +208,47 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Optimization**: Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage, preventing timeouts on large datasets
 - **Note**: Sentiment metrics are no longer included in `daily_brand_stats`. Sentiment data is now sourced from `brand_evaluations` table (see Topic-Based Sentiment Evaluation section below)
 
-#### daily-sentiment-evaluation
+#### schedule-sentiment-evaluation
 
 - **Type**: Scheduled (Cron)
 - **Schedule**: `0 7 * * *` (7:00 AM daily)
-- **Concurrency**: 1
-- **Purpose**: Perform daily sentiment evaluations for brands and competitors using topic-based prompts
+- **Concurrency**: N/A (scheduler only)
+- **Purpose**: Schedule sentiment evaluations for brands and competitors by generating evaluation events
 - **Steps**:
   1. Fetch all projects with extracted industry and topics (from `projects.industry` and `projects.extracted_topics`)
   2. For each project:
      - Get brand name and active competitors
      - Get distinct regions from `prompt_tracking` for the project
-     - For each topic in `extracted_topics`:
-       - Build evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
-       - For each region (including GLOBAL):
-         - Enrich prompt with region-specific context if region is not GLOBAL
-         - Call Gemini 2.5 Flash Lite with web search
-         - Parse structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
-         - Extract natural response (2-3 paragraphs)
-         - Extract web search queries and domains from Gemini metadata
-         - Save to `brand_evaluations` table
-       - Repeat for each active competitor
-  3. Skips deleted competitors (checks if competitor still exists before processing)
-- **Important**: These evaluations do NOT contribute to mention or citation metrics
+     - Generate all combinations: (topic, region) × (brand + competitors)
+     - For each combination, check if evaluation already exists TODAY in `brand_evaluations`
+     - Generate `sentiment/evaluate-single` events only for missing evaluations
+  3. Send events in batches (1000 per batch) using `step.sendEvent`
+- **Important**:
+  - These evaluations do NOT contribute to mention or citation metrics
+  - Uses idempotency check to avoid duplicate evaluations (checks existing evaluations for today)
+- **Data Source**: Reads from `projects`, `competitors`, `prompt_tracking`, and `brand_evaluations` tables
+
+#### process-single-sentiment-evaluation
+
+- **Type**: Event-Driven
+- **Trigger**: `sentiment/evaluate-single` event (dispatched by `schedule-sentiment-evaluation`)
+- **Concurrency**: 5 (processes up to 5 evaluations simultaneously)
+- **Purpose**: Process a single sentiment evaluation (one topic + one region + one entity)
+- **Steps**:
+  1. Receive event with: `project_id`, `topic`, `region`, `entity_type`, `entity_name`, `competitor_id`
+  2. Fetch project data to get `industry`
+  3. Build evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+  4. Enrich prompt with region-specific context if region is not GLOBAL
+  5. Call Gemini 2.5 Flash Lite with web search (using `callGeminiWithRetry` for rate limiting)
+  6. Parse structured response (sentiment, sentiment_score, positive_attributes, negative_attributes, natural_response)
+  7. Extract web search queries and domains from Gemini metadata
+  8. Save to `brand_evaluations` table
+- **Rate Limiting**: Uses `callGeminiWithRetry` helper which handles rate limits automatically via `waitForRateLimit`
 - **Data Source**: Uses Gemini 2.5 Flash Lite with Google Search for web-grounded evaluations
+- **Benefits**:
+  - Each evaluation is a small, independent step → no timeouts
+  - Parallel processing (up to 5 concurrent evaluations)
+  - Isolated failures don't affect other evaluations
 
 #### analyze-brand-website
 
@@ -1946,42 +1967,45 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
             ┌───────────▼───────────┐
             │ Daily Cron (7:00 AM)  │
             │                       │
-            │ daily-sentiment-      │
+            │ schedule-sentiment-   │
             │ evaluation            │
+            │ (Scheduler)           │
             └───────────┬───────────┘
                         │
                         │ For each project:
                         │ - Get industry & topics
                         │ - Get regions from prompt_tracking
+                        │ - Get active competitors
                         │
+                        │ Generate combinations:
+                        │ (topic, region) × (brand + competitors)
                         │
-        ┌───────────────┴───────────────┐
-        │                               │
-        │                               │
-┌───────▼────────┐            ┌─────────▼──────────┐
-│ For each topic │            │ For each region    │
-│                │            │                    │
-│ "Evaluate the  │            │ (GLOBAL, ES, US,   │
-│  [INDUSTRY]    │            │  etc.)             │
-│  company       │            │                    │
-│  [BRAND] on    │            │ - Enrich prompt    │
-│  [TOPIC]"      │            │   with region      │
-│                │            │   context          │
-└───────┬────────┘            └─────────┬──────────┘
-        │                               │
-        └───────────────┬───────────────┘
+                        │ Check existing evaluations
+                        │ for TODAY
                         │
             ┌───────────▼───────────┐
-            │ Gemini 2.5 Flash Lite │
-            │ + Google Search       │
+            │ Send Events:          │
+            │ sentiment/evaluate-   │
+            │ single                │
             │                       │
-            │ - Structured analysis │
-            │ - Natural response    │
-            │ - Web search queries  │
-            │ - Domains used        │
+            │ (Batch: 1000/event)   │
             └───────────┬───────────┘
                         │
-                        │ Parse & Save
+                        │ Events dispatched
+                        │
+            ┌───────────▼───────────┐
+            │ process-single-       │
+            │ sentiment-evaluation  │
+            │ (Concurrency: 5)      │
+            │                       │
+            │ For each event:       │
+            │ - Build prompt        │
+            │ - Enrich with region  │
+            │ - Call Gemini         │
+            │ - Parse response      │
+            │ - Save to DB          │
+            └───────────┬───────────┘
+                        │
                         │
             ┌───────────▼───────────┐
             │ brand_evaluations     │
@@ -2094,27 +2118,45 @@ ALTER TABLE projects ADD COLUMN topics_extracted_at TIMESTAMPTZ;
 
 #### Phase 2: Daily Sentiment Evaluation
 
+This phase uses a **scheduler + processor pattern** (similar to `schedule-analysis` + `process-prompt`) to avoid timeouts and enable parallel processing.
+
+**2a. Schedule Evaluations** (`schedule-sentiment-evaluation`)
+
 1. **Trigger**: Daily cron at 7:00 AM UTC
-2. **Function**: `daily-sentiment-evaluation`
+2. **Function**: `schedule-sentiment-evaluation`
 3. **Process**:
    - Fetches all projects with `extracted_topics` populated
    - For each project:
      - Gets brand name and active competitors
      - Gets distinct regions from `prompt_tracking` for the project
-     - For each topic in `extracted_topics`:
-       - Builds evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
-       - For each region:
-         - Enriches prompt with region-specific context if region is not GLOBAL
-         - Calls Gemini 2.5 Flash Lite with web search
-         - Parses structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
-         - Extracts natural response (2-3 paragraphs after "=== NATURAL_RESPONSE ===" marker)
-         - Extracts `webSearchQueries` and `domains` from Gemini's `groundingMetadata`
-         - Saves to `brand_evaluations` table
-       - Repeats process for each active competitor
+     - Generates all combinations: (topic, region) × (brand + competitors)
+     - For each combination, checks if evaluation already exists TODAY in `brand_evaluations`
+     - Generates `sentiment/evaluate-single` events only for missing evaluations
+   - Sends events in batches (1000 per batch)
 4. **Important Notes**:
-   - Skips deleted competitors (checks if competitor still exists before processing)
+   - Uses idempotency check to avoid duplicate evaluations
    - These evaluations do NOT contribute to mention or citation metrics
-   - Each evaluation is independent and topic-specific
+
+**2b. Process Individual Evaluations** (`process-single-sentiment-evaluation`)
+
+1. **Trigger**: `sentiment/evaluate-single` events (dispatched by scheduler)
+2. **Function**: `process-single-sentiment-evaluation`
+3. **Concurrency**: 5 (processes up to 5 evaluations simultaneously)
+4. **Process** (per event):
+   - Receives event with: `project_id`, `topic`, `region`, `entity_type`, `entity_name`, `competitor_id`
+   - Fetches project data to get `industry`
+   - Builds evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+   - Enriches prompt with region-specific context if region is not GLOBAL
+   - Calls Gemini 2.5 Flash Lite with web search (using `callGeminiWithRetry` for rate limiting)
+   - Parses structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
+   - Extracts natural response (2-3 paragraphs after "=== NATURAL_RESPONSE ===" marker)
+   - Extracts `webSearchQueries` and `domains` from Gemini's `groundingMetadata`
+   - Saves to `brand_evaluations` table
+5. **Benefits**:
+   - Each evaluation is a small, independent step → no timeouts
+   - Parallel processing (up to 5 concurrent evaluations)
+   - Isolated failures don't affect other evaluations
+   - Automatic rate limiting via `callGeminiWithRetry` helper
 
 ### Evaluation Prompt Structure
 
@@ -2159,16 +2201,32 @@ Both systems provide different perspectives:
 - Response-based: "What sentiment did this response express about the brand?"
 - Topic-based: "What is the current sentiment about this brand regarding pricing?"
 
+### Architecture Pattern: Scheduler + Processor
+
+The daily sentiment evaluation system uses a **scheduler + processor pattern** (similar to `schedule-analysis` + `process-prompt`) for the following reasons:
+
+1. **Timeout Prevention**: The old monolithic `daily-sentiment-evaluation` function processed all evaluations in a single step, which could timeout with many projects/topics/regions. The new pattern processes each evaluation in its own small step.
+
+2. **Parallel Processing**: `process-single-sentiment-evaluation` has `concurrency: 5`, allowing up to 5 evaluations to be processed simultaneously, significantly reducing total execution time.
+
+3. **Resilience**: If one evaluation fails, it doesn't affect others. Each evaluation is independently retried.
+
+4. **Idempotency**: The scheduler checks for existing evaluations TODAY before dispatching events, preventing duplicate work.
+
+5. **Scalability**: As projects/topics/regions grow, the system scales naturally without hitting step size limits.
+
 ### Performance Considerations
 
-1. **Rate Limiting**: Gemini 2.5 Flash Lite has rate limits (3,800 RPM configured in rate limiter)
-2. **Batch Processing**: Processes one project at a time (concurrency: 1) to avoid rate limit issues
-3. **Topic Count**: With 15-30 topics per project × multiple regions × brand + competitors, this can generate many evaluations per day
-4. **Cost**: Gemini 2.5 Flash Lite is cost-effective, but large-scale deployments may need monitoring
+1. **Rate Limiting**: Gemini 2.5 Flash Lite has rate limits (3,800 RPM configured in rate limiter). The `process-single-sentiment-evaluation` function uses `callGeminiWithRetry` helper which automatically handles rate limits via `waitForRateLimit`.
+2. **Parallel Processing**: `process-single-sentiment-evaluation` has concurrency: 5, allowing up to 5 evaluations to be processed simultaneously, significantly reducing total execution time.
+3. **No Timeouts**: The scheduler + processor pattern prevents timeouts by processing each evaluation in its own small step, rather than processing everything in a single large step.
+4. **Topic Count**: With 15-30 topics per project × multiple regions × brand + competitors, this can generate many evaluations per day. The system scales naturally without hitting step size limits.
+5. **Idempotency**: The scheduler checks for existing evaluations TODAY before dispatching events, preventing duplicate work and unnecessary API calls.
+6. **Cost**: Gemini 2.5 Flash Lite is cost-effective, but large-scale deployments may need monitoring
 
 ### Future Improvements
 
-1. **Incremental Updates**: Only evaluate topics that haven't been evaluated recently
+1. **Incremental Updates**: ✅ Already implemented - scheduler checks for existing evaluations TODAY before dispatching events
 2. **Topic Prioritization**: Focus on high-value topics first
 3. **Caching**: Cache natural responses for similar evaluations
 4. **Historical Tracking**: Track sentiment trends over time per topic
