@@ -97,11 +97,14 @@ export default function PlatformsPage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
-    topicId: string;
+    topicId?: string;
+    sentimentTheme?: string;
   }) => {
     setDateRange(filters.dateRange);
     setRegion(filters.region);
-    setTopicId(filters.topicId);
+    if (filters.topicId !== undefined) {
+      setTopicId(filters.topicId);
+    }
   };
 
   return (

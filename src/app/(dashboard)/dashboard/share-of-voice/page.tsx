@@ -200,14 +200,17 @@ export default function ShareOfVoicePage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
-    topicId: string;
+    topicId?: string;
+    sentimentTheme?: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);
     }
     setPlatform(filters.platform);
     setRegion(filters.region);
-    setTopicId(filters.topicId);
+    if (filters.topicId !== undefined) {
+      setTopicId(filters.topicId);
+    }
   };
 
   if (isLoading || !sovData) {

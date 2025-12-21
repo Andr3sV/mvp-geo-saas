@@ -90,6 +90,7 @@ export default function AttributesPage() {
     dateRange: DateRangeValue;
     platform: string;
     topicId?: string;
+    sentimentTheme?: string;
   }) => {
     if (filters.dateRange.from && filters.dateRange.to) {
       setDateRange(filters.dateRange);

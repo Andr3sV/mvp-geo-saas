@@ -104,7 +104,8 @@ export default function TrendingPage() {
     region: string;
     dateRange: DateRangeValue;
     platform: string;
-    topicId: string;
+    topicId?: string;
+    sentimentTheme?: string;
   }) => {
     setDateRange(filters.dateRange);
     setPlatform(filters.platform);

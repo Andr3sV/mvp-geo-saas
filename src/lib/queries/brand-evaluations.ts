@@ -1182,12 +1182,12 @@ export async function getSentimentDistribution(
   const binSize = 2 / bins; // from -1 to 1
 
   const brandBins = new Array(bins).fill(0).map((_, i) => ({
-    range: `${(-1 + i * binSize).toFixed(2)} to ${(-1 + (i + 1) * binSize).toFixed(2)}`,
+    score_range: `${(-1 + i * binSize).toFixed(2)} to ${(-1 + (i + 1) * binSize).toFixed(2)}`,
     count: 0,
   }));
 
   const competitorBins = new Array(bins).fill(0).map((_, i) => ({
-    range: `${(-1 + i * binSize).toFixed(2)} to ${(-1 + (i + 1) * binSize).toFixed(2)}`,
+    score_range: `${(-1 + i * binSize).toFixed(2)} to ${(-1 + (i + 1) * binSize).toFixed(2)}`,
     count: 0,
   }));
 
