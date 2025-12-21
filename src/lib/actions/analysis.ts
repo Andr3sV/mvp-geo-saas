@@ -248,7 +248,7 @@ export async function getCitationsForResponse(aiResponseId: string) {
       .from("citations")
       .select("*")
       .eq("ai_response_id", aiResponseId)
-      .order("start_index", { ascending: true, nullsLast: true });
+      .order("start_index", { ascending: true, nullsFirst: false });
 
     if (error) {
       return { error: error.message, data: null };
