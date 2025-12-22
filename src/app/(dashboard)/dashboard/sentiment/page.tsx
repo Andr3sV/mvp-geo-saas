@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
 import { ThemeFrequencyRadar } from "@/components/sentiment/theme-frequency-radar";
-import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
 import { ThemesTable } from "@/components/sentiment/themes-table";
 
 // Queries
@@ -30,7 +29,6 @@ import {
   getSentimentTrendsFromEvaluations,
   getEntitySentimentsFromEvaluations,
   getThemeFrequencyMatrix,
-  getAttributeBreakdownFromEvaluations,
 } from "@/lib/queries/brand-evaluations";
 
 export default function SentimentPage() {
@@ -49,9 +47,6 @@ export default function SentimentPage() {
   
   // Theme frequency data state
   const [themeFrequencyData, setThemeFrequencyData] = useState<any[]>([]);
-  
-  // Attribute breakdown data state
-  const [attributes, setAttributes] = useState<any>(null);
 
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
@@ -129,8 +124,6 @@ export default function SentimentPage() {
         entitiesFromEvaluations,
         // Get theme frequency matrix
         themeFrequency,
-        // Get attribute breakdown
-        attributesData,
       ] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
         getSentimentTrends(selectedProjectId, { ...filtersPayload, analysisType: 'brand' }),
@@ -151,12 +144,6 @@ export default function SentimentPage() {
         ),
         // Get theme frequency matrix
         getThemeFrequencyMatrix(
-          selectedProjectId,
-          dateRange.from,
-          dateRange.to
-        ),
-        // Get attribute breakdown
-        getAttributeBreakdownFromEvaluations(
           selectedProjectId,
           dateRange.from,
           dateRange.to
@@ -193,7 +180,6 @@ export default function SentimentPage() {
       }
       
       setThemeFrequencyData(themeFrequency || []);
-      setAttributes(attributesData || null);
     } catch (error: any) {
       console.error("Failed to load sentiment data:", error);
       toast.error("Failed to load sentiment data");
@@ -325,16 +311,6 @@ export default function SentimentPage() {
           />
         </div>
 
-        {/* Theme Frequency Radar - Full Width */}
-        <ThemeFrequencyRadar
-          data={themeFrequencyData}
-          competitors={competitors}
-          brandName={brandName}
-          brandDomain={brandDomain}
-          brandColor={brandColor}
-          isLoading={isLoading}
-        />
-
         {/* Sentiment Trends Chart - Full Width */}
         <SentimentTrendsChart
           trends={trends}
@@ -348,12 +324,14 @@ export default function SentimentPage() {
           isLoading={isLoading}
         />
 
-        {/* Attribute Breakdown */}
-        <AttributeBreakdown
-          brandAttributes={attributes?.brandAttributes || []}
-          competitorAttributes={attributes?.competitorAttributes || []}
+        {/* Theme Frequency Radar - Full Width */}
+        <ThemeFrequencyRadar
+          data={themeFrequencyData}
+          competitors={competitors}
+          brandName={brandName}
+          brandDomain={brandDomain}
+          brandColor={brandColor}
           isLoading={isLoading}
-          detailed={true}
         />
 
         {/* Themes Table */}

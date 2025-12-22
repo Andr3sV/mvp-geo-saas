@@ -51,8 +51,8 @@ export interface EntitySentiment {
   positiveCount: number;
   neutralCount: number;
   negativeCount: number;
-  topPositiveAttributes: string[];
-  topNegativeAttributes: string[];
+  topPositiveAttributes: Array<{ name: string; count: number }>;
+  topNegativeAttributes: Array<{ name: string; count: number }>;
   recentAnalyses: Array<{
     id: string;
     analyzedText: string;
@@ -357,8 +357,27 @@ export async function getEntitySentiments(
       const allPositiveAttributes = analyses.flatMap(a => a.positive_attributes || []);
       const allNegativeAttributes = analyses.flatMap(a => a.negative_attributes || []);
       
-      const topPositiveAttributes = getTopAttributes(allPositiveAttributes);
-      const topNegativeAttributes = getTopAttributes(allNegativeAttributes);
+      const topPositiveAttributesRaw = getTopAttributes(allPositiveAttributes);
+      const topNegativeAttributesRaw = getTopAttributes(allNegativeAttributes);
+      
+      // Convert to array of { name, count } format
+      const positiveAttributeCounts = new Map<string, number>();
+      allPositiveAttributes.forEach((attr: string) => {
+        positiveAttributeCounts.set(attr, (positiveAttributeCounts.get(attr) || 0) + 1);
+      });
+      const negativeAttributeCounts = new Map<string, number>();
+      allNegativeAttributes.forEach((attr: string) => {
+        negativeAttributeCounts.set(attr, (negativeAttributeCounts.get(attr) || 0) + 1);
+      });
+      
+      const topPositiveAttributes = topPositiveAttributesRaw.map(name => ({
+        name,
+        count: positiveAttributeCounts.get(name) || 0
+      }));
+      const topNegativeAttributes = topNegativeAttributesRaw.map(name => ({
+        name,
+        count: negativeAttributeCounts.get(name) || 0
+      }));
       
       // Get recent analyses
       const recentAnalyses = analyses

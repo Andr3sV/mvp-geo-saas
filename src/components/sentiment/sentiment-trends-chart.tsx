@@ -89,10 +89,8 @@ export function SentimentTrendsChart({
       return {
         date: format(new Date(date), 'MMM dd'),
         brandPositive: brandData?.positive || 0,
-        brandNeutral: brandData?.neutral || 0,
         brandNegative: brandData?.negative || 0,
         competitorPositive: compData?.positive || 0,
-        competitorNeutral: compData?.neutral || 0,
         competitorNegative: compData?.negative || 0,
       };
     });
@@ -310,15 +308,6 @@ export function SentimentTrendsChart({
             />
             <Line
               type="monotone"
-              dataKey="brandNeutral"
-              stroke="rgb(234, 179, 8)"
-              strokeWidth={2.5}
-              dot={{ fill: "rgb(234, 179, 8)", strokeWidth: 0, r: 4 }}
-              activeDot={{ r: 6 }}
-              name={`${brandName} Neutral`}
-            />
-            <Line
-              type="monotone"
               dataKey="brandNegative"
               stroke="rgb(239, 68, 68)"
               strokeWidth={2.5}
@@ -339,16 +328,6 @@ export function SentimentTrendsChart({
                   dot={{ fill: "rgb(134, 239, 172)", strokeWidth: 0, r: 4 }}
                   activeDot={{ r: 6 }}
                   name={`${selectedCompetitor?.name || 'Competitor'} Positive`}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="competitorNeutral"
-                  stroke="rgb(253, 224, 71)"
-                  strokeWidth={2.5}
-                  strokeDasharray="5 5"
-                  dot={{ fill: "rgb(253, 224, 71)", strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6 }}
-                  name={`${selectedCompetitor?.name || 'Competitor'} Neutral`}
                 />
                 <Line
                   type="monotone"

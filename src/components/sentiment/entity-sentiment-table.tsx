@@ -185,7 +185,7 @@ export function EntitySentimentTable({ entities, isLoading }: EntitySentimentTab
                           <div className="flex flex-wrap gap-1">
                             {entity.topPositiveAttributes.map((attr, i) => (
                               <Badge key={i} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                {attr}
+                                {attr.name} ({attr.count})
                               </Badge>
                             ))}
                           </div>
@@ -198,7 +198,7 @@ export function EntitySentimentTable({ entities, isLoading }: EntitySentimentTab
                           <div className="flex flex-wrap gap-1">
                             {entity.topNegativeAttributes.map((attr, i) => (
                               <Badge key={i} variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
-                                {attr}
+                                {attr.name} ({attr.count})
                               </Badge>
                             ))}
                           </div>

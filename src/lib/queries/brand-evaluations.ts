@@ -1564,8 +1564,8 @@ export async function getEntitySentimentsFromEvaluations(
     positiveCount: number;
     neutralCount: number;
     negativeCount: number;
-    topPositiveAttributes: string[];
-    topNegativeAttributes: string[];
+    topPositiveAttributes: Array<{ name: string; count: number }>;
+    topNegativeAttributes: Array<{ name: string; count: number }>;
     recentAnalyses: Array<{
       id: string;
       analyzedText: string;
@@ -1678,19 +1678,21 @@ export async function getEntitySentimentsFromEvaluations(
       negativeThemeIdCounts.set(id, (negativeThemeIdCounts.get(id) || 0) + 1);
     });
 
-    // Get top theme IDs
-    const topPositiveThemeIds = Array.from(positiveThemeIdCounts.entries())
+    // Get top theme IDs with counts
+    const topPositiveThemeIdsWithCounts = Array.from(positiveThemeIdCounts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([id]) => id);
-    const topNegativeThemeIds = Array.from(negativeThemeIdCounts.entries())
+      .slice(0, 5);
+    const topNegativeThemeIdsWithCounts = Array.from(negativeThemeIdCounts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([id]) => id);
+      .slice(0, 5);
 
-    // Map theme IDs to names using pre-fetched themeMap
-    const topPositiveAttributes = topPositiveThemeIds.map(id => themeMap.get(id) || id).filter(Boolean) as string[];
-    const topNegativeAttributes = topNegativeThemeIds.map(id => themeMap.get(id) || id).filter(Boolean) as string[];
+    // Map theme IDs to names using pre-fetched themeMap, keeping counts
+    const topPositiveAttributes = topPositiveThemeIdsWithCounts
+      .map(([id, count]) => ({ name: themeMap.get(id) || id, count }))
+      .filter((attr) => attr.name);
+    const topNegativeAttributes = topNegativeThemeIdsWithCounts
+      .map(([id, count]) => ({ name: themeMap.get(id) || id, count }))
+      .filter((attr) => attr.name);
 
     // Get recent evaluations
     const recentAnalyses = evaluations
