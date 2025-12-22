@@ -1938,3 +1938,209 @@ export async function getSourceQualityMetrics(
   };
 }
 
+/**
+ * Get theme frequency matrix for competitive positioning
+ * Returns theme frequencies (how often each theme appears) by entity
+ */
+export async function getThemeFrequencyMatrix(
+  projectId: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<
+  Array<{
+    theme_name: string;
+    theme_category: "positive" | "negative";
+    entity_name: string;
+    entity_type: "brand" | "competitor";
+    competitor_id: string | null;
+    frequency: number; // How many times this theme appears for this entity
+    total_evaluations: number; // Total evaluations for this entity
+  }>
+> {
+  const supabase = await createClient();
+
+  // First, get all themes for this project
+  const { data: themes, error: themesError } = await supabase
+    .from("sentiment_themes")
+    .select("id, name, category")
+    .eq("project_id", projectId);
+
+  if (themesError) {
+    console.error("Error fetching themes:", themesError);
+    return [];
+  }
+
+  if (!themes || themes.length === 0) {
+    return [];
+  }
+
+  // Create theme map
+  const themeMap = new Map<string, { name: string; category: "positive" | "negative" }>();
+  themes.forEach((theme) => {
+    themeMap.set(theme.id, {
+      name: theme.name,
+      category: theme.category as "positive" | "negative",
+    });
+  });
+
+  // Get all evaluations
+  let query = supabase
+    .from("brand_evaluations")
+    .select("entity_name, entity_type, competitor_id, positive_theme_ids, negative_theme_ids, created_at")
+    .eq("project_id", projectId);
+
+  if (startDate) {
+    query = query.gte("created_at", startDate.toISOString());
+  }
+
+  if (endDate) {
+    const endDatePlusOne = new Date(endDate);
+    endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+    endDatePlusOne.setMilliseconds(endDatePlusOne.getMilliseconds() - 1);
+    query = query.lte("created_at", endDatePlusOne.toISOString());
+  }
+
+  const { data: evaluations, error: evaluationsError } = await query;
+
+  if (evaluationsError) {
+    console.error("Error fetching evaluations:", evaluationsError);
+    return [];
+  }
+
+  // Count theme frequencies by entity
+  const frequencyMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        frequency: number;
+        totalEvaluations: number;
+        entityName: string;
+        entityType: "brand" | "competitor";
+        competitorId: string | null;
+      }
+    >
+  >();
+
+  // First pass: count total evaluations per entity
+  const entityEvaluationCounts = new Map<string, number>();
+  (evaluations || []).forEach((eval_) => {
+    const entityKey =
+      eval_.entity_type === "brand"
+        ? "brand"
+        : `${eval_.competitor_id || eval_.entity_name}`;
+    entityEvaluationCounts.set(entityKey, (entityEvaluationCounts.get(entityKey) || 0) + 1);
+  });
+
+  // Debug logging
+  console.log(`[getThemeFrequencyMatrix] Found ${themes?.length || 0} themes for project ${projectId}`);
+  console.log(`[getThemeFrequencyMatrix] Found ${evaluations?.length || 0} evaluations`);
+  
+  // Second pass: count theme frequencies
+  let unmatchedThemeIds = new Set<string>();
+  (evaluations || []).forEach((eval_) => {
+    const entityKey =
+      eval_.entity_type === "brand"
+        ? "brand"
+        : `${eval_.competitor_id || eval_.entity_name}`;
+
+    // Count positive themes
+    if (eval_.positive_theme_ids && Array.isArray(eval_.positive_theme_ids)) {
+      eval_.positive_theme_ids.forEach((themeId: string) => {
+        // Validate that themeId is a valid string
+        if (!themeId || typeof themeId !== 'string') {
+          console.warn(`[getThemeFrequencyMatrix] Invalid theme ID:`, themeId, { projectId, entityKey });
+          return;
+        }
+        const theme = themeMap.get(themeId);
+        if (theme) {
+          const themeKey = `${theme.name}|${theme.category}`;
+          if (!frequencyMap.has(themeKey)) {
+            frequencyMap.set(themeKey, new Map());
+          }
+          const themeMap_ = frequencyMap.get(themeKey)!;
+          if (!themeMap_.has(entityKey)) {
+            themeMap_.set(entityKey, {
+              frequency: 0,
+              totalEvaluations: entityEvaluationCounts.get(entityKey) || 0,
+              entityName: eval_.entity_name,
+              entityType: eval_.entity_type,
+              competitorId: eval_.competitor_id,
+            });
+          }
+          const entityData = themeMap_.get(entityKey)!;
+          entityData.frequency++;
+        } else {
+          unmatchedThemeIds.add(themeId);
+        }
+      });
+    }
+
+    // Count negative themes
+    if (eval_.negative_theme_ids && Array.isArray(eval_.negative_theme_ids)) {
+      eval_.negative_theme_ids.forEach((themeId: string) => {
+        // Validate that themeId is a valid string
+        if (!themeId || typeof themeId !== 'string') {
+          console.warn(`[getThemeFrequencyMatrix] Invalid theme ID:`, themeId, { projectId, entityKey });
+          return;
+        }
+        const theme = themeMap.get(themeId);
+        if (theme) {
+          const themeKey = `${theme.name}|${theme.category}`;
+          if (!frequencyMap.has(themeKey)) {
+            frequencyMap.set(themeKey, new Map());
+          }
+          const themeMap_ = frequencyMap.get(themeKey)!;
+          if (!themeMap_.has(entityKey)) {
+            themeMap_.set(entityKey, {
+              frequency: 0,
+              totalEvaluations: entityEvaluationCounts.get(entityKey) || 0,
+              entityName: eval_.entity_name,
+              entityType: eval_.entity_type,
+              competitorId: eval_.competitor_id,
+            });
+          }
+          const entityData = themeMap_.get(entityKey)!;
+          entityData.frequency++;
+        } else {
+          unmatchedThemeIds.add(themeId);
+        }
+      });
+    }
+  });
+
+  // Log unmatched theme IDs for debugging
+  if (unmatchedThemeIds.size > 0) {
+    console.warn(`[getThemeFrequencyMatrix] Found ${unmatchedThemeIds.size} unmatched theme IDs:`, Array.from(unmatchedThemeIds));
+  }
+
+  // Convert to array format
+  const result: Array<{
+    theme_name: string;
+    theme_category: "positive" | "negative";
+    entity_name: string;
+    entity_type: "brand" | "competitor";
+    competitor_id: string | null;
+    frequency: number;
+    total_evaluations: number;
+  }> = [];
+
+  frequencyMap.forEach((entityMap, themeKey) => {
+    const [themeName, themeCategory] = themeKey.split("|");
+    entityMap.forEach((entityData) => {
+      result.push({
+        theme_name: themeName,
+        theme_category: themeCategory as "positive" | "negative",
+        entity_name: entityData.entityName,
+        entity_type: entityData.entityType,
+        competitor_id: entityData.competitorId,
+        frequency: entityData.frequency,
+        total_evaluations: entityData.totalEvaluations,
+      });
+    });
+  });
+
+  console.log(`[getThemeFrequencyMatrix] Returning ${result.length} theme frequency entries`);
+  return result;
+}
+

@@ -8,31 +8,17 @@ import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { subDays } from "date-fns";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Smile,
-  TrendingUp,
-  Target,
-  BarChart3,
-  Trophy,
-} from "lucide-react";
-
 // Sentiment Analysis Components
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
-import { SentimentScoreThermometer } from "@/components/sentiment/sentiment-score-thermometer";
-// New Category-Based Components
-import { TopicPerformanceMatrix } from "@/components/sentiment/topic-performance-matrix";
-import { TopicSentimentTrends } from "@/components/sentiment/topic-sentiment-trends";
-import { CompetitivePositioningRadar } from "@/components/sentiment/competitive-positioning-radar";
-import { TopicGapAnalysis } from "@/components/sentiment/topic-gap-analysis";
+import { ThemeFrequencyRadar } from "@/components/sentiment/theme-frequency-radar";
+import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
 
 // Queries
 import {
   getSentimentMetrics,
   getSentimentTrends,
   getEntitySentiments,
-  getAttributeBreakdown,
   SentimentFilterOptions,
   SentimentMetrics,
   SentimentTrend,
@@ -40,15 +26,10 @@ import {
 } from "@/lib/queries/sentiment-analysis";
 // Brand Evaluations Queries
 import {
-  getTopicPerformanceMatrix,
-  getTopicSentimentTrends,
-  getTopicGapAnalysis,
-  getSentimentDistribution,
-  getTopPerformingTopics,
-  getSourceQualityMetrics,
-  getProjectTopics,
   getSentimentTrendsFromEvaluations,
   getEntitySentimentsFromEvaluations,
+  getThemeFrequencyMatrix,
+  getAttributeBreakdownFromEvaluations,
 } from "@/lib/queries/brand-evaluations";
 
 export default function SentimentPage() {
@@ -65,12 +46,11 @@ export default function SentimentPage() {
   const [selectedTopic, setSelectedTopic] = useState<string>("all");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   
-  // Category-based evaluation data states
-  const [topicMatrixData, setTopicMatrixData] = useState<any[]>([]);
-  const [topicTrendsData, setTopicTrendsData] = useState<any[]>([]);
-  const [gapAnalysisData, setGapAnalysisData] = useState<any[]>([]);
-  const [topTopicsData, setTopTopicsData] = useState<any[]>([]);
-  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
+  // Theme frequency data state
+  const [themeFrequencyData, setThemeFrequencyData] = useState<any[]>([]);
+  
+  // Attribute breakdown data state
+  const [attributes, setAttributes] = useState<any>(null);
 
   // Data states
   const [metrics, setMetrics] = useState<SentimentMetrics | null>(null);
@@ -115,10 +95,6 @@ export default function SentimentPage() {
         console.log('✅ Brand set:', projectData.brand_name, projectData.client_url, projectData.color);
       }
       
-      // Load available sentiment categories from brand_evaluations
-      const projectTopics = await getProjectTopics(selectedProjectId);
-      setAvailableTopics(projectTopics.topics || []);
-      
       // Total successful AI responses
       const { count: totalCount } = await supabase
         .from('ai_responses')
@@ -146,34 +122,18 @@ export default function SentimentPage() {
         metricsData,
         trendsData,
         entitiesData,
-        topicMatrix,
-        topicTrends,
-        gapAnalysis,
-        topTopics,
         // Get trends from brand_evaluations instead of brand_sentiment_attributes
         trendsFromEvaluations,
         // Get entity sentiments from brand_evaluations
         entitiesFromEvaluations,
+        // Get theme frequency matrix
+        themeFrequency,
+        // Get attribute breakdown
+        attributesData,
       ] = await Promise.all([
         getSentimentMetrics(selectedProjectId, filtersPayload),
         getSentimentTrends(selectedProjectId, { ...filtersPayload, analysisType: 'brand' }),
         getEntitySentiments(selectedProjectId, filtersPayload),
-        // Brand evaluations queries
-        getTopicPerformanceMatrix(
-          selectedProjectId,
-          dateRange.from,
-          dateRange.to
-        ),
-        getTopicSentimentTrends(
-          selectedProjectId,
-          selectedTopic !== "all" ? selectedTopic : undefined,
-          undefined,
-          undefined,
-          dateRange.from,
-          dateRange.to
-        ),
-        getTopicGapAnalysis(selectedProjectId, dateRange.from, dateRange.to),
-        getTopPerformingTopics(selectedProjectId, dateRange.from, dateRange.to, 10),
         // Get sentiment trends from brand_evaluations
         getSentimentTrendsFromEvaluations(
           selectedProjectId,
@@ -184,6 +144,18 @@ export default function SentimentPage() {
         ),
         // Get entity sentiments from brand_evaluations
         getEntitySentimentsFromEvaluations(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
+        // Get theme frequency matrix
+        getThemeFrequencyMatrix(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
+        // Get attribute breakdown
+        getAttributeBreakdownFromEvaluations(
           selectedProjectId,
           dateRange.from,
           dateRange.to
@@ -205,11 +177,22 @@ export default function SentimentPage() {
       // Use entity sentiments from brand_evaluations
       setEntities(entitiesFromEvaluations || entitiesData);
       
-      // Set Category-based data
-      setTopicMatrixData(topicMatrix || []);
-      setTopicTrendsData(topicTrends || []);
-      setGapAnalysisData(gapAnalysis || []);
-      setTopTopicsData(topTopics || []);
+      // Validate and log theme frequency data
+      console.log('[SentimentPage] Theme frequency data:', {
+        count: themeFrequency?.length || 0,
+        sample: themeFrequency?.slice(0, 3),
+        hasData: (themeFrequency || []).length > 0
+      });
+      
+      if (!themeFrequency || themeFrequency.length === 0) {
+        console.warn('[SentimentPage] No theme frequency data returned. Possible reasons:');
+        console.warn('  - No themes in sentiment_themes table for this project');
+        console.warn('  - No evaluations with positive_theme_ids or negative_theme_ids');
+        console.warn('  - Theme IDs in evaluations do not match IDs in sentiment_themes');
+      }
+      
+      setThemeFrequencyData(themeFrequency || []);
+      setAttributes(attributesData || null);
     } catch (error: any) {
       console.error("Failed to load sentiment data:", error);
       toast.error("Failed to load sentiment data");
@@ -300,8 +283,8 @@ export default function SentimentPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Sentiment Analysis"
-          description="AI-powered sentiment analysis of brand and competitor mentions"
+          title="Sentiment Pulse"
+          description="Analysis of positive and negative mentions about the brand and competitors"
         />
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
@@ -316,8 +299,8 @@ export default function SentimentPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sentiment Analysis"
-        description="AI-powered sentiment analysis of brand and competitor mentions across platforms"
+        title="Sentiment Pulse"
+        description="Analysis of positive and negative mentions about the brand and competitors"
       />
 
       {/* Filters Toolbar */}
@@ -333,115 +316,23 @@ export default function SentimentPage() {
 
       {/* Sentiment Analysis Section */}
       <div className="space-y-6">
-        {/* Sentiment Pulse and Sentiment Score */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Sentiment Pulse */}
-          <div>
-            <SentimentComparison
-              entities={entities}
-              isLoading={isLoading}
-            />
-          </div>
-          
-          {/* Sentiment Score */}
-          <div>
-            <SentimentScoreThermometer
-              entities={entities}
-              isLoading={isLoading}
-            />
-          </div>
-        </div>
-
-        {/* Best Sentiment Score and Competitive Advantage */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            {/* Best Sentiment Score */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Best Sentiment Score</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topTopicsData
-                    .sort((a, b) => b.avg_sentiment_score - a.avg_sentiment_score)
-                    .slice(0, 5)
-                    .map((item, idx) => (
-                      <div key={item.topic} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-xs font-medium text-muted-foreground w-6">
-                            #{idx + 1}
-                          </span>
-                          <span className="text-sm truncate" title={item.topic}>
-                            {item.topic}
-                          </span>
-                        </div>
-                        <span className="text-sm font-semibold ml-2">
-                          {item.avg_sentiment_score.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  {topTopicsData.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No data available
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Competitive Advantage */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-muted-foreground" />
-                  <CardTitle className="text-base">Competitive Advantage</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {topTopicsData
-                    .sort((a, b) => b.competitive_advantage - a.competitive_advantage)
-                    .slice(0, 5)
-                    .map((item, idx) => (
-                      <div key={item.topic} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="text-xs font-medium text-muted-foreground w-6">
-                            #{idx + 1}
-                          </span>
-                          <span className="text-sm truncate" title={item.topic}>
-                            {item.topic}
-                          </span>
-                        </div>
-                        <span className="text-sm font-semibold ml-2">
-                          {item.competitive_advantage > 0 ? "+" : ""}
-                          {item.competitive_advantage.toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  {topTopicsData.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No data available
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Competitive Positioning Radar - Full Width */}
-          <CompetitivePositioningRadar
-            data={topicMatrixData}
-            competitors={competitors}
-            brandName={brandName}
-            brandDomain={brandDomain}
-            brandColor={brandColor}
-            availableTopics={availableTopics}
+        {/* Sentiment Pulse */}
+        <div>
+          <SentimentComparison
+            entities={entities}
             isLoading={isLoading}
           />
+        </div>
+
+        {/* Theme Frequency Radar - Full Width */}
+        <ThemeFrequencyRadar
+          data={themeFrequencyData}
+          competitors={competitors}
+          brandName={brandName}
+          brandDomain={brandDomain}
+          brandColor={brandColor}
+          isLoading={isLoading}
+        />
 
         {/* Sentiment Trends Chart - Full Width */}
         <SentimentTrendsChart
@@ -455,23 +346,14 @@ export default function SentimentPage() {
           brandDomain={brandDomain}
           isLoading={isLoading}
         />
-      </div>
 
-      {/* Category-Based Evaluation Section */}
-      <div className="space-y-6">
-        {/* Category Performance Matrix - Full Width */}
-        <TopicPerformanceMatrix 
-          data={topicMatrixData} 
+        {/* Attribute Breakdown */}
+        <AttributeBreakdown
+          brandAttributes={attributes?.brandAttributes || []}
+          competitorAttributes={attributes?.competitorAttributes || []}
           isLoading={isLoading}
-          brandDomain={brandDomain}
-          competitors={competitors}
+          detailed={true}
         />
-
-        {/* Gap Analysis - Full Width */}
-        <TopicGapAnalysis data={gapAnalysisData} isLoading={isLoading} />
-
-        {/* Category Sentiment Trends */}
-        <TopicSentimentTrends data={topicTrendsData} isLoading={isLoading} />
       </div>
     </div>
   );

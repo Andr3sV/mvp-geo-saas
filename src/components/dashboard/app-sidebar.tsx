@@ -77,12 +77,12 @@ const visibilityItems = [
 
 const brandPerceptionItems = [
   {
-    title: "Sentiment",
+    title: "Sentiment Pulse",
     href: "/dashboard/sentiment",
     icon: Heart,
   },
   {
-    title: "Attributes",
+    title: "Sentiment Scoring",
     href: "/dashboard/attributes",
     icon: ListChecks,
   },
