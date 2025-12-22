@@ -4,7 +4,7 @@
 
 import type { AIProvider, AICompletionResult, AIClientConfig } from './types';
 import { calculateCost, logError, logInfo } from './utils';
-import { extractGeminiCitations, extractOpenAICitations } from './citation-extraction';
+import { extractGeminiCitations, extractOpenAICitations, transformGeminiUriToUrl } from './citation-extraction';
 
 // =============================================
 // OPENAI CLIENT
@@ -250,6 +250,11 @@ export async function callGemini(
     // Extract web search queries and domains from grounding metadata
     const webSearchQueries: string[] = [];
     const domainsSet = new Set<string>();
+    // NEW: Extract URIs and URLs from grounding chunks
+    const uriSources: string[] = [];
+    const urlSources: string[] = [];
+    const uriSet = new Set<string>(); // For deduplication
+    const urlSet = new Set<string>(); // For deduplication
 
     if (groundingMetadata) {
       // Extract web search queries
@@ -261,25 +266,41 @@ export async function callGemini(
       if (Array.isArray(groundingMetadata.groundingChunks)) {
         for (const chunk of groundingMetadata.groundingChunks) {
           if (chunk?.web) {
+            const uri = chunk.web.uri;
+            const title = chunk.web.title;
+            
+            // Keep existing domain extraction logic - DO NOT MODIFY
             // Extract domain from URI
-            if (chunk.web.uri) {
+            if (uri) {
               try {
-                const url = new URL(chunk.web.uri);
+                const url = new URL(uri);
                 domainsSet.add(url.hostname.replace(/^www\./, ''));
               } catch {
                 // If URI is not a valid URL, skip
               }
             }
             // Extract domain from title (if it looks like a URL)
-            if (chunk.web.title) {
-              const title = chunk.web.title.trim();
-              if (title.includes('.')) {
+            if (title) {
+              const titleTrimmed = title.trim();
+              if (titleTrimmed.includes('.')) {
                 try {
-                  const url = title.startsWith('http') ? new URL(title) : new URL(`https://${title}`);
+                  const url = titleTrimmed.startsWith('http') ? new URL(titleTrimmed) : new URL(`https://${titleTrimmed}`);
                   domainsSet.add(url.hostname.replace(/^www\./, ''));
                 } catch {
                   // If title is not a valid URL, skip
                 }
+              }
+            }
+            
+            // NEW: Extract URIs and URLs (alongside existing domain extraction)
+            if (uri && !uriSet.has(uri)) {
+              uriSet.add(uri);
+              uriSources.push(uri);
+              
+              const transformedUrl = transformGeminiUriToUrl(uri, title);
+              if (transformedUrl && !urlSet.has(transformedUrl)) {
+                urlSet.add(transformedUrl);
+                urlSources.push(transformedUrl);
               }
             }
           }
@@ -301,7 +322,9 @@ export async function callGemini(
       has_web_search: true,
       citationsData: citationsData.length > 0 ? citationsData : undefined,
       webSearchQueries: webSearchQueries.length > 0 ? webSearchQueries : undefined,
-      domains: domains.length > 0 ? domains : undefined,
+      domains: domains.length > 0 ? domains : undefined, // Keep for backward compatibility
+      uriSources: uriSources.length > 0 ? uriSources : undefined, // NEW
+      urlSources: urlSources.length > 0 ? urlSources : undefined, // NEW
     };
   } catch (error) {
     logError('Gemini', 'API call failed', error);

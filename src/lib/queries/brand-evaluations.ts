@@ -18,7 +18,6 @@ export interface BrandEvaluation {
   topic: string;
   evaluation_prompt: string;
   response_text: string | null;
-  sentiment: "positive" | "neutral" | "negative" | "mixed" | null;
   sentiment_score: number | null;
   positive_theme_ids?: string[] | null;
   negative_theme_ids?: string[] | null;
@@ -27,7 +26,8 @@ export interface BrandEvaluation {
   natural_response: string | null;
   region: string | null;
   query_search: string[] | null;
-  domains: string[] | null;
+  uri_sources: string[] | null;
+  url_sources: string[] | null;
   platform: string;
   created_at: string;
   updated_at: string;
@@ -175,7 +175,7 @@ export async function getTopicSentimentTrend(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("created_at, sentiment, sentiment_score")
+    .select("created_at, sentiment_score")
     .eq("project_id", projectId)
     .eq("entity_type", entityType)
     .eq("topic", topic)
@@ -195,7 +195,7 @@ export async function getTopicSentimentTrend(
 
   return (data || []).map((item) => ({
     date: format(new Date(item.created_at), "yyyy-MM-dd"),
-    sentiment: item.sentiment,
+    sentiment: null, // sentiment field removed, using sentiment_score only
     score: item.sentiment_score,
   }));
 }
@@ -246,7 +246,7 @@ export async function getTopicSentimentSummary(
     // Get latest brand evaluation for this topic
     const { data: brandEval } = await supabase
       .from("brand_evaluations")
-      .select("sentiment, sentiment_score")
+      .select("sentiment_score")
       .eq("project_id", projectId)
       .eq("entity_type", "brand")
       .eq("topic", topic)
@@ -256,7 +256,7 @@ export async function getTopicSentimentSummary(
     // Get latest competitor evaluations for this topic
     const { data: competitorEvals } = await supabase
       .from("brand_evaluations")
-      .select("competitor_id, entity_name, sentiment, sentiment_score, created_at")
+      .select("competitor_id, entity_name, sentiment_score, created_at")
       .eq("project_id", projectId)
       .eq("entity_type", "competitor")
       .eq("topic", topic)
@@ -278,7 +278,7 @@ export async function getTopicSentimentSummary(
         latestByCompetitor.set(eval_.competitor_id, {
           competitor_id: eval_.competitor_id,
           name: eval_.entity_name,
-          sentiment: eval_.sentiment,
+          sentiment: null, // sentiment field removed, using sentiment_score only
           score: eval_.sentiment_score,
         });
       }
@@ -286,7 +286,7 @@ export async function getTopicSentimentSummary(
 
     summaries.push({
       topic,
-      brand_sentiment: brandEval?.[0]?.sentiment || null,
+      brand_sentiment: null, // sentiment field removed, using sentiment_score only
       brand_score: brandEval?.[0]?.sentiment_score || null,
       competitors: Array.from(latestByCompetitor.values()) as Array<{
         competitor_id: string;
@@ -318,7 +318,7 @@ export async function getEntityEvaluationSummary(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("entity_name, sentiment, sentiment_score, positive_theme_ids, negative_theme_ids")
+    .select("entity_name, sentiment_score, positive_theme_ids, negative_theme_ids")
     .eq("project_id", projectId)
     .eq("entity_type", entityType)
     .gte("created_at", startDate.toISOString());
@@ -338,7 +338,7 @@ export async function getEntityEvaluationSummary(
     return null;
   }
 
-  // Calculate sentiment distribution
+  // Calculate sentiment distribution (based on sentiment_score, not sentiment field)
   const distribution = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
   let totalScore = 0;
   let scoreCount = 0;
@@ -346,10 +346,15 @@ export async function getEntityEvaluationSummary(
   const allNegativeThemeIds: string[] = [];
 
   data.forEach((eval_) => {
-    if (eval_.sentiment) {
-      distribution[eval_.sentiment as keyof typeof distribution]++;
-    }
+    // Calculate sentiment distribution from sentiment_score
     if (eval_.sentiment_score !== null) {
+      if (eval_.sentiment_score >= 0.5) {
+        distribution.positive++;
+      } else if (eval_.sentiment_score <= -0.5) {
+        distribution.negative++;
+      } else {
+        distribution.neutral++;
+      }
       totalScore += eval_.sentiment_score;
       scoreCount++;
     }
@@ -552,7 +557,7 @@ export async function compareSentimentByTopic(
         entity_type: eval_.entity_type,
         entity_name: eval_.entity_name,
         competitor_id: eval_.competitor_id,
-        sentiment: eval_.sentiment,
+        sentiment: null, // sentiment field removed, using sentiment_score only
         score: eval_.sentiment_score,
         strengths,
         weaknesses,
@@ -1450,7 +1455,7 @@ export async function getSentimentTrendsFromEvaluations(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("sentiment, sentiment_score, total_positive_attributes, total_negative_attributes, created_at")
+    .select("sentiment_score, total_positive_attributes, total_negative_attributes, created_at")
     .eq("project_id", projectId);
 
   if (entityType) {
@@ -1576,7 +1581,7 @@ export async function getEntitySentimentsFromEvaluations(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("id, entity_name, entity_type, competitor_id, sentiment, sentiment_score, positive_attributes, negative_attributes, total_positive_attributes, total_negative_attributes, natural_response, created_at")
+    .select("id, entity_name, entity_type, competitor_id, sentiment_score, positive_theme_ids, negative_theme_ids, total_positive_attributes, total_negative_attributes, natural_response, created_at")
     .eq("project_id", projectId);
 
   if (startDate) {
@@ -1695,7 +1700,7 @@ export async function getEntitySentimentsFromEvaluations(
         id: e.id,
         analyzedText: e.natural_response || "",
         overallSentiment: e.sentiment_score !== null ? (e.sentiment_score + 1) / 2 : 0.5,
-        sentimentLabel: e.sentiment || "neutral",
+        sentimentLabel: e.sentiment_score !== null ? (e.sentiment_score >= 0.5 ? "positive" : e.sentiment_score <= -0.5 ? "negative" : "neutral") : "neutral",
         aiReasoning: "gemini-2.5-flash-lite",
         createdAt: e.created_at,
         platform: "gemini",
@@ -1827,7 +1832,11 @@ export async function getAttributeBreakdownFromEvaluations(
 
   // For neutral attributes, we can use attributes from neutral sentiment evaluations
   const getNeutralAttributes = (evaluations: any[]) => {
-    const neutralEvals = evaluations.filter((e) => e.sentiment === "neutral" || e.sentiment === "mixed");
+    // Filter evaluations with neutral sentiment_score (between -0.5 and 0.5)
+    const neutralEvals = evaluations.filter((e) => {
+      if (e.sentiment_score === null) return true;
+      return e.sentiment_score >= -0.5 && e.sentiment_score <= 0.5;
+    });
     return processAttributes(neutralEvals, "positive"); // Use positive attributes from neutral sentiment
   };
 
@@ -1862,7 +1871,7 @@ export async function getSourceQualityMetrics(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("domains, created_at")
+    .select("url_sources, created_at")
     .eq("project_id", projectId);
 
   if (startDate) {
@@ -1894,9 +1903,16 @@ export async function getSourceQualityMetrics(
   (data || []).forEach((eval_) => {
     totalEvaluations++;
 
-    if (eval_.domains && Array.isArray(eval_.domains)) {
-      eval_.domains.forEach((domain: string) => {
-        domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+    // Extract domains from url_sources
+    if (eval_.url_sources && Array.isArray(eval_.url_sources)) {
+      eval_.url_sources.forEach((url: string) => {
+        try {
+          const urlObj = new URL(url);
+          const domain = urlObj.hostname.replace(/^www\./, '');
+          domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+        } catch {
+          // If URL parsing fails, skip
+        }
       });
     }
   });

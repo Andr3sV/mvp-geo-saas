@@ -112,7 +112,9 @@ export interface AICompletionResult {
   has_web_search?: boolean; // Whether this model used web search
   citationsData?: CitationData[]; // Structured citation data with complete metadata
   webSearchQueries?: string[]; // Array of web search queries used (Gemini only)
-  domains?: string[]; // Array of unique domains from citations (Gemini only)
+  domains?: string[]; // Array of unique domains from citations (Gemini only) - kept for backward compatibility
+  uriSources?: string[]; // Array of original URIs from Gemini groundingChunks (may include vertexaisearch redirects)
+  urlSources?: string[]; // Array of transformed/generic URLs extracted from URIs
 }
 
 export interface AIClientError {

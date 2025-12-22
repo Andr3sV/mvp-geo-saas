@@ -152,14 +152,14 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
           topic,
           evaluation_prompt: prompt,
           response_text: result.text,
-          sentiment: parsed.sentiment,
           sentiment_score: parsed.sentimentScore,
           positive_theme_ids: themeIds.positiveThemeIds,
           negative_theme_ids: themeIds.negativeThemeIds,
           natural_response: parsed.naturalResponse || null,
           region: region || 'GLOBAL',
           query_search: result.webSearchQueries || [],
-          domains: result.domains || [],
+          uri_sources: result.uriSources || [],
+          url_sources: result.urlSources || [],
           platform: 'gemini',
         });
 
@@ -173,9 +173,11 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
         region,
         entity_type,
         entity_name,
-        sentiment: parsed.sentiment,
+        sentiment_score: parsed.sentimentScore,
         positiveThemes: themeIds.positiveThemeIds.length,
         negativeThemes: themeIds.negativeThemeIds.length,
+        uriSourcesCount: result.uriSources?.length || 0,
+        urlSourcesCount: result.urlSources?.length || 0,
       });
     });
 
@@ -186,7 +188,6 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       region,
       entity_type,
       entity_name,
-      sentiment: parsed.sentiment,
       sentiment_score: parsed.sentimentScore,
     };
   }

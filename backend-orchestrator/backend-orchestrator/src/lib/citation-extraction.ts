@@ -135,9 +135,9 @@ export function extractGeminiCitations(geminiResponse: any): CitationData[] {
 
 /**
  * Transform Gemini Vertex URI to real URL
- * If URI contains vertexaisearch, use title to construct URL
+ * If URI contains vertexaisearch, use title to construct URL LINE MODIFIED
  */
-function transformGeminiUriToUrl(uri: string | undefined, title: string | undefined): string | undefined {
+export function transformGeminiUriToUrl(uri: string | undefined, title: string | undefined): string | undefined {
   if (!uri) {
     return undefined;
   }
@@ -172,9 +172,9 @@ function transformGeminiUriToUrl(uri: string | undefined, title: string | undefi
 }
 
 /**
- * Extract domain from title or URL
+ * Extract domain from title or URL LINE MODIFIED
  */
-function extractDomainFromTitleOrUrl(title: string | undefined, url: string | undefined): string | undefined {
+export function extractDomainFromTitleOrUrl(title: string | undefined, url: string | undefined): string | undefined {
   // Try to extract from URL first
   if (url) {
     try {
