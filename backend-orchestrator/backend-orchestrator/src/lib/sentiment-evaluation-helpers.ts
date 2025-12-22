@@ -127,16 +127,13 @@ WEAKNESSES:
 - [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
 ...
 
-SUMMARY:
-[Brief 2-3 sentence summary of the evaluation]
-
 PART 2 - NATURAL RESPONSE:
-After the structured analysis, write a natural, fluent evaluation (2-3 paragraphs) that could be shown directly to users. Start with an introduction, provide detailed analysis, and conclude with a summary. Use clear, professional language without bullet points or structured formatting.
+After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. 
 
 Format your natural response as:
 
 === NATURAL_RESPONSE ===
-[Your natural evaluation here in 2-3 paragraphs]`;
+[Your natural evaluation here]`;
 
   // Add region context if provided
   if (options?.region) {
@@ -154,7 +151,6 @@ export function parseEvaluationResponse(responseText: string): {
   sentimentScore: number;
   strengths: string[];
   weaknesses: string[];
-  summary: string;
   naturalResponse: string;
 } {
   const lines = responseText.split('\n').map(line => line.trim());
@@ -163,10 +159,9 @@ export function parseEvaluationResponse(responseText: string): {
   let sentimentScore = 0;
   const strengths: string[] = [];
   const weaknesses: string[] = [];
-  let summary = '';
   let naturalResponse = '';
   
-  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'summary' | 'natural' = 'none';
+  let currentSection: 'none' | 'strengths' | 'weaknesses' | 'natural' = 'none';
   
   // Check if natural response section exists
   const naturalResponseMarker = '=== NATURAL_RESPONSE ===';
@@ -202,11 +197,6 @@ export function parseEvaluationResponse(responseText: string): {
       currentSection = 'weaknesses';
       continue;
     }
-    if (lowerLine.startsWith('summary:') || lowerLine === 'summary') {
-      currentSection = 'summary';
-      continue;
-    }
-    
     // Detect natural response section
     if (line.includes('=== NATURAL_RESPONSE ===') || lowerLine.includes('part 2') || lowerLine.includes('natural response')) {
       currentSection = 'natural';
@@ -226,8 +216,6 @@ export function parseEvaluationResponse(responseText: string): {
           weaknesses.push(content);
           break;
       }
-    } else if (currentSection === 'summary' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
-      summary += (summary ? ' ' : '') + line;
     } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
       naturalResponse += (naturalResponse ? ' ' : '') + line;
     }
@@ -243,7 +231,6 @@ export function parseEvaluationResponse(responseText: string): {
     sentimentScore,
     strengths,
     weaknesses,
-    summary: summary.trim(),
     naturalResponse: naturalResponse.trim(),
   };
 }

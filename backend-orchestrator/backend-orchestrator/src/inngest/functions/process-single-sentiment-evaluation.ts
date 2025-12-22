@@ -154,8 +154,6 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
           response_text: result.text,
           sentiment: parsed.sentiment,
           sentiment_score: parsed.sentimentScore,
-          positive_attributes: parsed.strengths, // Store theme names for reference
-          negative_attributes: parsed.weaknesses, // Store theme names for reference
           positive_theme_ids: themeIds.positiveThemeIds,
           negative_theme_ids: themeIds.negativeThemeIds,
           natural_response: parsed.naturalResponse || null,

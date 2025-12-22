@@ -20,8 +20,6 @@ export interface BrandEvaluation {
   response_text: string | null;
   sentiment: "positive" | "neutral" | "negative" | "mixed" | null;
   sentiment_score: number | null;
-  positive_attributes: string[] | null;
-  negative_attributes: string[] | null;
   positive_theme_ids?: string[] | null;
   negative_theme_ids?: string[] | null;
   total_positive_attributes?: number;
@@ -320,7 +318,7 @@ export async function getEntityEvaluationSummary(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("entity_name, sentiment, sentiment_score, positive_attributes, negative_attributes")
+    .select("entity_name, sentiment, sentiment_score, positive_theme_ids, negative_theme_ids")
     .eq("project_id", projectId)
     .eq("entity_type", entityType)
     .gte("created_at", startDate.toISOString());
@@ -344,8 +342,8 @@ export async function getEntityEvaluationSummary(
   const distribution = { positive: 0, neutral: 0, negative: 0, mixed: 0 };
   let totalScore = 0;
   let scoreCount = 0;
-  const allStrengths: string[] = [];
-  const allWeaknesses: string[] = [];
+  const allPositiveThemeIds: string[] = [];
+  const allNegativeThemeIds: string[] = [];
 
   data.forEach((eval_) => {
     if (eval_.sentiment) {
@@ -355,23 +353,43 @@ export async function getEntityEvaluationSummary(
       totalScore += eval_.sentiment_score;
       scoreCount++;
     }
-    if (eval_.positive_attributes) {
-      allStrengths.push(...eval_.positive_attributes);
+    if (eval_.positive_theme_ids) {
+      allPositiveThemeIds.push(...eval_.positive_theme_ids);
     }
-    if (eval_.negative_attributes) {
-      allWeaknesses.push(...eval_.negative_attributes);
+    if (eval_.negative_theme_ids) {
+      allNegativeThemeIds.push(...eval_.negative_theme_ids);
     }
   });
 
-  // Get top strengths and weaknesses by frequency
-  const countOccurrences = (arr: string[]) => {
+  // Fetch theme names for top themes
+  const getTopThemeNames = async (themeIds: string[], type: "positive" | "negative"): Promise<string[]> => {
+    if (themeIds.length === 0) return [];
+    
+    // Count occurrences
     const counts = new Map<string, number>();
-    arr.forEach((item) => counts.set(item, (counts.get(item) || 0) + 1));
-    return Array.from(counts.entries())
+    themeIds.forEach((id) => counts.set(id, (counts.get(id) || 0) + 1));
+    
+    // Get top 5 theme IDs by frequency
+    const topThemeIds = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([item]) => item);
+      .map(([id]) => id);
+    
+    // Fetch theme names
+    const { data: themes } = await supabase
+      .from("sentiment_themes")
+      .select("id, name")
+      .eq("project_id", projectId)
+      .eq("type", type)
+      .in("id", topThemeIds);
+    
+    // Map IDs to names in frequency order
+    const themeMap = new Map((themes || []).map(t => [t.id, t.name]));
+    return topThemeIds.map(id => themeMap.get(id) || id).filter(Boolean);
   };
+
+  const topStrengths = await getTopThemeNames(allPositiveThemeIds, "positive");
+  const topWeaknesses = await getTopThemeNames(allNegativeThemeIds, "negative");
 
   return {
     entity_type: entityType,
@@ -380,8 +398,8 @@ export async function getEntityEvaluationSummary(
     total_evaluations: data.length,
     avg_sentiment_score: scoreCount > 0 ? totalScore / scoreCount : null,
     sentiment_distribution: distribution,
-    top_strengths: countOccurrences(allStrengths),
-    top_weaknesses: countOccurrences(allWeaknesses),
+    top_strengths: topStrengths,
+    top_weaknesses: topWeaknesses,
   };
 }
 
@@ -502,19 +520,42 @@ export async function compareSentimentByTopic(
     }
   >();
 
+  // Fetch theme names for all theme IDs
+  const supabase = await createClient();
+  const allThemeIds = new Set<string>();
+  evaluations.forEach((eval_) => {
+    if (eval_.positive_theme_ids) {
+      eval_.positive_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+    if (eval_.negative_theme_ids) {
+      eval_.negative_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+  });
+
+  const { data: themes } = await supabase
+    .from("sentiment_themes")
+    .select("id, name, type")
+    .eq("project_id", projectId)
+    .in("id", Array.from(allThemeIds));
+
+  const themeMap = new Map<string, string>((themes || []).map((t: { id: string; name: string }) => [t.id, t.name]));
+
   evaluations.forEach((eval_) => {
     const key =
       eval_.entity_type === "brand" ? "brand" : eval_.competitor_id || "";
 
     if (!latestByEntity.has(key)) {
+      const strengths = (eval_.positive_theme_ids || []).map((id: string) => themeMap.get(id) || id).filter(Boolean) as string[];
+      const weaknesses = (eval_.negative_theme_ids || []).map((id: string) => themeMap.get(id) || id).filter(Boolean) as string[];
+      
       latestByEntity.set(key, {
         entity_type: eval_.entity_type,
         entity_name: eval_.entity_name,
         competitor_id: eval_.competitor_id,
         sentiment: eval_.sentiment,
         score: eval_.sentiment_score,
-        strengths: eval_.positive_attributes || [],
-        weaknesses: eval_.negative_attributes || [],
+        strengths,
+        weaknesses,
       });
     }
   });
@@ -913,7 +954,7 @@ export async function getAttributeEvolution(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("positive_attributes, negative_attributes, created_at, topic")
+    .select("positive_theme_ids, negative_theme_ids, created_at, topic")
     .eq("project_id", projectId);
 
   if (topic) {
@@ -938,7 +979,26 @@ export async function getAttributeEvolution(
     return [];
   }
 
-  // Group by date and attribute
+  // Fetch all unique theme IDs and their names
+  const allThemeIds = new Set<string>();
+  (data || []).forEach((eval_) => {
+    if (eval_.positive_theme_ids) {
+      eval_.positive_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+    if (eval_.negative_theme_ids) {
+      eval_.negative_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+  });
+
+  const { data: themes } = await supabase
+    .from("sentiment_themes")
+    .select("id, name, type")
+    .eq("project_id", projectId)
+    .in("id", Array.from(allThemeIds));
+
+  const themeMap = new Map((themes || []).map(t => [t.id, { name: t.name, type: t.type }]));
+
+  // Group by date and theme
   const evolution = new Map<string, Map<string, { positive: number; negative: number }>>();
 
   (data || []).forEach((eval_) => {
@@ -950,29 +1010,35 @@ export async function getAttributeEvolution(
 
     const dateMap = evolution.get(date)!;
 
-    // Process positive attributes
+    // Process positive themes
     if (
       (attributeType === "positive" || attributeType === "both") &&
-      eval_.positive_attributes
+      eval_.positive_theme_ids
     ) {
-      eval_.positive_attributes.forEach((attr: string) => {
-        if (!dateMap.has(attr)) {
-          dateMap.set(attr, { positive: 0, negative: 0 });
+      eval_.positive_theme_ids.forEach((themeId: string) => {
+        const theme = themeMap.get(themeId);
+        if (!theme) return;
+        const themeName = theme.name;
+        if (!dateMap.has(themeName)) {
+          dateMap.set(themeName, { positive: 0, negative: 0 });
         }
-        dateMap.get(attr)!.positive++;
+        dateMap.get(themeName)!.positive++;
       });
     }
 
-    // Process negative attributes
+    // Process negative themes
     if (
       (attributeType === "negative" || attributeType === "both") &&
-      eval_.negative_attributes
+      eval_.negative_theme_ids
     ) {
-      eval_.negative_attributes.forEach((attr: string) => {
-        if (!dateMap.has(attr)) {
-          dateMap.set(attr, { positive: 0, negative: 0 });
+      eval_.negative_theme_ids.forEach((themeId: string) => {
+        const theme = themeMap.get(themeId);
+        if (!theme) return;
+        const themeName = theme.name;
+        if (!dateMap.has(themeName)) {
+          dateMap.set(themeName, { positive: 0, negative: 0 });
         }
-        dateMap.get(attr)!.negative++;
+        dateMap.get(themeName)!.negative++;
       });
     }
   });
@@ -1546,15 +1612,27 @@ export async function getEntitySentimentsFromEvaluations(
     entityMap.get(entityKey)!.push(eval_);
   });
 
-  // Helper function to get top attributes by frequency
-  const getTopAttributes = (attributes: string[]): string[] => {
-    const counts = new Map<string, number>();
-    attributes.forEach((attr) => counts.set(attr, (counts.get(attr) || 0) + 1));
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([attr]) => attr);
-  };
+  // Fetch all unique theme IDs and their names upfront
+  const allThemeIds = new Set<string>();
+  Array.from(entityMap.values()).forEach((evaluations) => {
+    evaluations.forEach((e: any) => {
+      if (e.positive_theme_ids) {
+        e.positive_theme_ids.forEach((id: string) => allThemeIds.add(id));
+      }
+      if (e.negative_theme_ids) {
+        e.negative_theme_ids.forEach((id: string) => allThemeIds.add(id));
+      }
+    });
+  });
+
+  const themeSupabase = await createClient();
+  const { data: themes } = await themeSupabase
+    .from("sentiment_themes")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .in("id", Array.from(allThemeIds));
+
+  const themeMap = new Map<string, string>((themes || []).map((t: { id: string; name: string }) => [t.id, t.name]));
 
   // Process each entity
   return Array.from(entityMap.entries()).map(([key, evaluations]) => {
@@ -1581,12 +1659,33 @@ export async function getEntitySentimentsFromEvaluations(
     if (averageSentiment >= 0.6) sentimentLabel = "positive";
     else if (averageSentiment <= 0.4) sentimentLabel = "negative";
 
-    // Extract top attributes
-    const allPositiveAttributes = evaluations.flatMap((e) => e.positive_attributes || []);
-    const allNegativeAttributes = evaluations.flatMap((e) => e.negative_attributes || []);
+    // Extract top theme IDs and fetch their names
+    const allPositiveThemeIds = evaluations.flatMap((e) => e.positive_theme_ids || []);
+    const allNegativeThemeIds = evaluations.flatMap((e) => e.negative_theme_ids || []);
 
-    const topPositiveAttributes = getTopAttributes(allPositiveAttributes);
-    const topNegativeAttributes = getTopAttributes(allNegativeAttributes);
+    // Count theme ID occurrences
+    const positiveThemeIdCounts = new Map<string, number>();
+    allPositiveThemeIds.forEach((id: string) => {
+      positiveThemeIdCounts.set(id, (positiveThemeIdCounts.get(id) || 0) + 1);
+    });
+    const negativeThemeIdCounts = new Map<string, number>();
+    allNegativeThemeIds.forEach((id: string) => {
+      negativeThemeIdCounts.set(id, (negativeThemeIdCounts.get(id) || 0) + 1);
+    });
+
+    // Get top theme IDs
+    const topPositiveThemeIds = Array.from(positiveThemeIdCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id);
+    const topNegativeThemeIds = Array.from(negativeThemeIdCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id);
+
+    // Map theme IDs to names using pre-fetched themeMap
+    const topPositiveAttributes = topPositiveThemeIds.map(id => themeMap.get(id) || id).filter(Boolean) as string[];
+    const topNegativeAttributes = topNegativeThemeIds.map(id => themeMap.get(id) || id).filter(Boolean) as string[];
 
     // Get recent evaluations
     const recentAnalyses = evaluations
@@ -1650,7 +1749,7 @@ export async function getAttributeBreakdownFromEvaluations(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("entity_type, competitor_id, positive_attributes, negative_attributes, sentiment")
+    .select("entity_type, competitor_id, positive_theme_ids, negative_theme_ids, sentiment")
     .eq("project_id", projectId);
 
   if (startDate) {
@@ -1674,6 +1773,26 @@ export async function getAttributeBreakdownFromEvaluations(
     };
   }
 
+  // Fetch all theme IDs and their names
+  const allThemeIds = new Set<string>();
+  (data || []).forEach((eval_) => {
+    if (eval_.positive_theme_ids) {
+      eval_.positive_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+    if (eval_.negative_theme_ids) {
+      eval_.negative_theme_ids.forEach((id: string) => allThemeIds.add(id));
+    }
+  });
+
+  const themeSupabase = await createClient();
+  const { data: themes } = await themeSupabase
+    .from("sentiment_themes")
+    .select("id, name, type")
+    .eq("project_id", projectId)
+    .in("id", Array.from(allThemeIds));
+
+  const themeMap = new Map<string, { name: string; type: string }>((themes || []).map((t: { id: string; name: string; type: string }) => [t.id, { name: t.name, type: t.type }]));
+
   const processAttributes = (
     evaluations: any[],
     type: "positive" | "negative"
@@ -1682,10 +1801,13 @@ export async function getAttributeBreakdownFromEvaluations(
     const totalCount = evaluations.length;
 
     evaluations.forEach((eval_) => {
-      const attrs = eval_[`${type}_attributes`] || [];
-      if (Array.isArray(attrs)) {
-        attrs.forEach((attr: string) => {
-          frequencyMap.set(attr, (frequencyMap.get(attr) || 0) + 1);
+      const themeIds = eval_[`${type}_theme_ids`] || [];
+      if (Array.isArray(themeIds)) {
+        themeIds.forEach((themeId: string) => {
+          const theme = themeMap.get(themeId);
+          if (!theme || theme.type !== type) return;
+          const attribute = theme.name;
+          frequencyMap.set(attribute, (frequencyMap.get(attribute) || 0) + 1);
         });
       }
     });
