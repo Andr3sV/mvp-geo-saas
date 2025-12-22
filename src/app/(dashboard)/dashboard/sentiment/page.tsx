@@ -5,7 +5,7 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { subDays } from "date-fns";
+import { subDays, differenceInDays } from "date-fns";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // Sentiment Analysis Components
@@ -13,6 +13,7 @@ import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-ch
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
 import { ThemeFrequencyRadar } from "@/components/sentiment/theme-frequency-radar";
 import { AttributeBreakdown } from "@/components/sentiment/attribute-breakdown";
+import { ThemesTable } from "@/components/sentiment/themes-table";
 
 // Queries
 import {
@@ -354,6 +355,27 @@ export default function SentimentPage() {
           isLoading={isLoading}
           detailed={true}
         />
+
+        {/* Themes Table */}
+        {dateRange.from && dateRange.to && (
+          <ThemesTable
+            projectId={selectedProjectId || ""}
+            dateRange={{ from: dateRange.from, to: dateRange.to }}
+            previousDateRange={
+              (() => {
+                const daysDiff = differenceInDays(dateRange.to, dateRange.from);
+                return {
+                  from: subDays(dateRange.from, daysDiff + 1),
+                  to: subDays(dateRange.from, 1),
+                };
+              })()
+            }
+            isLoading={isLoading}
+            brandName={brandName}
+            brandDomain={brandDomain}
+            competitors={competitors}
+          />
+        )}
       </div>
     </div>
   );

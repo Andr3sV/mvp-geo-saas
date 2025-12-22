@@ -2144,3 +2144,231 @@ export async function getThemeFrequencyMatrix(
   return result;
 }
 
+// =============================================
+// GET THEMES WITH METRICS
+// =============================================
+
+export interface ThemeWithMetrics {
+  theme_id: string;
+  theme_name: string;
+  sentiment: "positive" | "negative";
+  occurrences: number;
+  previous_occurrences: number;
+  change: number;
+  change_percentage: number | null;
+}
+
+/**
+ * Get all themes with their occurrences and trend calculations
+ * @param entityFilter Optional filter by entity: { entityType: "brand" | "competitor", competitorId?: string }
+ */
+export async function getThemesWithMetrics(
+  projectId: string,
+  startDate?: Date,
+  endDate?: Date,
+  previousStartDate?: Date,
+  previousEndDate?: Date,
+  entityFilter?: { entityType: "brand" | "competitor"; competitorId?: string | null }
+): Promise<ThemeWithMetrics[]> {
+  const supabase = await createClient();
+
+  // Get all themes for this project
+  const { data: themes, error: themesError } = await supabase
+    .from("sentiment_themes")
+    .select("id, name, type")
+    .eq("project_id", projectId);
+
+  if (themesError) {
+    console.error("Error fetching themes:", themesError);
+    return [];
+  }
+
+  if (!themes || themes.length === 0) {
+    return [];
+  }
+
+  // Get all evaluations for the project (we'll filter in memory for efficiency with GIN indexes)
+  const getAllEvaluations = async (start?: Date, end?: Date) => {
+    let query = supabase
+      .from("brand_evaluations")
+      .select("positive_theme_ids, negative_theme_ids, created_at, entity_type, competitor_id")
+      .eq("project_id", projectId);
+
+    // Apply entity filter if provided
+    if (entityFilter) {
+      query = query.eq("entity_type", entityFilter.entityType);
+      if (entityFilter.entityType === "competitor" && entityFilter.competitorId) {
+        query = query.eq("competitor_id", entityFilter.competitorId);
+      }
+    }
+
+    if (start) {
+      query = query.gte("created_at", start.toISOString());
+    }
+    if (end) {
+      const endDatePlusOne = new Date(end);
+      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+      endDatePlusOne.setMilliseconds(endDatePlusOne.getMilliseconds() - 1);
+      query = query.lte("created_at", endDatePlusOne.toISOString());
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error fetching evaluations:", error);
+      return [];
+    }
+    return data || [];
+  };
+
+  // Helper function to count occurrences for a theme in evaluations
+  const countOccurrences = (evaluations: any[], themeId: string): number => {
+    return evaluations.filter((eval_) => {
+      const inPositive =
+        Array.isArray(eval_.positive_theme_ids) &&
+        eval_.positive_theme_ids.includes(themeId);
+      const inNegative =
+        Array.isArray(eval_.negative_theme_ids) &&
+        eval_.negative_theme_ids.includes(themeId);
+      return inPositive || inNegative;
+    }).length;
+  };
+
+  // Fetch evaluations for current and previous periods
+  const [currentEvaluations, previousEvaluations] = await Promise.all([
+    getAllEvaluations(startDate, endDate),
+    previousStartDate && previousEndDate
+      ? getAllEvaluations(previousStartDate, previousEndDate)
+      : Promise.resolve([]),
+  ]);
+
+  // Calculate metrics for each theme
+  const themesWithMetrics: ThemeWithMetrics[] = themes.map((theme) => {
+    const occurrences = countOccurrences(currentEvaluations, theme.id);
+    const previousOccurrences = countOccurrences(previousEvaluations, theme.id);
+
+    const change = occurrences - previousOccurrences;
+    const changePercentage =
+      previousOccurrences > 0
+        ? ((change / previousOccurrences) * 100)
+        : null;
+
+    return {
+      theme_id: theme.id,
+      theme_name: theme.name,
+      sentiment: theme.type as "positive" | "negative",
+      occurrences,
+      previous_occurrences: previousOccurrences,
+      change,
+      change_percentage: changePercentage,
+    };
+  });
+
+  // Sort by occurrences descending
+  return themesWithMetrics.sort((a, b) => b.occurrences - a.occurrences);
+}
+
+// =============================================
+// GET EVALUATIONS BY THEME
+// =============================================
+
+export interface EvaluationByTheme {
+  id: string;
+  evaluation_prompt: string;
+  response_text: string | null;
+  natural_response: string | null;
+  query_search: string[] | null;
+  url_sources: string[] | null;
+  uri_sources: string[] | null;
+  topic: string;
+  entity_name: string;
+  entity_type: "brand" | "competitor";
+  competitor_id: string | null;
+  sentiment: string | null;
+  sentiment_score: number | null;
+  created_at: string;
+  is_positive_theme: boolean;
+}
+
+/**
+ * Get evaluations that mention a specific theme for the gallery
+ */
+export async function getEvaluationsByTheme(
+  themeId: string,
+  projectId: string,
+  startDate?: Date,
+  endDate?: Date,
+  limit: number = 50,
+  offset: number = 0
+): Promise<EvaluationByTheme[]> {
+  const supabase = await createClient();
+
+  // Fetch all evaluations and filter in memory (more efficient with GIN indexes)
+  let query = supabase
+    .from("brand_evaluations")
+    .select(
+      "id, evaluation_prompt, response_text, natural_response, query_search, url_sources, uri_sources, topic, entity_name, entity_type, competitor_id, sentiment, sentiment_score, created_at, positive_theme_ids, negative_theme_ids"
+    )
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  if (startDate) {
+    query = query.gte("created_at", startDate.toISOString());
+  }
+  if (endDate) {
+    const endDatePlusOne = new Date(endDate);
+    endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+    endDatePlusOne.setMilliseconds(endDatePlusOne.getMilliseconds() - 1);
+    query = query.lte("created_at", endDatePlusOne.toISOString());
+  }
+
+  const { data: allEvaluations, error } = await query;
+
+  if (error) {
+    console.error("Error fetching evaluations by theme:", error);
+    return [];
+  }
+
+  if (!allEvaluations) {
+    return [];
+  }
+
+  // Filter evaluations that contain the theme
+  const filteredEvaluations = allEvaluations.filter((eval_) => {
+    const inPositive =
+      Array.isArray(eval_.positive_theme_ids) &&
+      eval_.positive_theme_ids.includes(themeId);
+    const inNegative =
+      Array.isArray(eval_.negative_theme_ids) &&
+      eval_.negative_theme_ids.includes(themeId);
+    return inPositive || inNegative;
+  });
+
+  // Apply pagination
+  const paginatedEvaluations = filteredEvaluations.slice(offset, offset + limit);
+
+  // Map to the return type and determine if theme is positive
+  return paginatedEvaluations.map((eval_) => {
+    const isPositiveTheme =
+      Array.isArray(eval_.positive_theme_ids) &&
+      eval_.positive_theme_ids.includes(themeId);
+
+    return {
+      id: eval_.id,
+      evaluation_prompt: eval_.evaluation_prompt,
+      response_text: eval_.response_text,
+      natural_response: eval_.natural_response,
+      query_search: eval_.query_search,
+      url_sources: eval_.url_sources,
+      uri_sources: eval_.uri_sources,
+      topic: eval_.topic,
+      entity_name: eval_.entity_name,
+      entity_type: eval_.entity_type,
+      competitor_id: eval_.competitor_id,
+      sentiment: eval_.sentiment,
+      sentiment_score: eval_.sentiment_score,
+      created_at: eval_.created_at,
+      is_positive_theme: isPositiveTheme,
+    };
+  });
+}
+
