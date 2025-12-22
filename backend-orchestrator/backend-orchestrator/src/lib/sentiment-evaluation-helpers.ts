@@ -84,33 +84,62 @@ Provide a comprehensive evaluation covering:
 2. Key strengths related to this topic
 3. Key weaknesses or areas for improvement
 
-CRITICAL - THEME CATEGORIZATION RULES:
-You MUST categorize each strength/weakness using the following strict rules:
+CRITICAL - THEME CATEGORIZATION RULES (READ CAREFULLY):
+You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT rules:
 
-1. MATCHING EXISTING THEMES (PRIORITY):
+⚠️ ABSOLUTELY FORBIDDEN - NEVER DO THIS:
+   - NEVER add parentheses, brackets, or any additional details to theme names
+   - NEVER create variations like "Brand Heritage (associated with Germany)" - if "Brand Heritage" exists, use ONLY "Brand Heritage"
+   - NEVER create "Brand Heritage (Regional Heritage (Spain origin))" - use ONLY "Brand Heritage"
+   - NEVER create "Brand Heritage (Distribution Territories (available worldwide))" - use ONLY "Brand Heritage"
+   - NEVER create "Brand Heritage (Original Recipe)" - use ONLY "Brand Heritage"
+   - NEVER add location, date, or any descriptive details in parentheses
+   - NEVER modify existing theme names in any way
+
+1. MATCHING EXISTING THEMES (HIGHEST PRIORITY):
    - If a strength/weakness relates to ANY existing theme (even if worded differently), you MUST use that theme's EXACT name from the list above
-   - Be AGGRESSIVE in matching: concepts like "customer support", "customer service", "client assistance", "user help" should ALL match "Customer Support" if it exists
-   - Do NOT add any additional text, parentheses, or details to theme names
-   - Do NOT create variations like "Strong Brand Heritage" if "Brand Heritage" exists - use "Brand Heritage" exactly
-   - Do NOT create "Brand Heritage (Founded in 1864)" - use only "Brand Heritage" if it exists
+   - Be EXTREMELY AGGRESSIVE in matching: ANY concept related to an existing theme MUST use that theme's exact name
+   - Examples of what should ALL match "Brand Heritage" if it exists:
+     * "Brand Heritage (associated with Germany)" → Use "Brand Heritage"
+     * "Brand Heritage (associated with Valencia)" → Use "Brand Heritage"
+     * "Brand Heritage (Regional Heritage (Spain origin))" → Use "Brand Heritage"
+     * "Brand Heritage (associated with Zaragoza)" → Use "Brand Heritage"
+     * "Brand Heritage (Distribution Territories (available worldwide))" → Use "Brand Heritage"
+     * "Brand Heritage (associated with Europe)" → Use "Brand Heritage"
+     * "Brand Heritage (Original Recipe)" → Use "Brand Heritage"
+     * "Strong Brand Heritage" → Use "Brand Heritage"
+     * "Regional Heritage" → Use "Brand Heritage"
+   - The theme name must be EXACTLY as listed - no modifications, no additions, no variations
 
-2. EXAMPLES OF GOOD MATCHING:
-   - If theme exists: "Brand Heritage" → Use "Brand Heritage" (NOT "Strong Brand Heritage", NOT "Brand Heritage (Founded in 1864)", NOT "Regional Heritage")
-   - If theme exists: "Customer Support" → Use "Customer Support" (NOT "Customer Service", NOT "Client Support", NOT "User Assistance")
-   - If theme exists: "Brand Value Leadership" → Use "Brand Value Leadership" (NOT "Brand Value Leadership (Implied through...)", NOT "Value Leadership")
+2. EXAMPLES OF CORRECT USAGE:
+   - Existing theme: "Brand Heritage"
+     ✅ CORRECT: "Brand Heritage"
+     ❌ WRONG: "Brand Heritage (associated with Germany)"
+     ❌ WRONG: "Brand Heritage (Regional Heritage (Spain origin))"
+     ❌ WRONG: "Brand Heritage (Distribution Territories)"
+     ❌ WRONG: "Strong Brand Heritage"
+     ❌ WRONG: "Regional Heritage"
+   
+   - Existing theme: "Customer Support"
+     ✅ CORRECT: "Customer Support"
+     ❌ WRONG: "Customer Service"
+     ❌ WRONG: "Client Support"
+     ❌ WRONG: "Customer Support (24/7 availability)"
 
-3. CREATING NEW THEMES (ONLY IF NO MATCH):
-   - Only create a new theme if the concept is TRULY different from all existing themes
+3. CREATING NEW THEMES (ONLY IF TRULY NO MATCH EXISTS):
+   - Only create a new theme if the concept is COMPLETELY DIFFERENT from all existing themes
    - New theme names must be:
      * Maximum 4 words
-     * Broad enough to cover similar future attributes
+     * Broad and categorical (not specific)
      * Use standard business/marketing terminology
-     * NO parentheses, NO additional details, NO variations
+     * ABSOLUTELY NO parentheses, NO brackets, NO additional details
+     * NO location names, NO dates, NO specific details
 
 4. THEME NAMING STANDARDS:
-   - Group similar concepts under the same theme name
-   - Use broad, categorical names (e.g., "Customer Support" covers all customer service aspects)
-   - Avoid specific details that would create duplicate themes
+   - Group ALL similar concepts under the SAME theme name
+   - Use broad, categorical names that cover all variations
+   - If "Brand Heritage" exists, ALL heritage-related concepts must use "Brand Heritage"
+   - Ignore location, origin, distribution, recipe details - these are all part of the same theme
 
 Format your structured analysis as:
 
@@ -118,14 +147,16 @@ SENTIMENT: [positive/neutral/negative/mixed]
 SENTIMENT_SCORE: [number from -1.0 to 1.0, where -1 is very negative, 0 is neutral, 1 is very positive]
 
 STRENGTHS:
-- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
-- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
 ...
 
 WEAKNESSES:
-- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
-- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
 ...
+
+REMEMBER: If "Brand Heritage" exists in the list, use ONLY "Brand Heritage" - never add location, origin, distribution, or any other details in parentheses or brackets.
 
 PART 2 - NATURAL RESPONSE:
 After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. 
@@ -141,6 +172,36 @@ Format your natural response as:
   }
 
   return prompt;
+}
+
+/**
+ * Clean theme name by removing parentheses, brackets, and additional details
+ * This ensures we use only the base theme name even if Gemini adds extra details
+ */
+function cleanThemeName(themeName: string): string {
+  // Remove everything in parentheses or brackets (including nested)
+  let cleaned = themeName
+    .replace(/\([^()]*\)/g, '') // Remove simple parentheses
+    .replace(/\[[^\]]*\]/g, '') // Remove brackets
+    .trim();
+  
+  // Remove nested parentheses recursively
+  while (cleaned.includes('(') || cleaned.includes(')')) {
+    cleaned = cleaned
+      .replace(/\([^()]*\)/g, '')
+      .trim();
+  }
+  
+  // Remove common prefixes that create variations
+  cleaned = cleaned
+    .replace(/^(Strong|Weak|Excellent|Poor|Great|Bad)\s+/i, '') // Remove intensity adjectives
+    .replace(/^(Regional|Local|Global|International)\s+/i, '') // Remove location qualifiers
+    .trim();
+  
+  // Remove extra whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
 }
 
 /**
@@ -203,20 +264,24 @@ export function parseEvaluationResponse(responseText: string): {
       continue;
     }
     
-    // Parse content based on section
-    if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
-      const content = line.replace(/^[-•*]\s*/, '').trim();
-      if (!content) continue;
-      
-      switch (currentSection) {
-        case 'strengths':
-          strengths.push(content);
-          break;
-        case 'weaknesses':
-          weaknesses.push(content);
-          break;
-      }
-    } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
+           // Parse content based on section
+           if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+             let content = line.replace(/^[-•*]\s*/, '').trim();
+             if (!content) continue;
+             
+             // Clean theme name: remove parentheses, brackets, and any additional details
+             // This is a safety measure in case Gemini doesn't follow instructions perfectly
+             content = cleanThemeName(content);
+             
+             switch (currentSection) {
+               case 'strengths':
+                 strengths.push(content);
+                 break;
+               case 'weaknesses':
+                 weaknesses.push(content);
+                 break;
+             }
+           } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
       naturalResponse += (naturalResponse ? ' ' : '') + line;
     }
   }
