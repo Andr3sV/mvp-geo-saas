@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { Check, MoreHorizontal } from "lucide-react";
@@ -67,7 +67,7 @@ export function CompetitivePositioningRadar({
   const [showAllTopics, setShowAllTopics] = useState(false);
   const MAX_VISIBLE_COMPETITORS = 5;
   const MAX_VISIBLE_TOPICS = 5;
-  const MAX_SELECTED_TOPICS = 4;
+  const MAX_SELECTED_TOPICS = 5;
   const visibleCompetitors = competitors.slice(0, MAX_VISIBLE_COMPETITORS);
   const hiddenCompetitors = competitors.slice(MAX_VISIBLE_COMPETITORS);
   const hasMoreCompetitors = competitors.length > MAX_VISIBLE_COMPETITORS;
@@ -95,28 +95,37 @@ export function CompetitivePositioningRadar({
     setSelectedTopics(newSelected);
   };
 
-  const chartData = useMemo(() => {
-    // Get available topics from data if not provided
-    const topicsInData = availableTopics.length > 0 
+  // Calculate available topics
+  const topicsInData = useMemo(() => {
+    return availableTopics.length > 0 
       ? availableTopics.filter(topic => 
           data.some(d => d.topic === topic)
         )
       : Array.from(new Set(data.map(d => d.topic)));
+  }, [data, availableTopics]);
 
+  // Initialize selectedTopics with first 5 topics when empty (only once when data loads)
+  useEffect(() => {
+    if (selectedTopics.size === 0 && topicsInData.length > 0) {
+      // Select first 5 topics by default (up to MAX_SELECTED_TOPICS which is 4, but we'll use 5 for better UX)
+      const defaultTopics = topicsInData.slice(0, Math.min(5, MAX_SELECTED_TOPICS));
+      
+      // Only update if we have topics to select
+      if (defaultTopics.length > 0) {
+        setSelectedTopics(new Set(defaultTopics));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicsInData.length]); // Only run when topics change
+
+  const chartData = useMemo(() => {
     // Use selected topics if any, otherwise use top topics by frequency
     let topicsToUse: string[];
     if (selectedTopics.size > 0) {
       topicsToUse = Array.from(selectedTopics);
     } else {
-      // Get top topics by frequency as fallback
-      const topicCounts = new Map<string, number>();
-      data.forEach((d) => {
-        topicCounts.set(d.topic, (topicCounts.get(d.topic) || 0) + 1);
-      });
-      topicsToUse = Array.from(topicCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, Math.min(topTopicsLimit, MAX_SELECTED_TOPICS))
-        .map(([topic]) => topic);
+      // Get first topics as fallback (shouldn't happen often due to useEffect)
+      topicsToUse = topicsInData.slice(0, MAX_SELECTED_TOPICS);
     }
 
     // Get selected competitors
@@ -149,7 +158,7 @@ export function CompetitivePositioningRadar({
       return dataPoint;
     });
 
-    return { radarData, selectedCompetitors, topicsToUse, topicsInData };
+    return { radarData, selectedCompetitors, topicsToUse };
   }, [data, topTopicsLimit, selectedCompetitorIds, selectedTopics, competitors, brandName, availableTopics]);
 
   if (isLoading) {
@@ -370,7 +379,7 @@ export function CompetitivePositioningRadar({
           </div>
 
           {/* Topic Selector */}
-          {chartData.topicsInData.length > 0 && (
+          {topicsInData.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium">Topics</h3>
@@ -381,7 +390,7 @@ export function CompetitivePositioningRadar({
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {chartData.topicsInData.slice(0, MAX_VISIBLE_TOPICS).map((topic) => {
+                {topicsInData.slice(0, MAX_VISIBLE_TOPICS).map((topic) => {
                   const isSelected = selectedTopics.has(topic);
                   const isDisabled = !isSelected && selectedTopics.size >= MAX_SELECTED_TOPICS;
                   return (
@@ -405,7 +414,7 @@ export function CompetitivePositioningRadar({
                 })}
 
                 {/* More Topics Dropdown (3 dots) */}
-                {chartData.topicsInData.length > MAX_VISIBLE_TOPICS && (
+                {topicsInData.length > MAX_VISIBLE_TOPICS && (
                   <DropdownMenu open={showAllTopics} onOpenChange={setShowAllTopics}>
                     <DropdownMenuTrigger asChild>
                       <button
@@ -419,7 +428,7 @@ export function CompetitivePositioningRadar({
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="max-h-[300px] overflow-y-auto">
-                      {chartData.topicsInData.slice(MAX_VISIBLE_TOPICS).map((topic) => {
+                      {topicsInData.slice(MAX_VISIBLE_TOPICS).map((topic) => {
                         const isSelected = selectedTopics.has(topic);
                         const isDisabled = !isSelected && selectedTopics.size >= MAX_SELECTED_TOPICS;
                         return (
