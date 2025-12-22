@@ -12,6 +12,7 @@ import {
   buildEvaluationPrompt, 
   parseEvaluationResponse 
 } from '../../lib/sentiment-evaluation-helpers';
+import { getThemesByProject, getOrCreateTheme } from '../../lib/theme-helpers';
 
 export const processSingleSentimentEvaluation = inngest.createFunction(
   {
@@ -55,16 +56,34 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       return data;
     });
 
-    // 2. Check Gemini API key
+    // 2. Fetch existing themes for the project
+    const themes = await step.run('fetch-themes', async () => {
+      const [positiveThemes, negativeThemes] = await Promise.all([
+        getThemesByProject(project_id, 'positive'),
+        getThemesByProject(project_id, 'negative'),
+      ]);
+
+      logInfo('process-single-sentiment-evaluation', `Fetched ${positiveThemes.length} positive and ${negativeThemes.length} negative themes`, {
+        project_id,
+      });
+
+      return { positiveThemes, negativeThemes };
+    });
+
+    // 3. Check Gemini API key
     const geminiApiKey = getAPIKey('gemini');
     if (!geminiApiKey) {
       throw new Error('Missing GEMINI_API_KEY');
     }
 
-    // 3. Build evaluation prompt
-    const prompt = buildEvaluationPrompt(project.industry, entity_name, topic, region);
+    // 4. Build evaluation prompt with themes
+    const prompt = buildEvaluationPrompt(project.industry, entity_name, topic, {
+      region,
+      positiveThemes: themes.positiveThemes,
+      negativeThemes: themes.negativeThemes,
+    });
 
-    // 4. Call Gemini to get evaluation
+    // 5. Call Gemini to get evaluation
     const result = await step.run('call-gemini', async () => {
       return await callGeminiWithRetry(prompt, {
         apiKey: geminiApiKey,
@@ -74,12 +93,54 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       });
     });
 
-    // 5. Parse evaluation response
+    // 6. Parse evaluation response (now contains theme names)
     const parsed = await step.run('parse-response', async () => {
       return parseEvaluationResponse(result.text);
     });
 
-    // 6. Save to brand_evaluations
+    // 7. Match theme names to existing themes or create new ones
+    const themeIds = await step.run('process-themes', async () => {
+      const positiveThemeIds: string[] = [];
+      const negativeThemeIds: string[] = [];
+
+      // Process positive themes (strengths)
+      for (const themeName of parsed.strengths) {
+        const theme = await getOrCreateTheme(project_id, themeName, 'positive');
+        if (theme) {
+          positiveThemeIds.push(theme.id);
+        } else {
+          logError('process-single-sentiment-evaluation', `Failed to get or create positive theme: ${themeName}`, {
+            project_id,
+            themeName,
+          });
+          // Still store the theme name even if ID creation failed
+        }
+      }
+
+      // Process negative themes (weaknesses)
+      for (const themeName of parsed.weaknesses) {
+        const theme = await getOrCreateTheme(project_id, themeName, 'negative');
+        if (theme) {
+          negativeThemeIds.push(theme.id);
+        } else {
+          logError('process-single-sentiment-evaluation', `Failed to get or create negative theme: ${themeName}`, {
+            project_id,
+            themeName,
+          });
+          // Still store the theme name even if ID creation failed
+        }
+      }
+
+      logInfo('process-single-sentiment-evaluation', 'Processed themes', {
+        project_id,
+        positiveThemes: positiveThemeIds.length,
+        negativeThemes: negativeThemeIds.length,
+      });
+
+      return { positiveThemeIds, negativeThemeIds };
+    });
+
+    // 8. Save to brand_evaluations
     await step.run('save-evaluation', async () => {
       const { error: insertError } = await supabase
         .from('brand_evaluations')
@@ -93,8 +154,10 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
           response_text: result.text,
           sentiment: parsed.sentiment,
           sentiment_score: parsed.sentimentScore,
-          positive_attributes: parsed.strengths,
-          negative_attributes: parsed.weaknesses,
+          positive_attributes: parsed.strengths, // Store theme names for reference
+          negative_attributes: parsed.weaknesses, // Store theme names for reference
+          positive_theme_ids: themeIds.positiveThemeIds,
+          negative_theme_ids: themeIds.negativeThemeIds,
           natural_response: parsed.naturalResponse || null,
           region: region || 'GLOBAL',
           query_search: result.webSearchQueries || [],
@@ -113,6 +176,8 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
         entity_type,
         entity_name,
         sentiment: parsed.sentiment,
+        positiveThemes: themeIds.positiveThemeIds.length,
+        negativeThemes: themeIds.negativeThemeIds.length,
       });
     });
 

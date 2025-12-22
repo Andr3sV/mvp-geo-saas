@@ -53,10 +53,28 @@ export function enrichPromptWithRegion(prompt: string, region: string): string {
 /**
  * Prompt template for sentiment evaluation
  * Format: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
- * Now includes natural response generation
+ * Now includes natural response generation and theme-based categorization
  */
-export function buildEvaluationPrompt(industry: string, brandName: string, topic: string, region?: string): string {
+export function buildEvaluationPrompt(
+  industry: string,
+  brandName: string,
+  topic: string,
+  options?: {
+    region?: string;
+    positiveThemes?: Array<{ name: string }>;
+    negativeThemes?: Array<{ name: string }>;
+  }
+): string {
+  const positiveThemes = options?.positiveThemes || [];
+  const negativeThemes = options?.negativeThemes || [];
+
   let prompt = `Evaluate the ${industry} company ${brandName} on ${topic}.
+
+EXISTING POSITIVE THEMES:
+${positiveThemes.length > 0 ? positiveThemes.map(t => `- ${t.name}`).join('\n') : '(No existing positive themes)'}
+
+EXISTING NEGATIVE THEMES:
+${negativeThemes.length > 0 ? negativeThemes.map(t => `- ${t.name}`).join('\n') : '(No existing negative themes)'}
 
 Provide your evaluation in two parts:
 
@@ -66,19 +84,25 @@ Provide a comprehensive evaluation covering:
 2. Key strengths related to this topic
 3. Key weaknesses or areas for improvement
 
+IMPORTANT - THEME CATEGORIZATION:
+For each strength/weakness:
+- If it matches an existing theme (same concept, even if worded differently), use that theme name EXACTLY as listed above
+- If it doesn't match any existing theme, create a new theme name (maximum 4 words) that captures the core concept
+- Theme names should be concise, standardized, and use business/marketing terminology when possible
+
 Format your structured analysis as:
 
 SENTIMENT: [positive/neutral/negative/mixed]
 SENTIMENT_SCORE: [number from -1.0 to 1.0, where -1 is very negative, 0 is neutral, 1 is very positive]
 
 STRENGTHS:
-- [strength 1]
-- [strength 2]
+- [theme name from existing list OR new theme name max 4 words]
+- [theme name from existing list OR new theme name max 4 words]
 ...
 
 WEAKNESSES:
-- [weakness 1]
-- [weakness 2]
+- [theme name from existing list OR new theme name max 4 words]
+- [theme name from existing list OR new theme name max 4 words]
 ...
 
 SUMMARY:
@@ -93,8 +117,8 @@ Format your natural response as:
 [Your natural evaluation here in 2-3 paragraphs]`;
 
   // Add region context if provided
-  if (region) {
-    prompt = enrichPromptWithRegion(prompt, region);
+  if (options?.region) {
+    prompt = enrichPromptWithRegion(prompt, options.region);
   }
 
   return prompt;

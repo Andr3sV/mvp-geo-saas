@@ -22,11 +22,24 @@ export interface BrandEvaluation {
   sentiment_score: number | null;
   positive_attributes: string[] | null;
   negative_attributes: string[] | null;
+  positive_theme_ids?: string[] | null;
+  negative_theme_ids?: string[] | null;
+  total_positive_attributes?: number;
+  total_negative_attributes?: number;
   natural_response: string | null;
   region: string | null;
   query_search: string[] | null;
   domains: string[] | null;
   platform: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SentimentTheme {
+  id: string;
+  project_id: string;
+  name: string;
+  type: "positive" | "negative";
   created_at: string;
   updated_at: string;
 }
@@ -1371,7 +1384,7 @@ export async function getSentimentTrendsFromEvaluations(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("sentiment, sentiment_score, created_at")
+    .select("sentiment, sentiment_score, total_positive_attributes, total_negative_attributes, created_at")
     .eq("project_id", projectId);
 
   if (entityType) {
@@ -1430,15 +1443,10 @@ export async function getSentimentTrendsFromEvaluations(
     const dayData = trendMap.get(date)!;
     dayData.totalAnalyses++;
 
-    if (eval_.sentiment === "positive") {
-      dayData.positive++;
-    } else if (eval_.sentiment === "neutral") {
-      dayData.neutral++;
-    } else if (eval_.sentiment === "negative") {
-      dayData.negative++;
-    } else if (eval_.sentiment === "mixed") {
-      dayData.mixed++;
-    }
+    // Sum attribute counts instead of counting evaluations by sentiment
+    dayData.positive += eval_.total_positive_attributes || 0;
+    dayData.negative += eval_.total_negative_attributes || 0;
+    dayData.neutral = 0; // Only count attributes
 
     // Convert sentiment_score from -1..1 to 0..1 range for average calculation
     if (eval_.sentiment_score !== null) {
@@ -1502,7 +1510,7 @@ export async function getEntitySentimentsFromEvaluations(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("id, entity_name, entity_type, competitor_id, sentiment, sentiment_score, positive_attributes, negative_attributes, natural_response, created_at")
+    .select("id, entity_name, entity_type, competitor_id, sentiment, sentiment_score, positive_attributes, negative_attributes, total_positive_attributes, total_negative_attributes, natural_response, created_at")
     .eq("project_id", projectId);
 
   if (startDate) {
@@ -1554,11 +1562,10 @@ export async function getEntitySentimentsFromEvaluations(
     const entityName = firstEval.entity_name || "Unknown";
     const totalEvaluations = evaluations.length;
 
-    // Calculate sentiment distribution
-    const positiveCount = evaluations.filter((e) => e.sentiment === "positive").length;
-    const neutralCount = evaluations.filter((e) => e.sentiment === "neutral").length;
-    const negativeCount = evaluations.filter((e) => e.sentiment === "negative").length;
-    const mixedCount = evaluations.filter((e) => e.sentiment === "mixed").length;
+    // Calculate sentiment distribution by summing attribute counts
+    const positiveCount = evaluations.reduce((sum, e) => sum + (e.total_positive_attributes || 0), 0);
+    const negativeCount = evaluations.reduce((sum, e) => sum + (e.total_negative_attributes || 0), 0);
+    const neutralCount = 0; // Only count attributes, not neutral evaluations
 
     // Calculate average sentiment (convert from -1..1 to 0..1)
     const scores = evaluations
@@ -1611,7 +1618,7 @@ export async function getEntitySentimentsFromEvaluations(
       sentimentLabel,
       confidenceScore: scores.length > 0 ? 0.8 : 0.5, // Placeholder confidence
       positiveCount,
-      neutralCount: neutralCount + mixedCount, // Combine mixed with neutral
+      neutralCount, // Only count attributes, not neutral evaluations
       negativeCount,
       topPositiveAttributes,
       topNegativeAttributes,
