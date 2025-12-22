@@ -84,11 +84,33 @@ Provide a comprehensive evaluation covering:
 2. Key strengths related to this topic
 3. Key weaknesses or areas for improvement
 
-IMPORTANT - THEME CATEGORIZATION:
-For each strength/weakness:
-- If it matches an existing theme (same concept, even if worded differently), use that theme name EXACTLY as listed above
-- If it doesn't match any existing theme, create a new theme name (maximum 4 words) that captures the core concept
-- Theme names should be concise, standardized, and use business/marketing terminology when possible
+CRITICAL - THEME CATEGORIZATION RULES:
+You MUST categorize each strength/weakness using the following strict rules:
+
+1. MATCHING EXISTING THEMES (PRIORITY):
+   - If a strength/weakness relates to ANY existing theme (even if worded differently), you MUST use that theme's EXACT name from the list above
+   - Be AGGRESSIVE in matching: concepts like "customer support", "customer service", "client assistance", "user help" should ALL match "Customer Support" if it exists
+   - Do NOT add any additional text, parentheses, or details to theme names
+   - Do NOT create variations like "Strong Brand Heritage" if "Brand Heritage" exists - use "Brand Heritage" exactly
+   - Do NOT create "Brand Heritage (Founded in 1864)" - use only "Brand Heritage" if it exists
+
+2. EXAMPLES OF GOOD MATCHING:
+   - If theme exists: "Brand Heritage" → Use "Brand Heritage" (NOT "Strong Brand Heritage", NOT "Brand Heritage (Founded in 1864)", NOT "Regional Heritage")
+   - If theme exists: "Customer Support" → Use "Customer Support" (NOT "Customer Service", NOT "Client Support", NOT "User Assistance")
+   - If theme exists: "Brand Value Leadership" → Use "Brand Value Leadership" (NOT "Brand Value Leadership (Implied through...)", NOT "Value Leadership")
+
+3. CREATING NEW THEMES (ONLY IF NO MATCH):
+   - Only create a new theme if the concept is TRULY different from all existing themes
+   - New theme names must be:
+     * Maximum 4 words
+     * Broad enough to cover similar future attributes
+     * Use standard business/marketing terminology
+     * NO parentheses, NO additional details, NO variations
+
+4. THEME NAMING STANDARDS:
+   - Group similar concepts under the same theme name
+   - Use broad, categorical names (e.g., "Customer Support" covers all customer service aspects)
+   - Avoid specific details that would create duplicate themes
 
 Format your structured analysis as:
 
@@ -96,13 +118,13 @@ SENTIMENT: [positive/neutral/negative/mixed]
 SENTIMENT_SCORE: [number from -1.0 to 1.0, where -1 is very negative, 0 is neutral, 1 is very positive]
 
 STRENGTHS:
-- [theme name from existing list OR new theme name max 4 words]
-- [theme name from existing list OR new theme name max 4 words]
+- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
+- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
 ...
 
 WEAKNESSES:
-- [theme name from existing list OR new theme name max 4 words]
-- [theme name from existing list OR new theme name max 4 words]
+- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
+- [EXACT theme name from existing list OR new broad theme name max 4 words - NO parentheses, NO additional details]
 ...
 
 SUMMARY:
