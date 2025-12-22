@@ -118,7 +118,7 @@ export function TopicPerformanceMatrix({
     return (
       <Card className="h-full flex flex-col">
         <CardHeader>
-          <CardTitle>Sentiment Category Performance Matrix</CardTitle>
+          <CardTitle>Sentiment Topics Performance Matrix</CardTitle>
           <CardDescription>Heatmap showing sentiment scores by topic and entity</CardDescription>
         </CardHeader>
         <CardContent className="flex-1">
@@ -132,7 +132,7 @@ export function TopicPerformanceMatrix({
     return (
       <Card className="h-full flex flex-col">
         <CardHeader>
-          <CardTitle>Sentiment Category Matrix</CardTitle>
+          <CardTitle>Sentiment Topics Matrix</CardTitle>
           <CardDescription>Heatmap showing sentiment scores by topic and entity</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 flex items-center justify-center">
@@ -145,9 +145,9 @@ export function TopicPerformanceMatrix({
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle>Sentiment Category Performance Matrix</CardTitle>
+        <CardTitle>Sentiment Topics Performance Matrix</CardTitle>
         <CardDescription>
-          Sentiment scores across categories and entities (color intensity = sentiment score)
+          Sentiment scores across Sentiment Topics and entities (color intensity = sentiment score)
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto p-6">
@@ -156,7 +156,7 @@ export function TopicPerformanceMatrix({
             <thead>
               <tr>
                 <th className="p-2 text-left text-xs font-medium text-muted-foreground border-b">
-                  Sentiment Category
+                  Sentiment Topics
                 </th>
                 {heatmapData.entities.map((entity) => {
                   const entityDomain = getEntityDomain(entity);
@@ -187,7 +187,8 @@ export function TopicPerformanceMatrix({
                     const color = getColor(score);
                     
                     // Determine text color based on background brightness
-                    const textColor = Math.abs(score) > 0.5 ? "white" : "text-gray-900";
+                    // For score 0.0, use dark text since the background will be yellow
+                    const textColor = Math.abs(score) > 0.5 ? "white" : "#1e293b";
 
                     return (
                       <td
@@ -197,12 +198,12 @@ export function TopicPerformanceMatrix({
                         <div
                           className="mx-auto w-12 h-10 rounded flex items-center justify-center text-xs font-semibold transition-colors"
                           style={{
-                            backgroundColor: score !== 0 ? color : "transparent",
-                            color: score !== 0 && Math.abs(score) > 0.5 ? "white" : score !== 0 ? "#1e293b" : "transparent",
+                            backgroundColor: color,
+                            color: textColor,
                           }}
                           title={`${entity} - ${topic}: ${score.toFixed(2)}`}
                         >
-                          {score !== 0 ? score.toFixed(2) : ""}
+                          {score.toFixed(2)}
                         </div>
                       </td>
                     );
@@ -215,7 +216,7 @@ export function TopicPerformanceMatrix({
 
         {/* Legend */}
         <div className="mt-4 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-          <span>Top {heatmapData.topics.length} categories × {heatmapData.entities.length} entities</span>
+          <span>Top {heatmapData.topics.length} Sentiment Topics × {heatmapData.entities.length} entities</span>
           <div className="flex items-center gap-2">
             <span>Negative</span>
             <div className="flex items-center gap-0.5">

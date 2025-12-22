@@ -20,7 +20,8 @@ import {
 // Sentiment Analysis Components
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
 import { SentimentComparison } from "@/components/sentiment/sentiment-comparison";
-// New Sentiment Category-Based Components
+import { SentimentScoreThermometer } from "@/components/sentiment/sentiment-score-thermometer";
+// New Category-Based Components
 import { TopicPerformanceMatrix } from "@/components/sentiment/topic-performance-matrix";
 import { TopicSentimentTrends } from "@/components/sentiment/topic-sentiment-trends";
 import { CompetitivePositioningRadar } from "@/components/sentiment/competitive-positioning-radar";
@@ -64,7 +65,7 @@ export default function SentimentPage() {
   const [selectedTopic, setSelectedTopic] = useState<string>("all");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState<string | null>(null);
   
-  // Sentiment Category-based evaluation data states
+  // Category-based evaluation data states
   const [topicMatrixData, setTopicMatrixData] = useState<any[]>([]);
   const [topicTrendsData, setTopicTrendsData] = useState<any[]>([]);
   const [gapAnalysisData, setGapAnalysisData] = useState<any[]>([]);
@@ -196,7 +197,7 @@ export default function SentimentPage() {
       }
 
       console.log('📊 Sentiment Metrics:', metricsData);
-      console.log('📈 Sentiment Category-Based Data Loaded');
+      console.log('📈 Category-Based Data Loaded');
 
       setMetrics(metricsData);
       // Use trends from brand_evaluations instead of brand_sentiment_attributes
@@ -204,7 +205,7 @@ export default function SentimentPage() {
       // Use entity sentiments from brand_evaluations
       setEntities(entitiesFromEvaluations || entitiesData);
       
-      // Set sentiment category-based data
+      // Set Category-based data
       setTopicMatrixData(topicMatrix || []);
       setTopicTrendsData(topicTrends || []);
       setGapAnalysisData(gapAnalysis || []);
@@ -332,17 +333,27 @@ export default function SentimentPage() {
 
       {/* Sentiment Analysis Section */}
       <div className="space-y-6">
-        {/* Sentiment Pulse with Best Sentiment Score and Competitive Advantage */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sentiment Pulse - Takes 2 columns */}
-          <div className="lg:col-span-2">
+        {/* Sentiment Pulse and Sentiment Score */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Sentiment Pulse */}
+          <div>
             <SentimentComparison
               entities={entities}
               isLoading={isLoading}
             />
           </div>
           
-          {/* Best Sentiment Score and Competitive Advantage - Takes 1 column */}
+          {/* Sentiment Score */}
+          <div>
+            <SentimentScoreThermometer
+              entities={entities}
+              isLoading={isLoading}
+            />
+          </div>
+        </div>
+
+        {/* Best Sentiment Score and Competitive Advantage */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-4">
             {/* Best Sentiment Score */}
             <Card>
@@ -446,9 +457,9 @@ export default function SentimentPage() {
         />
       </div>
 
-      {/* Sentiment Category-Based Evaluation Section */}
+      {/* Category-Based Evaluation Section */}
       <div className="space-y-6">
-        {/* Sentiment Category Performance Matrix - Full Width */}
+        {/* Category Performance Matrix - Full Width */}
         <TopicPerformanceMatrix 
           data={topicMatrixData} 
           isLoading={isLoading}
@@ -459,7 +470,7 @@ export default function SentimentPage() {
         {/* Gap Analysis - Full Width */}
         <TopicGapAnalysis data={gapAnalysisData} isLoading={isLoading} />
 
-        {/* Sentiment Category Sentiment Trends */}
+        {/* Category Sentiment Trends */}
         <TopicSentimentTrends data={topicTrendsData} isLoading={isLoading} />
       </div>
     </div>

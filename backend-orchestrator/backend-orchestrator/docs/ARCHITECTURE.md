@@ -1122,7 +1122,8 @@ CREATE TABLE daily_brand_stats (
   responses_analyzed INTEGER NOT NULL DEFAULT 0,
 
   -- Note: Sentiment metrics removed (December 2024)
-  -- Sentiment data is now sourced from brand_evaluations table
+  -- Sentiment data is now sourced exclusively from brand_evaluations table
+  -- This includes: sentiment_score, positive_theme_ids, negative_theme_ids
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1226,7 +1227,12 @@ The frontend has been migrated to use `daily_brand_stats` for:
 - Executive overview metrics
 - Mentions count aggregations
 
-**Sentiment Data**: Frontend sentiment queries now use the `brand_evaluations` table instead of aggregated sentiment columns. Functions like `getMentionsSummary` aggregate sentiment data from `brand_evaluations` by entity (brand/competitor) and date range.
+**Sentiment Data**: Frontend sentiment queries now use the `brand_evaluations` table instead of aggregated sentiment columns. Functions like `getMentionsSummary` and `getSentimentFromBrandEvaluations` aggregate sentiment data from `brand_evaluations` by entity (brand/competitor) and date range. The frontend also queries `brand_evaluations` directly for:
+
+- Topic-based sentiment analysis (Topic Performance Matrix)
+- Sentiment trends over time (Sentiment Trends Chart)
+- Entity sentiment comparisons (Sentiment Pulse, Sentiment Score)
+- Competitive positioning (Competitive Positioning Radar)
 
 This replaces direct queries to `citations_detail` and `competitor_citations` (legacy tables).
 
@@ -2011,14 +2017,25 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
             │ brand_evaluations     │
             │ table                 │
             │                       │
-            │ - sentiment           │
             │ - sentiment_score     │
-            │ - positive_attributes │
-            │ - negative_attributes │
+            │ - positive_theme_ids  │
+            │ - negative_theme_ids  │
             │ - natural_response    │
             │ - region              │
             │ - query_search        │
-            │ - domains             │
+            │ - uri_sources         │
+            │ - url_sources         │
+            └───────────────────────┘
+                        │
+                        │ References
+                        │
+            ┌───────────▼───────────┐
+            │ sentiment_themes       │
+            │ table                 │
+            │                       │
+            │ - name                │
+            │ - category            │
+            │ - usage_count         │
             └───────────────────────┘
 ```
 
@@ -2028,7 +2045,8 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
 2. **Topic-Based**: Evaluates brands/competitors on specific topics extracted from their website (e.g., "pricing", "customer support", "ease of use")
 3. **Region-Aware**: Generates separate evaluations for each active region (e.g., GLOBAL, ES, US) with region-specific context
 4. **Web-Grounded**: Uses Gemini 2.5 Flash Lite with Google Search for real-time web information
-5. **Dual Output**: Provides both structured data (sentiment, attributes) and natural language responses for user-facing display
+5. **Dual Output**: Provides both structured data (sentiment score, themes) and natural language responses for user-facing display
+6. **Theme-Based Categorization**: Attributes are standardized using a theme-based system that matches or creates new themes for consistent analysis
 
 ### Database Schema
 
@@ -2054,12 +2072,11 @@ CREATE TABLE brand_evaluations (
   response_text TEXT,
 
   -- Sentiment analysis
-  sentiment TEXT CHECK (sentiment IN ('positive', 'neutral', 'negative', 'mixed')),
   sentiment_score DECIMAL(3,2) CHECK (sentiment_score >= -1 AND sentiment_score <= 1),
 
-  -- Attributes (arrays of strings)
-  positive_attributes JSONB DEFAULT '[]'::jsonb,
-  negative_attributes JSONB DEFAULT '[]'::jsonb,
+  -- Theme-based attributes (references to sentiment_themes table)
+  positive_theme_ids JSONB DEFAULT '[]'::jsonb,  -- Array of theme UUIDs
+  negative_theme_ids JSONB DEFAULT '[]'::jsonb,  -- Array of theme UUIDs
 
   -- Natural language response (for user display)
   natural_response TEXT,
@@ -2069,7 +2086,8 @@ CREATE TABLE brand_evaluations (
 
   -- Web search metadata
   query_search JSONB DEFAULT '[]'::jsonb,  -- Array of search queries used
-  domains JSONB DEFAULT '[]'::jsonb,       -- Array of domains cited
+  uri_sources JSONB DEFAULT '[]'::jsonb,  -- Array of full URIs from Gemini grounding
+  url_sources JSONB DEFAULT '[]'::jsonb,  -- Array of generic URLs (e.g., https://example.com)
 
   -- Reference
   ai_response_id UUID REFERENCES ai_responses(id) ON DELETE SET NULL,
@@ -2084,14 +2102,64 @@ CREATE TABLE brand_evaluations (
 
 - `topic`: The specific topic being evaluated (e.g., "pricing", "customer support")
 - `evaluation_prompt`: Full prompt sent to AI (e.g., "Evaluate the B2B CRM company Salesforce on pricing")
-- `sentiment`: Overall sentiment classification
 - `sentiment_score`: Numerical score from -1 (negative) to 1 (positive)
-- `positive_attributes`: JSONB array of positive attributes extracted
-- `negative_attributes`: JSONB array of negative attributes extracted
+- `positive_theme_ids`: JSONB array of UUIDs referencing `sentiment_themes` table for positive attributes
+- `negative_theme_ids`: JSONB array of UUIDs referencing `sentiment_themes` table for negative attributes
 - `natural_response`: Human-readable evaluation (2-3 paragraphs) for direct user display
 - `region`: Geographic region for which evaluation was performed (defaults to 'GLOBAL')
 - `query_search`: Array of web search queries used by Gemini during evaluation
-- `domains`: Array of unique domains cited in the evaluation
+- `uri_sources`: Array of full URIs from Gemini's grounding metadata (e.g., `gs://vertexaisearch...`)
+- `url_sources`: Array of generic URLs extracted from URIs (e.g., `https://example.com`)
+
+**Note**: The `sentiment` field was removed as it's not used. Sentiment is determined from `sentiment_score` when needed.
+
+#### sentiment_themes
+
+Stores standardized themes for categorizing sentiment attributes:
+
+```sql
+CREATE TABLE sentiment_themes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('positive', 'negative')),
+  usage_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(project_id, name, category)
+);
+```
+
+**Key Fields**:
+
+- `name`: Standardized theme name (e.g., "Customer Support", "Brand Heritage", "Pricing")
+- `category`: Whether this is a positive or negative theme
+- `usage_count`: Number of evaluations using this theme (for analytics)
+- `project_id`: Themes are project-specific to allow customization per brand
+
+**Theme Standardization**: Themes are created or matched during evaluation processing. Gemini is instructed to match existing themes exactly or create new ones following strict naming rules (max 4 words, no parentheses, no qualifiers).
+
+**Theme Matching Process**:
+
+1. **Fetch Existing Themes**: Before evaluation, the system fetches all existing themes for the project from `sentiment_themes` table
+2. **Include in Prompt**: The list of existing themes (both positive and negative) is included in the evaluation prompt
+3. **AI Matching**: Gemini is instructed to:
+   - Match attributes to existing themes aggressively (e.g., "customer service" → "Customer Support" if it exists)
+   - Use exact theme names (no variations, no qualifiers, no parentheses)
+   - Create new themes only if no match exists, following strict naming rules
+4. **Theme Creation**: If Gemini returns a new theme name, the system:
+   - Cleans the theme name (removes parentheses, brackets, qualifiers)
+   - Checks if a similar theme already exists (case-insensitive)
+   - Creates new theme in `sentiment_themes` table if unique
+   - Updates `usage_count` when themes are used
+5. **Storage**: Only theme IDs are stored in `brand_evaluations`, not attribute strings, saving storage and ensuring consistency
+
+**Benefits**:
+
+- **Consistency**: Same concepts are always represented by the same theme name
+- **Storage Efficiency**: Storing theme IDs instead of attribute strings reduces database size
+- **Analytics**: `usage_count` tracks how often each theme appears across evaluations
+- **Standardization**: Prevents duplicate themes with similar meanings
 
 #### projects (Extended)
 
@@ -2145,13 +2213,21 @@ This phase uses a **scheduler + processor pattern** (similar to `schedule-analys
 4. **Process** (per event):
    - Receives event with: `project_id`, `topic`, `region`, `entity_type`, `entity_name`, `competitor_id`
    - Fetches project data to get `industry`
+   - Fetches existing themes from `sentiment_themes` table for the project
    - Builds evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+     - Includes list of existing positive and negative themes
+     - Instructs Gemini to match existing themes exactly or create new ones following strict rules
    - Enriches prompt with region-specific context if region is not GLOBAL
    - Calls Gemini 2.5 Flash Lite with web search (using `callGeminiWithRetry` for rate limiting)
-   - Parses structured response (sentiment, sentiment_score, positive_attributes, negative_attributes)
+   - Parses structured response (sentiment_score, positive themes, negative themes)
    - Extracts natural response (2-3 paragraphs after "=== NATURAL_RESPONSE ===" marker)
-   - Extracts `webSearchQueries` and `domains` from Gemini's `groundingMetadata`
-   - Saves to `brand_evaluations` table
+   - Extracts `webSearchQueries` from Gemini's `groundingMetadata.webSearchQueries`
+   - Extracts URIs and URLs from `groundingMetadata.groundingChunks`:
+     - `uri_sources`: Array of full URIs (e.g., `gs://vertexaisearch.cloud.google.com/...`)
+     - `url_sources`: Array of generic URLs extracted from URIs (e.g., `https://example.com`)
+     - Uses same transformation logic as citation extraction (see Gemini API Integration section)
+   - Matches or creates themes in `sentiment_themes` table
+   - Saves theme IDs (not attribute strings) to `brand_evaluations` table
 5. **Benefits**:
    - Each evaluation is a small, independent step → no timeouts
    - Parallel processing (up to 5 concurrent evaluations)
@@ -2165,10 +2241,40 @@ The evaluation prompt follows this format:
 ```
 Evaluate the [INDUSTRY] company [BRAND] on [TOPIC].
 
+EXISTING POSITIVE THEMES:
+- [Theme 1]
+- [Theme 2]
+...
+
+EXISTING NEGATIVE THEMES:
+- [Theme 1]
+- [Theme 2]
+...
+
 Provide your evaluation in two parts:
 
 PART 1 - STRUCTURED ANALYSIS:
-[Sentiment classification, score, strengths, weaknesses, summary]
+[Sentiment score, strengths, weaknesses using theme names]
+
+CRITICAL - THEME CATEGORIZATION RULES:
+1. MATCHING EXISTING THEMES (PRIORITY):
+   - If a strength/weakness relates to ANY existing theme, use that theme's EXACT name
+   - Be AGGRESSIVE in matching: "customer support", "customer service", "client assistance" should ALL match "Customer Support" if it exists
+   - Do NOT add parentheses, brackets, or details to theme names
+   - Do NOT create variations like "Strong Brand Heritage" if "Brand Heritage" exists
+
+2. CREATING NEW THEMES (ONLY IF NO MATCH):
+   - Only create if concept is TRULY different from all existing themes
+   - New theme names must be: Maximum 4 words, broad enough to cover similar future attributes, NO parentheses, NO additional details
+
+Format:
+SENTIMENT_SCORE: [number from -1.0 to 1.0]
+STRENGTHS:
+- [EXACT theme name from existing list OR new synthesized theme]
+...
+WEAKNESSES:
+- [EXACT theme name from existing list OR new synthesized theme]
+...
 
 PART 2 - NATURAL RESPONSE:
 === NATURAL_RESPONSE ===
@@ -2181,13 +2287,26 @@ PART 2 - NATURAL RESPONSE:
 Note: Please provide information relevant to [REGION]. Focus on local context, regional brands, and country-specific information when applicable.
 ```
 
+**Theme Standardization**: The prompt includes strict rules to ensure Gemini:
+
+1. Matches existing themes exactly (no variations, no qualifiers)
+2. Creates new themes only when necessary, following strict naming conventions
+3. Avoids duplicate themes with similar meanings (e.g., "Brand Heritage" vs "Strong Brand Heritage" vs "Brand Heritage (Founded in 1864)")
+
 ### Integration with Frontend
 
 The frontend uses `brand_evaluations` for sentiment data through:
 
 1. **getMentionsSummary**: Aggregates sentiment from `brand_evaluations` by entity (brand/competitor) and date range
 2. **getSentimentFromDailyStats**: Retrieves sentiment metrics from `brand_evaluations` instead of `daily_brand_stats`
-3. **Brand Evaluations Queries**: Direct queries to `brand_evaluations` for topic-based sentiment analysis, trends, and comparisons
+3. **getSentimentFromBrandEvaluations**: Helper function that aggregates sentiment data from `brand_evaluations` table
+4. **Brand Evaluations Queries**: Direct queries to `brand_evaluations` for:
+   - Topic-based sentiment analysis (Topic Performance Matrix)
+   - Sentiment trends over time (Sentiment Trends Chart)
+   - Entity sentiment comparisons (Sentiment Pulse, Sentiment Score Thermometer)
+   - Competitive positioning (Competitive Positioning Radar)
+   - Topic gap analysis
+5. **Theme Queries**: Frontend queries `sentiment_themes` table to display theme names and usage counts
 
 ### Coexistence with Response-Based Analysis
 
@@ -2224,13 +2343,34 @@ The daily sentiment evaluation system uses a **scheduler + processor pattern** (
 5. **Idempotency**: The scheduler checks for existing evaluations TODAY before dispatching events, preventing duplicate work and unnecessary API calls.
 6. **Cost**: Gemini 2.5 Flash Lite is cost-effective, but large-scale deployments may need monitoring
 
+### Frontend Components
+
+The sentiment analysis system includes several UI components for visualizing sentiment data:
+
+1. **Sentiment Pulse** (`SentimentComparison`): Shows sentiment distribution (positive vs negative) with emoji indicator and horizontal bar chart
+2. **Sentiment Score Thermometer** (`SentimentScoreThermometer`): Displays overall sentiment score (-1 to +1) with horizontal progress bar using same color scale as Topic Performance Matrix
+3. **Topic Performance Matrix** (`TopicPerformanceMatrix`): Heatmap showing sentiment scores by topic and entity, with color-coded cells (red for negative, yellow for neutral, green for positive)
+4. **Sentiment Trends Chart** (`SentimentTrendsChart`): Line chart showing sentiment trends over time for brands and competitors
+5. **Competitive Positioning Radar** (`CompetitivePositioningRadar`): Radar chart comparing sentiment scores across selected topics for brands and competitors
+6. **Topic Gap Analysis** (`TopicGapAnalysis`): Analysis of sentiment gaps between brand and competitors by topic
+
+**Color Scale**: All sentiment visualizations use the same color scale function:
+
+- Red (`rgb(255, 140, 140)`) for -1.0 (very negative)
+- Yellow (`rgb(255, 235, 150)`) for 0.0 (neutral)
+- Green (`rgb(100, 220, 120)`) for +1.0 (very positive)
+- Smooth transitions between these colors based on sentiment score
+
 ### Future Improvements
 
 1. **Incremental Updates**: ✅ Already implemented - scheduler checks for existing evaluations TODAY before dispatching events
-2. **Topic Prioritization**: Focus on high-value topics first
-3. **Caching**: Cache natural responses for similar evaluations
-4. **Historical Tracking**: Track sentiment trends over time per topic
-5. **Alerting**: Alert on significant sentiment changes
+2. **Theme Standardization**: ✅ Already implemented - theme-based categorization system with strict matching rules
+3. **URI/URL Extraction**: ✅ Already implemented - extracts both URIs and generic URLs from Gemini grounding metadata
+4. **Topic Prioritization**: Focus on high-value topics first
+5. **Caching**: Cache natural responses for similar evaluations
+6. **Historical Tracking**: Track sentiment trends over time per topic
+7. **Alerting**: Alert on significant sentiment changes
+8. **Theme Analytics**: Enhanced analytics on theme usage patterns and trends
 
 ---
 

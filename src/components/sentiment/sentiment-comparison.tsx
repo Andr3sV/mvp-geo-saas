@@ -45,15 +45,12 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
     );
   }
 
-  const total = brandEntity.positiveCount + brandEntity.neutralCount + brandEntity.negativeCount;
+  const total = brandEntity.positiveCount + brandEntity.negativeCount;
   const positivePercentage = total > 0 ? (brandEntity.positiveCount / total) * 100 : 0;
-  const neutralPercentage = total > 0 ? (brandEntity.neutralCount / total) * 100 : 0;
   const negativePercentage = total > 0 ? (brandEntity.negativeCount / total) * 100 : 0;
 
   // Determine dominant sentiment
-  const dominantSentiment = 
-    positivePercentage >= neutralPercentage && positivePercentage >= negativePercentage ? 'positive' :
-    negativePercentage >= neutralPercentage ? 'negative' : 'neutral';
+  const dominantSentiment = positivePercentage >= negativePercentage ? 'positive' : 'negative';
 
   const sentimentColor = {
     positive: 'from-green-500 to-emerald-600',
@@ -76,16 +73,13 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
         </p>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col gap-6">
-        {/* Central Score Display */}
-        <div className="relative">
+      <CardContent className="flex-1 flex flex-col justify-between p-6">
+        {/* Central Emoji Display */}
+        <div className="relative flex-1 flex flex-col justify-center">
           <div className={`absolute inset-0 bg-gradient-to-br ${sentimentColor} opacity-10 blur-3xl rounded-full`}></div>
-          <div className="relative text-center py-6">
-            <div className="text-6xl mb-2">{sentimentEmoji}</div>
-            <div className="text-5xl font-black bg-gradient-to-br ${sentimentColor} bg-clip-text text-transparent mb-1">
-              {(brandEntity.averageSentiment * 100).toFixed(0)}%
-            </div>
-            <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="relative text-center">
+            <div className="text-7xl mb-3">{sentimentEmoji}</div>
+            <div className="flex items-center justify-center gap-2">
               <Badge variant="secondary" className="text-xs">
                 {total} analyses
               </Badge>
@@ -93,21 +87,13 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
           </div>
         </div>
 
-        {/* Horizontal Stacked Bar */}
-        <div className="space-y-3">
-          <div className="flex h-3 rounded-full overflow-hidden shadow-inner bg-muted/30">
+        {/* Horizontal Stacked Bar and Legend */}
+        <div className="space-y-4 mt-4">
+          <div className="flex h-4 rounded-full overflow-hidden shadow-inner bg-muted/30">
             {positivePercentage > 0 && (
               <div
                 className="bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-1000 ease-out relative group"
                 style={{ width: `${positivePercentage}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </div>
-            )}
-            {neutralPercentage > 0 && (
-              <div
-                className="bg-gradient-to-r from-amber-500 to-yellow-500 transition-all duration-1000 ease-out relative group"
-                style={{ width: `${neutralPercentage}%` }}
               >
                 <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
@@ -122,49 +108,34 @@ export function SentimentComparison({ entities, isLoading }: SentimentComparison
             )}
           </div>
 
-          {/* Legend */}
-          <div className="grid grid-cols-3 gap-2 text-center">
+          {/* Legend - 2 columns for Positive and Negative only */}
+          <div className="grid grid-cols-2 gap-4 text-center">
             <div className="group cursor-default">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-sm"></div>
+              <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 shadow-sm"></div>
                 <span className="text-xs font-medium text-muted-foreground group-hover:text-green-600 transition-colors">
                   Positive
                 </span>
               </div>
-              <div className="text-lg font-bold text-green-600">
+              <div className="text-xl font-bold text-green-600">
                 {positivePercentage.toFixed(0)}%
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 {brandEntity.positiveCount} mentions
               </div>
             </div>
 
             <div className="group cursor-default">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-amber-500 to-yellow-500 shadow-sm"></div>
-                <span className="text-xs font-medium text-muted-foreground group-hover:text-amber-600 transition-colors">
-                  Neutral
-                </span>
-              </div>
-              <div className="text-lg font-bold text-amber-600">
-                {neutralPercentage.toFixed(0)}%
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {brandEntity.neutralCount} mentions
-              </div>
-            </div>
-
-            <div className="group cursor-default">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <div className="w-2 h-2 rounded-full bg-gradient-to-br from-red-500 to-rose-500 shadow-sm"></div>
+              <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-red-500 to-rose-500 shadow-sm"></div>
                 <span className="text-xs font-medium text-muted-foreground group-hover:text-red-600 transition-colors">
                   Negative
                 </span>
               </div>
-              <div className="text-lg font-bold text-red-600">
+              <div className="text-xl font-bold text-red-600">
                 {negativePercentage.toFixed(0)}%
               </div>
-              <div className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 {brandEntity.negativeCount} mentions
               </div>
             </div>

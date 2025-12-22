@@ -242,12 +242,12 @@ export function FiltersToolbar({
 							}}
 						>
 							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Sentiment Category" />
+								<SelectValue placeholder="Category" />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
-									<SelectLabel>Sentiment Category</SelectLabel>
-									<SelectItem value="all">Sentiment Category</SelectItem>
+									<SelectLabel>All Sentiment Topics</SelectLabel>
+									<SelectItem value="all">All Sentiment Topics</SelectItem>
 									{sentimentTopics.map((topic) => (
 										<SelectItem key={topic} value={topic}>
 											{topic}
