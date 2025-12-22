@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { Check, MoreHorizontal } from "lucide-react";
@@ -98,42 +98,71 @@ export function ThemeFrequencyRadar({
     setSelectedThemes(newSelected);
   };
 
-  const chartData = useMemo(() => {
-    // Get available themes from data if not provided
-    const themesInData = availableThemes.length > 0 
+  // Calculate available themes from positive data
+  const themesInData = useMemo(() => {
+    if (!data || data.length === 0) {
+      return [];
+    }
+    // Filter only positive themes
+    const positiveData = data.filter(d => d.theme_category === "positive");
+    
+    return availableThemes.length > 0 
       ? availableThemes.filter(theme => 
-          data.some(d => d.theme_name === theme)
+          positiveData.some(d => d.theme_name === theme)
         )
-      : Array.from(new Set(data.map(d => d.theme_name)));
+      : Array.from(new Set(positiveData.map(d => d.theme_name)));
+  }, [data, availableThemes]);
 
-    // Use selected themes if any, otherwise use top themes by frequency
+  // Initialize selectedThemes with first 4 themes when empty (only once when data loads)
+  useEffect(() => {
+    if (selectedThemes.size === 0 && themesInData.length > 0) {
+      // Select first 4 themes by default (up to MAX_SELECTED_THEMES)
+      const defaultThemes = themesInData.slice(0, Math.min(4, MAX_SELECTED_THEMES));
+      
+      // Only update if we have themes to select
+      if (defaultThemes.length > 0) {
+        setSelectedThemes(new Set(defaultThemes));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themesInData.length]); // Only run when themes change
+
+  const chartData = useMemo(() => {
+    // Handle empty data
+    if (!data || data.length === 0) {
+      return {
+        radarData: [],
+        selectedCompetitors: [],
+        themesToUse: [],
+        themesInData: [],
+        maxFrequency: 10,
+      };
+    }
+
+    // Filter only positive themes
+    const positiveData = data.filter(d => d.theme_category === "positive");
+
+    // Use selected themes if any, otherwise use first themes as fallback
     let themesToUse: string[];
     if (selectedThemes.size > 0) {
       themesToUse = Array.from(selectedThemes);
     } else {
-      // Get top themes by frequency as fallback
-      const themeCounts = new Map<string, number>();
-      data.forEach((d) => {
-        themeCounts.set(d.theme_name, (themeCounts.get(d.theme_name) || 0) + d.frequency);
-      });
-      themesToUse = Array.from(themeCounts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, Math.min(topThemesLimit, MAX_SELECTED_THEMES))
-        .map(([theme]) => theme);
+      // Get first themes as fallback (shouldn't happen often due to useEffect)
+      themesToUse = themesInData.slice(0, MAX_SELECTED_THEMES);
     }
 
     // Get selected competitors
     const selectedCompetitors = competitors.filter((c) => selectedCompetitorIds.has(c.id));
 
-    // Build radar data
+    // Build radar data (only using positive data)
     const radarData: RadarData[] = themesToUse.map((theme) => {
       const dataPoint: RadarData = {
         theme,
         [brandName]: 0,
       };
 
-      // Get brand frequency
-      const brandData = data.find((d) => d.theme_name === theme && d.entity_type === "brand");
+      // Get brand frequency (only from positive themes)
+      const brandData = positiveData.find((d) => d.theme_name === theme && d.entity_type === "brand");
       if (brandData) {
         if (viewMode === "percentage") {
           const percentage = brandData.total_evaluations > 0 
@@ -145,9 +174,9 @@ export function ThemeFrequencyRadar({
         }
       }
 
-      // Get selected competitor frequencies (match by competitor_id if available, otherwise by name)
+      // Get selected competitor frequencies (only from positive themes)
       selectedCompetitors.forEach((competitor) => {
-        const compData = data.find((d) => {
+        const compData = positiveData.find((d) => {
           if (d.theme_name !== theme || d.entity_type !== "competitor") return false;
           // Try to match by competitor_id first, then fallback to entity_name
           return (d.competitor_id && competitor.id === d.competitor_id) || 
@@ -177,7 +206,7 @@ export function ThemeFrequencyRadar({
     const maxFrequency = Math.max(...allValues, 1) || 10; // Minimum 1, fallback to 10 if empty
 
     return { radarData, selectedCompetitors, themesToUse, themesInData, maxFrequency };
-  }, [data, topThemesLimit, selectedCompetitorIds, selectedThemes, competitors, brandName, availableThemes, viewMode]);
+  }, [data, selectedCompetitorIds, selectedThemes, competitors, brandName, themesInData, viewMode]);
 
   if (isLoading) {
     return (
@@ -235,9 +264,10 @@ export function ThemeFrequencyRadar({
           <p className="text-xs font-medium text-muted-foreground mb-2">{theme}</p>
           <div className="space-y-1">
             {payload.map((entry: any, index: number) => {
-              // Find the original data to get frequency and total_evaluations
+              // Find the original data to get frequency and total_evaluations (only positive themes)
               const entityName = entry.name;
-              const entityData = data.find((d) => {
+              const positiveData = data.filter(d => d.theme_category === "positive");
+              const entityData = positiveData.find((d) => {
                 if (d.theme_name !== theme) return false;
                 if (entityName === brandName) {
                   return d.entity_type === "brand";

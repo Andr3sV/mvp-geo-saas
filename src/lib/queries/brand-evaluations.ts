@@ -1962,7 +1962,7 @@ export async function getThemeFrequencyMatrix(
   // First, get all themes for this project
   const { data: themes, error: themesError } = await supabase
     .from("sentiment_themes")
-    .select("id, name, category")
+    .select("id, name, type")
     .eq("project_id", projectId);
 
   if (themesError) {
@@ -1979,7 +1979,7 @@ export async function getThemeFrequencyMatrix(
   themes.forEach((theme) => {
     themeMap.set(theme.id, {
       name: theme.name,
-      category: theme.category as "positive" | "negative",
+      category: theme.type as "positive" | "negative",
     });
   });
 
