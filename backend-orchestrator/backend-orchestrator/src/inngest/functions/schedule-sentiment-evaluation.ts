@@ -84,16 +84,35 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
         // Get distinct regions from prompt_tracking for this project
         const { data: regionsData, error: regionsError } = await supabase
           .from('prompt_tracking')
-          .select('region')
+          .select(`
+            region_id,
+            regions:region_id (
+              code
+            )
+          `)
           .eq('project_id', project.id)
           .eq('is_active', true)
-          .not('region', 'is', null);
+          .not('region_id', 'is', null);
 
         if (regionsError) {
           logError('schedule-sentiment-evaluation', `Failed to fetch regions for project ${project.id}`, regionsError);
         }
 
-        const distinctRegions = [...new Set(regionsData?.map(r => r.region) || [])];
+        // Extract unique region codes from the joined regions table
+        // Handle both array and object cases (Supabase may return array for joins)
+        const distinctRegions = [...new Set(
+          regionsData
+            ?.map((r: any) => {
+              const regions = r.regions;
+              // Handle both array and object cases
+              if (Array.isArray(regions)) {
+                return regions[0]?.code;
+              }
+              return regions?.code;
+            })
+            .filter((code): code is string => !!code) || []
+        )];
+
         // If no regions or only GLOBAL, default to ['GLOBAL']
         const regionsToProcess = distinctRegions.length > 0 && !distinctRegions.includes('GLOBAL') 
           ? distinctRegions 

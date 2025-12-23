@@ -97,7 +97,27 @@ export async function getAIResponses(
   // Check if we need to filter by region or topic (requires inner join)
   const needsRegionFilter = filters.region && filters.region !== "GLOBAL";
   const needsTopicFilter = filters.topicId && filters.topicId !== "all";
-  const needsPromptTrackingJoin = needsRegionFilter || needsTopicFilter;
+
+  // Convert region code to region_id if needed
+  let regionId: string | null = null;
+  let actualNeedsRegionFilter = needsRegionFilter;
+  
+  if (needsRegionFilter && filters.region) {
+    const { data: regionData } = await supabase
+      .from("regions")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("code", filters.region.toUpperCase())
+      .eq("is_active", true)
+      .single();
+    regionId = regionData?.id || null;
+    // If region not found, don't filter by region
+    if (!regionId) {
+      actualNeedsRegionFilter = false;
+    }
+  }
+
+  const needsPromptTrackingJoin = actualNeedsRegionFilter || needsTopicFilter;
 
   // Build base query for counting
   // Use inner join if we need to filter by prompt_tracking fields
@@ -105,7 +125,7 @@ export async function getAIResponses(
     .from("ai_responses")
     .select(
       needsPromptTrackingJoin
-        ? "id, prompt_tracking!inner(region, topic_id)"
+        ? "id, prompt_tracking!inner(region_id, topic_id)"
         : "id",
       { count: "exact", head: true }
     )
@@ -124,8 +144,12 @@ export async function getAIResponses(
       status,
       created_at,
       ${needsPromptTrackingJoin ? "prompt_tracking!inner(" : "prompt_tracking:prompt_tracking_id ("}
-        region,
+        region_id,
         topic_id,
+        regions:region_id (
+          code,
+          name
+        ),
         topics:topic_id (
           name
         )
@@ -161,10 +185,10 @@ export async function getAIResponses(
     dataQuery = dataQuery.lte("created_at", filters.toDate.toISOString());
   }
 
-  // Filter by region (if not GLOBAL)
-  if (filters.region && filters.region !== "GLOBAL") {
-    countQuery = countQuery.eq("prompt_tracking.region", filters.region);
-    dataQuery = dataQuery.eq("prompt_tracking.region", filters.region);
+  // Filter by region_id (if not GLOBAL and region_id was found)
+  if (actualNeedsRegionFilter && regionId) {
+    countQuery = countQuery.eq("prompt_tracking.region_id", regionId);
+    dataQuery = dataQuery.eq("prompt_tracking.region_id", regionId);
   }
 
   // Filter by topic
@@ -226,7 +250,7 @@ export async function getAIResponses(
     model_version: r.model_version,
     status: r.status,
     created_at: r.created_at,
-    region: r.prompt_tracking?.region || null,
+    region: r.prompt_tracking?.regions?.code || null,
     topic_name: r.prompt_tracking?.topics?.name || null,
     mentions_count: mentionsMap.get(r.id) || 0,
     citations_count: citationsMap.get(r.id) || 0,
@@ -264,7 +288,11 @@ export async function getAIResponseDetail(
       prompt_tracking:prompt_tracking_id (
         id,
         prompt,
-        region,
+        region_id,
+        regions:region_id (
+          code,
+          name
+        ),
         topics:topic_id (
           id,
           name
@@ -315,7 +343,7 @@ export async function getAIResponseDetail(
     ? {
         id: (response.prompt_tracking as any).id,
         prompt: (response.prompt_tracking as any).prompt,
-        region: (response.prompt_tracking as any).region,
+        region: (response.prompt_tracking as any).regions?.code || null,
         topic: (response.prompt_tracking as any).topics
           ? {
               id: (response.prompt_tracking as any).topics.id,

@@ -138,7 +138,8 @@ export function AppSidebar() {
   const isDataManagementOpen = pathname.startsWith("/dashboard/responses") ||
     pathname.startsWith("/dashboard/competitors") ||
     pathname.startsWith("/dashboard/prompts") ||
-    pathname.startsWith("/dashboard/topics");
+    pathname.startsWith("/dashboard/topics") ||
+    pathname.startsWith("/dashboard/regions");
   const isOpportunitiesOpen = pathname.startsWith("/dashboard/opportunities");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(isOverviewOpen);
   const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(isVisibilityOpen);
@@ -164,7 +165,8 @@ export function AppSidebar() {
       pathname.startsWith("/dashboard/responses") ||
       pathname.startsWith("/dashboard/competitors") ||
       pathname.startsWith("/dashboard/prompts") ||
-      pathname.startsWith("/dashboard/topics")
+      pathname.startsWith("/dashboard/topics") ||
+      pathname.startsWith("/dashboard/regions")
     );
     setIsOpportunitiesExpanded(pathname.startsWith("/dashboard/opportunities"));
   }, [pathname]);

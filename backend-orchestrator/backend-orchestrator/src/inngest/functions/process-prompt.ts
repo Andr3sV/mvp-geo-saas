@@ -76,7 +76,14 @@ export const processPrompt = inngest.createFunction(
     const promptData = await step.run("fetch-prompt", async () => {
       const { data, error } = await supabase
         .from("prompt_tracking")
-        .select("prompt, region")
+        .select(`
+          prompt,
+          region_id,
+          regions:region_id (
+            code,
+            name
+          )
+        `)
         .eq("id", prompt_tracking_id)
         .single();
 
@@ -85,7 +92,12 @@ export const processPrompt = inngest.createFunction(
     });
 
     const promptText = promptData.prompt;
-    const promptRegion = promptData.region || 'GLOBAL';
+    // Get region code from regions table, default to 'GLOBAL' if no region
+    // Handle both array and object cases (Supabase may return array for joins)
+    const regionsData = (promptData as any).regions;
+    const promptRegion = Array.isArray(regionsData) 
+      ? (regionsData[0]?.code || 'GLOBAL')
+      : (regionsData?.code || 'GLOBAL');
 
     // 2. Determine Platforms
     // Use platforms_to_process from event if provided, otherwise use all available platforms

@@ -51,7 +51,7 @@ export function FiltersToolbar({
 	onApply 
 }: FiltersToolbarProps) {
 	const { selectedProjectId } = useProject();
-	const [region, setRegion] = useState<string>(controlledRegion || "US");
+	const [region, setRegion] = useState<string>(controlledRegion || "GLOBAL");
 	const [dateRange, setDateRange] = useState<DateRangeValue>(
 		controlledDateRange || getCurrentWeekDateRange()
 	);
@@ -122,7 +122,7 @@ export function FiltersToolbar({
 
 	const resetFilters = () => {
 		const resetDateRange = getDefaultDateRange();
-		const resetRegion = "US";
+		const resetRegion = "GLOBAL";
 		const resetPlatform = "all";
 		const resetTopicId = "all";
 		const resetSentimentTheme = "all";
@@ -164,7 +164,7 @@ export function FiltersToolbar({
 		isSameDay(appliedDateRange.to, defaultDateRange.to);
 	
 	const hasActiveFilters = 
-		appliedRegion !== "US" ||
+		appliedRegion !== "GLOBAL" ||
 		appliedPlatform !== "all" ||
 		(!hideTopicFilter && appliedTopicId !== "all") ||
 		(showSentimentThemeFilter && appliedSentimentTheme !== "all") ||
