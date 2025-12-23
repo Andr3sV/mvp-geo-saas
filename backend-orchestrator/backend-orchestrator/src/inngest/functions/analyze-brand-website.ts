@@ -7,32 +7,84 @@ import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 import { callGemini, getAPIKey } from '../../lib/ai-clients';
 
 /**
- * Prompt template for extracting industry and topics from a brand website
+ * Prompt template for extracting AEO prompts (Phase 1) and sentiment topics (Phase 2) from a brand website
  */
-const BRAND_ANALYSIS_PROMPT = `You are an expert in brand analysis, user intent modeling, and sentiment evaluation.
+const BRAND_ANALYSIS_PROMPT = `Act as a Senior Prompt Engineer and expert in AEO (Answer Engine Optimization), Brand Analysis, and User Intent Modeling.
 
-Based ONLY on the content, messaging, and offerings described on the following brand website, perform the tasks below.
+Your objective is to analyze the provided brand data to generate two distinct strategic outputs:
+1. An "Unbranded" AEO Visibility Measurement Framework (5 categories & 50 user queries).
+2. A Sentiment Evaluation Taxonomy (Industry & Topics).
+
+**INPUT DATA:**
+* **Target Brand:** {BRAND_NAME}
+* **Target Country:** {COUNTRY} (Use this to localize the competitor analysis and user query context)
+* **Website:** {WEBSITE_URL}
+
+Follow these instructions step-by-step:
+
+### PHASE 1: AEO VISIBILITY FRAMEWORK (Brand vs. Competition)
+Analyze the website and the Target Brand's position within the {COUNTRY} market. If competitors are not explicitly known, **infer the 3-5 most likely direct competitors** in {COUNTRY}.
+
+1. **Define 5 Strategic Categories:** These must group the ways users search for solutions in this sector *before* they have decided on a specific brand.
+   * Focus on problems to be solved, "best of" lists, and category comparisons.
+
+2. **Generate 50 User Simulation Prompts (10 per Category):**
+   * **CRITICAL CONSTRAINT (Unbranded Queries):** Do **NOT** mention {BRAND_NAME} or any competitor names in these prompts.
+   * **Reasoning:** We want to measure "Zero-Click" organic visibility. We need to see if the AI cites {BRAND_NAME} when the user asks a generic category question.
+   * **Style:** Natural Language Queries that a real user in {COUNTRY} would type into ChatGPT, Gemini, or Perplexity.
+   * *Bad Example:* "Is {BRAND_NAME} good for email marketing?" (Do not use this).
+   * *Good Example:* "What are the most affordable email marketing tools for startups in 2025?" (Use this).
+
+**Output Format for Phase 1:**
+## AEO VISIBILITY ANALYSIS (UNBRANDED)
+**Context:** Market: {COUNTRY} | Brand: {BRAND_NAME}
+**Inferred Competitors:** [List]
+
+### Category 1: [Category Name]
+1. [Unbranded User Query]
+2. [Unbranded User Query]
+...
+10. [Unbranded User Query]
+
+### Category 2: [Category Name]
+1. [Unbranded User Query]
+...
+10. [Unbranded User Query]
+
+(Repeat for all 5 categories)
+
+---
+
+### PHASE 2: SENTIMENT EVALUATION TAXONOMY
+Based **ONLY** on the content and offerings found on the {WEBSITE_URL} website, perform the tasks below.
 
 1. Identify the primary INDUSTRY and COMPANY TYPE the brand operates in.
-   - Be concise and use standardized, user-understandable terms.
-   - Example formats:
-     - "Online wedding services company"
-     - "B2B CRM software company"
-     - "Direct-to-consumer skincare brand"
+- Be concise and use standardized, user-understandable terms.
+- Example formats:
+- "Online wedding services company"
+- "B2B CRM software company"
+- "Direct-to-consumer skincare brand"
 
 2. Identify the core TOPICS / USER INTENTS that potential customers would commonly evaluate this brand on.
-   - Think in terms of how users would naturally ask questions or seek evaluations.
-   - Topics should represent products, services, use cases, or decision-making criteria.
-   - Avoid internal features or marketing jargon unless they clearly map to user intent.
+   * Think in terms of how users would naturally ask questions or seek evaluations.
+* Topics should represent products, services, use cases, or decision-making criteria.
+* Avoid internal features or marketing jargon unless they clearly map to user intent.
 
-3. Output between 15 and 30 TOPICS / INTENTS, normalized and non-duplicative.
+3. **Output between 15 and 30 TOPICS**, normalized and non-duplicative.
 
-4. For each TOPIC / INTENT:
-   - Use short, evaluable noun phrases (e.g. "pricing", "customer support", "wedding venues", "ease of use").
-   - Ensure the topic could naturally complete the sentence:
-     "Evaluate the [INDUSTRY / COMPANY TYPE] company [BRAND] on ___."
+4. **Rules for each TOPIC / INTENT:**
+   * Use short, evaluable noun phrases (e.g. "pricing", "customer support", "wedding venues", "ease of use").
+   * Ensure the topic could naturally complete the sentence: "Evaluate the [INDUSTRY] company {BRAND_NAME} on ___."
 
-5. Return the output in the following structured format:
+**Constraints for Phase 2:**
+* Do NOT evaluate the brand.
+* Do NOT include sentiment.
+* Do NOT include competitors in the list.
+* Only extract the taxonomy.
+
+**Output Format for Phase 2:**
+
+## SENTIMENT TAXONOMY
 
 INDUSTRY / COMPANY TYPE:
 - <single best description>
@@ -41,47 +93,93 @@ TOPICS / USER INTENTS:
 - <topic 1>
 - <topic 2>
 - <topic 3>
-...
-
-Do NOT evaluate the brand.
-Do NOT include sentiment.
-Do NOT include competitors.
-Only extract taxonomy suitable for later sentiment evaluation.
-
-Brand website: {WEBSITE_URL}`;
+...`;
 
 /**
- * Parse the structured response from Gemini to extract industry and topics
+ * Parse the structured response from Gemini to extract AEO prompts (Phase 1) and sentiment topics (Phase 2)
  */
 function parseAnalysisResponse(responseText: string): {
   industry: string | null;
   topics: string[];
+  aeoCategories: Array<{
+    name: string;
+    prompts: Array<{ text: string; order: number }>;
+  }>;
 } {
   const lines = responseText.split('\n').map(line => line.trim());
   let industry: string | null = null;
   const topics: string[] = [];
+  const aeoCategories: Array<{ name: string; prompts: Array<{ text: string; order: number }> }> = [];
   
-  let section: 'none' | 'industry' | 'topics' = 'none';
+  let section: 'none' | 'aeo' | 'industry' | 'topics' = 'none';
+  let currentCategory: { name: string; prompts: Array<{ text: string; order: number }> } | null = null;
+  let promptOrder = 0;
   
-  for (const line of lines) {
-    // Detect section headers
-    if (line.toLowerCase().includes('industry') && line.toLowerCase().includes('company type')) {
-      section = 'industry';
-      continue;
-    }
-    if (line.toLowerCase().includes('topics') || line.toLowerCase().includes('user intents')) {
-      section = 'topics';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Detect Phase 1: AEO Visibility Analysis section
+    if (line.toUpperCase().includes('AEO VISIBILITY') || line.toUpperCase().includes('AEO VISIBILITY ANALYSIS')) {
+      section = 'aeo';
       continue;
     }
     
-    // Parse content based on section
-    if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
-      const content = line.replace(/^[-•*]\s*/, '').trim();
-      if (!content) continue;
+    // Detect Phase 2: Sentiment Taxonomy section
+    if (line.toUpperCase().includes('SENTIMENT TAXONOMY') || line.toUpperCase().includes('SENTIMENT')) {
+      section = 'none'; // Reset before checking for industry/topics
+      continue;
+    }
+    
+    // Detect section headers within sentiment
+    if (section !== 'aeo') {
+      if (line.toLowerCase().includes('industry') && line.toLowerCase().includes('company type')) {
+        section = 'industry';
+        continue;
+      }
+      if (line.toLowerCase().includes('topics') || line.toLowerCase().includes('user intents')) {
+        section = 'topics';
+        continue;
+      }
+    }
+    
+    // Parse AEO categories
+    if (section === 'aeo') {
+      // Detect category header: "### Category X: [Category Name]" or "Category X: [Category Name]"
+      const categoryMatch = line.match(/^(?:###\s*)?Category\s+\d+:\s*(.+)$/i);
+      if (categoryMatch) {
+        // Save previous category if exists
+        if (currentCategory && currentCategory.prompts.length > 0) {
+          aeoCategories.push(currentCategory);
+        }
+        currentCategory = {
+          name: categoryMatch[1].trim(),
+          prompts: [],
+        };
+        promptOrder = 0;
+        continue;
+      }
       
-      if (section === 'industry' && !industry) {
-        industry = content;
-      } else if (section === 'topics') {
+      // Parse prompt lines (numbered or bulleted)
+      if (currentCategory) {
+        // Match: "1. [prompt text]" or "- [prompt text]" or "* [prompt text]"
+        const promptMatch = line.match(/^(?:\d+\.|\-|\*)\s*(.+)$/);
+        if (promptMatch) {
+          promptOrder++;
+          currentCategory.prompts.push({
+            text: promptMatch[1].trim(),
+            order: promptOrder,
+          });
+        }
+      }
+    }
+    
+    // Parse sentiment topics (Phase 2)
+    if (section === 'topics') {
+      // Parse content based on section
+      if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+        const content = line.replace(/^[-•*]\s*/, '').trim();
+        if (!content) continue;
+        
         // Normalize topic: lowercase, remove extra punctuation
         const normalizedTopic = content
           .toLowerCase()
@@ -92,9 +190,26 @@ function parseAnalysisResponse(responseText: string): {
         }
       }
     }
+    
+    // Parse industry (Phase 2)
+    if (section === 'industry') {
+      if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+        const content = line.replace(/^[-•*]\s*/, '').trim();
+        if (!content) continue;
+        
+        if (!industry) {
+          industry = content;
+        }
+      }
+    }
   }
   
-  return { industry, topics };
+  // Save last category if exists
+  if (currentCategory && currentCategory.prompts.length > 0) {
+    aeoCategories.push(currentCategory);
+  }
+  
+  return { industry, topics, aeoCategories };
 }
 
 /**
@@ -170,11 +285,22 @@ export const analyzeBrandWebsite = inngest.createFunction(
 
     // 4. Call Gemini to analyze the website
     const analysisResult = await step.run('analyze-with-gemini', async () => {
-      const prompt = BRAND_ANALYSIS_PROMPT.replace('{WEBSITE_URL}', client_url);
+      // Get brand name and region for the prompt
+      const brandName = projectData.brand_name || projectData.name || 'the brand';
+      // Default to 'GLOBAL' or 'US' if region info is not available
+      // Region will be fetched from project's default region or regions table if needed
+      const country = 'GLOBAL'; // TODO: Fetch from project regions or default region
+      
+      let prompt = BRAND_ANALYSIS_PROMPT
+        .replace('{WEBSITE_URL}', client_url)
+        .replace('{BRAND_NAME}', brandName)
+        .replace('{COUNTRY}', country);
 
       logInfo('analyze-brand-website', 'Calling Gemini for website analysis', {
         project_id,
         client_url,
+        brand_name: brandName,
+        country,
       });
 
       try {
@@ -182,7 +308,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
           apiKey: geminiApiKey,
           model: 'gemini-2.5-flash-lite',
           temperature: 0.3,
-          maxTokens: 2000,
+          maxTokens: 4000, // Increased for longer response with 50 prompts
         });
 
         logInfo('analyze-brand-website', 'Gemini response received', {
@@ -219,12 +345,19 @@ export const analyzeBrandWebsite = inngest.createFunction(
 
     // 6. Save results to database
     const saveResult = await step.run('save-to-database', async () => {
+      // Prepare suggested_aeo_prompts structure
+      const suggestedAeoPrompts = {
+        categories: parsedResult.aeoCategories,
+        generated_at: new Date().toISOString(),
+      };
+      
       const { error } = await supabase
         .from('projects')
         .update({
           industry: parsedResult.industry,
           extracted_topics: parsedResult.topics,
           topics_extracted_at: new Date().toISOString(),
+          suggested_aeo_prompts: suggestedAeoPrompts,
         })
         .eq('id', project_id);
 
@@ -236,6 +369,8 @@ export const analyzeBrandWebsite = inngest.createFunction(
         project_id,
         industry: parsedResult.industry,
         topics_count: parsedResult.topics.length,
+        aeo_categories_count: parsedResult.aeoCategories.length,
+        aeo_prompts_total: parsedResult.aeoCategories.reduce((sum, cat) => sum + cat.prompts.length, 0),
       });
 
       return { saved: true };
@@ -247,6 +382,8 @@ export const analyzeBrandWebsite = inngest.createFunction(
       industry: parsedResult.industry,
       topics: parsedResult.topics,
       topics_count: parsedResult.topics.length,
+      aeo_categories: parsedResult.aeoCategories,
+      aeo_prompts_total: parsedResult.aeoCategories.reduce((sum, cat) => sum + cat.prompts.length, 0),
     };
   }
 );

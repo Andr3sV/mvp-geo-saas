@@ -337,3 +337,77 @@ export async function togglePromptActive(promptId: string, isActive: boolean) {
   return updatePrompt(promptId, { is_active: isActive });
 }
 
+/**
+ * Batch create prompts from wizard confirmation
+ */
+export async function batchCreatePrompts(data: {
+  project_id: string;
+  region_id: string;
+  prompts: Array<{
+    prompt: string;
+  }>;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated", data: null };
+  }
+
+  if (!data.prompts || data.prompts.length === 0) {
+    return { error: "No prompts provided", data: null };
+  }
+
+  const promptsData = data.prompts.map((p) => ({
+    project_id: data.project_id,
+    prompt: p.prompt.trim(),
+    region_id: data.region_id,
+    is_active: true,
+  }));
+
+  const { data: createdPrompts, error } = await supabase
+    .from("prompt_tracking")
+    .insert(promptsData)
+    .select();
+
+  if (error) {
+    return { error: error.message, data: null };
+  }
+
+  // Trigger immediate processing for all prompts (async, don't wait)
+  if (createdPrompts && createdPrompts.length > 0) {
+    try {
+      let backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      
+      if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+        backendUrl = `https://${backendUrl}`;
+      }
+
+      // Trigger processing for each prompt (could be optimized to batch, but keeping simple for now)
+      createdPrompts.forEach((prompt) => {
+        fetch(`${backendUrl}/process-prompt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prompt_tracking_id: prompt.id,
+            project_id: data.project_id,
+          }),
+        }).catch((err) => {
+          console.error(`[BATCH_CREATE_PROMPTS] Failed to trigger processing for prompt ${prompt.id}`, err);
+        });
+      });
+    } catch (error) {
+      // Silently fail - prompts will be processed by daily cron if needed
+    }
+  }
+
+  revalidatePath("/dashboard/prompts");
+  revalidatePath("/dashboard");
+  
+  return { error: null, data: createdPrompts };
+}
+

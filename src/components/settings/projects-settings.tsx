@@ -12,13 +12,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getUserWorkspacesWithProjects } from "@/lib/queries/workspace";
 import { createProject } from "@/lib/actions/workspace";
 import { updateProject as updateProjectDetails, deleteProject } from "@/lib/actions/project";
+import { CreateProjectWizard } from "@/components/projects/create-project-wizard";
 import { useRouter } from "next/navigation";
 
 export function ProjectsSettings() {
@@ -30,10 +30,7 @@ export function ProjectsSettings() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const router = useRouter();
 
-  // Form states
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectUrl, setNewProjectUrl] = useState("");
-  const [newProjectColor, setNewProjectColor] = useState("#3B82F6");
+  // Form states (for edit only)
   const [editProjectName, setEditProjectName] = useState("");
   const [editProjectUrl, setEditProjectUrl] = useState("");
   const [editProjectColor, setEditProjectColor] = useState("#3B82F6");
@@ -51,39 +48,8 @@ export function ProjectsSettings() {
     setLoading(false);
   };
 
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) {
-      setError("Project name is required");
-      return;
-    }
-
-    const workspace = workspaces[0]; // Use first workspace
-    if (!workspace) {
-      setError("No workspace found");
-      return;
-    }
-
-    setActionLoading(true);
-    setError(null);
-
-    const result = await createProject({
-      name: newProjectName,
-      workspace_id: workspace.id,
-      client_url: newProjectUrl || undefined,
-      color: newProjectColor,
-    });
-
-    setActionLoading(false);
-
-    if (result.error) {
-      setError(result.error);
-      return;
-    }
-
+  const handleProjectCreated = (projectId: string) => {
     setIsCreateOpen(false);
-    setNewProjectName("");
-    setNewProjectUrl("");
-    setNewProjectColor("#3B82F6");
     loadData();
     router.refresh();
   };
@@ -171,87 +137,17 @@ export function ProjectsSettings() {
                 Manage your projects and their settings
               </CardDescription>
             </div>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Project
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Add a new project to track in AI responses
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  {error && (
-                    <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                      {error}
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor="project-name">Project Name</Label>
-                    <Input
-                      id="project-name"
-                      placeholder="e.g., Client Name, Brand"
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      disabled={actionLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-url">Website URL (Optional)</Label>
-                    <Input
-                      id="project-url"
-                      type="url"
-                      placeholder="https://example.com"
-                      value={newProjectUrl}
-                      onChange={(e) => setNewProjectUrl(e.target.value)}
-                      disabled={actionLoading}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="project-color">Brand Color</Label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        id="project-color"
-                        type="color"
-                        value={newProjectColor}
-                        onChange={(e) => setNewProjectColor(e.target.value)}
-                        disabled={actionLoading}
-                        className="h-10 w-20 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      <Input
-                        type="text"
-                        value={newProjectColor}
-                        onChange={(e) => setNewProjectColor(e.target.value)}
-                        placeholder="#3B82F6"
-                        disabled={actionLoading}
-                        className="flex-1"
-                        pattern="^#[0-9A-Fa-f]{6}$"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Choose a color to represent this brand in charts and visualizations
-                    </p>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsCreateOpen(false)}
-                    disabled={actionLoading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateProject} disabled={actionLoading}>
-                    {actionLoading ? "Creating..." : "Create Project"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+            <CreateProjectWizard
+              open={isCreateOpen}
+              onOpenChange={setIsCreateOpen}
+              workspaces={workspaces.map((w) => ({ id: w.id, name: w.name }))}
+              defaultWorkspaceId={workspaces[0]?.id}
+              onProjectCreated={handleProjectCreated}
+            />
           </div>
         </CardHeader>
         <CardContent>

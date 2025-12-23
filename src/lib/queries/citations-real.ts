@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getRegionIdByCode } from "@/lib/actions/regions";
 
 type CitationFilterOptions = {
   fromDate?: Date;
@@ -35,14 +36,15 @@ function applyPlatformFilter(
   return query;
 }
 
+// Note: applyRegionFilter is deprecated - region filtering is now done using region_id
+// This function is kept for backwards compatibility but should not be used for new code
+// Use region_id with getRegionIdByCode instead
 function applyRegionFilter(
   query: any,
   filters?: CitationFilterOptions
 ) {
-  if (filters?.region && filters.region !== "GLOBAL") {
-    // For queries that join with prompt_tracking, filter by region
-    query = query.eq("ai_responses.prompt_tracking.region", filters.region);
-  }
+  // This function is deprecated and does nothing
+  // Region filtering should be done using region_id with regions table join
   return query;
 }
 
@@ -114,10 +116,16 @@ async function getTodayRealTimeCitationsStats(
     return { brandCitations: 0, competitorCitations: [] };
   }
 
-  // Fetch ai_responses with prompt_tracking data
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
+  // Fetch ai_responses with prompt_tracking data (including region_id and regions join)
   let aiResponsesQuery = supabase
     .from("ai_responses")
-    .select("id, platform, prompt_tracking(region, topic_id)")
+    .select("id, platform, prompt_tracking(region_id, topic_id, regions:region_id(code))")
     .in("id", Array.from(aiResponseIds));
 
   if (platformFilter) {
@@ -126,12 +134,16 @@ async function getTodayRealTimeCitationsStats(
 
   const { data: aiResponses } = await aiResponsesQuery;
 
-  // Filter by region and topic_id after fetching
+  // Filter by region_id and topic_id after fetching
   let filteredAiResponses = aiResponses || [];
-  if (regionFilter) {
-    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-      ar.prompt_tracking?.region === region
-    );
+  if (regionFilter && regionId) {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+      const pt = ar.prompt_tracking;
+      if (!pt) return false;
+      // Handle both array and object returns from Supabase join
+      const ptRegionId = Array.isArray(pt) ? pt[0]?.region_id : pt.region_id;
+      return ptRegionId === regionId;
+    });
   }
   if (topicFilter) {
     filteredAiResponses = filteredAiResponses.filter((ar: any) => 
@@ -941,20 +953,34 @@ export async function getMostCitedDomains(
   const regionFilter = filters?.region && filters.region !== "GLOBAL";
   const topicFilter = filters?.topicId && filters.topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && filters.region) {
+    regionId = await getRegionIdByCode(projectId, filters.region);
+    if (!regionId) {
+      console.warn(`Region ${filters.region} not found for project ${projectId}`);
+      return []; // Return empty if region doesn't exist
+    }
+  }
+
   // Helper function to build the base query
   const buildQuery = () => {
     let query = supabase
       .from("citations")
-            .select(`
-              id,
+      .select(`
+        id,
         domain,
         url,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
-            `)
-            .eq("project_id", projectId)
+        ai_responses!inner(
+          platform,
+          prompt_tracking!inner(
+            region_id,
+            topic_id,
+            regions:region_id(code)
+          )
+        )
+      `)
+      .eq("project_id", projectId)
       .not("domain", "is", null)
       .not("url", "is", null);
 
@@ -966,9 +992,9 @@ export async function getMostCitedDomains(
       query = query.eq("ai_responses.platform", mappedPlatform);
     }
 
-    // Apply region filter
-    if (regionFilter) {
-      query = query.eq("ai_responses.prompt_tracking.region", filters.region);
+    // Apply region filter using region_id
+    if (regionFilter && regionId) {
+      query = query.eq("ai_responses.prompt_tracking.region_id", regionId);
     }
 
     // Apply topic filter
@@ -1158,38 +1184,55 @@ export async function getHighValueOpportunities(
 
   const competitorNames = competitors.map((c) => c.name).filter(Boolean);
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (filters?.region && filters.region !== "GLOBAL") {
+    regionId = await getRegionIdByCode(projectId, filters.region);
+  }
+
   // Step 3: Get all citations for this project with filters
   // Note: citations table doesn't have project_id directly, it's through ai_responses
-  let citationsQuery = applyTopicFilter(
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations")
-            .select(`
-              id,
-              domain,
-              text,
-              url,
-              uri,
-              ai_response_id,
-              ai_responses!inner(
-                project_id,
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
-            `)
-            .eq("ai_responses.project_id", projectId)
-            .not("domain", "is", null)
-            .limit(10000),
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
+  let citationsQuery = supabase
+    .from("citations")
+    .select(`
+      id,
+      domain,
+      text,
+      url,
+      uri,
+      ai_response_id,
+      ai_responses!inner(
+        project_id,
+        platform,
+        prompt_tracking!inner(
+          region_id,
+          topic_id,
+          regions:region_id(code)
+        )
+      )
+    `)
+    .eq("ai_responses.project_id", projectId)
+    .not("domain", "is", null);
+
+  // Apply date filter
+  citationsQuery = applyDateFilter(citationsQuery, filters, "created_at");
+
+  // Apply platform filter
+  if (filters?.platform && filters.platform !== "all") {
+    citationsQuery = applyPlatformFilter(citationsQuery, filters);
+  }
+
+  // Apply region filter using region_id
+  if (regionId) {
+    citationsQuery = citationsQuery.eq("ai_responses.prompt_tracking.region_id", regionId);
+  }
+
+  // Apply topic filter
+  if (filters?.topicId && filters.topicId !== "all") {
+    citationsQuery = applyTopicFilter(citationsQuery, filters);
+  }
+
+  citationsQuery = citationsQuery.limit(10000);
 
   const { data: allCitations, error } = await citationsQuery;
 
@@ -1384,37 +1427,54 @@ export async function getUnmentionedSources(
 
   const competitorNames = competitors?.map((c) => c.name).filter(Boolean) || [];
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (filters?.region && filters.region !== "GLOBAL") {
+    regionId = await getRegionIdByCode(projectId, filters.region);
+  }
+
   // Step 3: Get all citations for this project with filters
-  let citationsQuery = applyTopicFilter(
-    applyRegionFilter(
-      applyPlatformFilter(
-        applyDateFilter(
-          supabase
-            .from("citations")
-            .select(`
-              id,
-              domain,
-              text,
-              url,
-              uri,
-              ai_response_id,
-              ai_responses!inner(
-                project_id,
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
-            `)
-            .eq("ai_responses.project_id", projectId)
-            .not("domain", "is", null)
-            .limit(10000),
-          filters
-        ),
-        filters
-      ),
-      filters
-    ),
-    filters
-  );
+  let citationsQuery = supabase
+    .from("citations")
+    .select(`
+      id,
+      domain,
+      text,
+      url,
+      uri,
+      ai_response_id,
+      ai_responses!inner(
+        project_id,
+        platform,
+        prompt_tracking!inner(
+          region_id,
+          topic_id,
+          regions:region_id(code)
+        )
+      )
+    `)
+    .eq("ai_responses.project_id", projectId)
+    .not("domain", "is", null);
+
+  // Apply date filter
+  citationsQuery = applyDateFilter(citationsQuery, filters, "created_at");
+
+  // Apply platform filter
+  if (filters?.platform && filters.platform !== "all") {
+    citationsQuery = applyPlatformFilter(citationsQuery, filters);
+  }
+
+  // Apply region filter using region_id
+  if (regionId) {
+    citationsQuery = citationsQuery.eq("ai_responses.prompt_tracking.region_id", regionId);
+  }
+
+  // Apply topic filter
+  if (filters?.topicId && filters.topicId !== "all") {
+    citationsQuery = applyTopicFilter(citationsQuery, filters);
+  }
+
+  citationsQuery = citationsQuery.limit(10000);
 
   const { data: allCitations, error } = await citationsQuery;
 
@@ -1595,17 +1655,37 @@ export async function getCitationSources(
   const regionFilter = filters?.region && filters.region !== "GLOBAL";
   const topicFilter = filters?.topicId && filters.topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && filters.region) {
+    regionId = await getRegionIdByCode(projectId, filters.region);
+    if (!regionId) {
+      // Region not found, return empty results
+      return {
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+      };
+    }
+  }
+
   // Get total count for pagination
   let countQuery = supabase
     .from("citations")
-            .select(`
-              id,
-              ai_responses!inner(
-                platform,
-                prompt_tracking!inner(region, topic_id)
-              )
+    .select(`
+      id,
+      ai_responses!inner(
+        platform,
+        prompt_tracking!inner(
+          region_id,
+          topic_id,
+          regions:region_id(code)
+        )
+      )
     `, { count: "exact", head: true })
-            .eq("project_id", projectId)
+    .eq("project_id", projectId)
     .not("url", "is", null);
 
   // Apply date filter
@@ -1616,9 +1696,9 @@ export async function getCitationSources(
     countQuery = countQuery.eq("ai_responses.platform", mappedPlatform);
   }
 
-  // Apply region filter
-  if (regionFilter) {
-    countQuery = countQuery.eq("ai_responses.prompt_tracking.region", filters.region);
+  // Apply region filter using region_id
+  if (regionFilter && regionId) {
+    countQuery = countQuery.eq("ai_responses.prompt_tracking.region_id", regionId);
   }
 
   // Apply topic filter
@@ -1639,7 +1719,11 @@ export async function getCitationSources(
       ai_responses!inner(
         id,
         platform,
-        prompt_tracking!inner(region, topic_id)
+        prompt_tracking!inner(
+          region_id,
+          topic_id,
+          regions:region_id(code)
+        )
       )
     `)
     .eq("project_id", projectId)
@@ -1655,9 +1739,9 @@ export async function getCitationSources(
     dataQuery = dataQuery.eq("ai_responses.platform", mappedPlatform);
   }
 
-  // Apply region filter
-  if (regionFilter) {
-    dataQuery = dataQuery.eq("ai_responses.prompt_tracking.region", filters.region);
+  // Apply region filter using region_id
+  if (regionFilter && regionId) {
+    dataQuery = dataQuery.eq("ai_responses.prompt_tracking.region_id", regionId);
   }
 
   // Apply topic filter
@@ -2022,9 +2106,15 @@ export async function getCitationsShareEvolution(
     });
 
     if (aiResponseIds.size > 0) {
+      // Get region_id if region filter is active
+      let regionId: string | null = null;
+      if (regionFilter && region) {
+        regionId = await getRegionIdByCode(projectId, region);
+      }
+
       let aiResponsesQuery = supabase
         .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
+        .select("id, platform, prompt_tracking(region_id, topic_id, regions:region_id(code))")
         .in("id", Array.from(aiResponseIds));
 
       if (platformFilter) {
@@ -2034,10 +2124,14 @@ export async function getCitationsShareEvolution(
       const { data: aiResponses } = await aiResponsesQuery;
 
       let filteredAiResponses = aiResponses || [];
-      if (regionFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
+      if (regionFilter && regionId) {
+        filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+          const pt = ar.prompt_tracking;
+          if (!pt) return false;
+          // Handle both array and object returns from Supabase join
+          const ptRegionId = Array.isArray(pt) ? pt[0]?.region_id : pt.region_id;
+          return ptRegionId === regionId;
+        });
       }
       if (topicFilter) {
         filteredAiResponses = filteredAiResponses.filter((ar: any) => 
