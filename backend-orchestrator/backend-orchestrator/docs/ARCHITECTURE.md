@@ -96,15 +96,70 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 
 ### 1. Elysia Server
 
-**Purpose**: HTTP server that exposes Inngest endpoint
+**Purpose**: HTTP server that exposes Inngest endpoint and trigger endpoints
 
 **Key Responsibilities**:
 
 - Serves Inngest HTTP endpoint at `/api/inngest`
 - Handles health check endpoints
 - Provides test endpoints for manual triggering
+- **Exposes trigger endpoints for immediate processing**:
+  - `/analyze-brand-website` - Triggers brand website analysis when a project is created
+  - `/process-prompt` - Triggers immediate prompt processing when a prompt is created
 
 **Technology**: ElysiaJS (Bun-based)
+
+**HTTP Endpoints**:
+
+#### `/process-prompt` (POST)
+
+- **Purpose**: Trigger immediate processing of a newly created prompt
+- **Called by**: Frontend (`src/lib/actions/prompt.ts`) when a prompt is created
+- **Request Body**:
+  ```json
+  {
+    "prompt_tracking_id": "uuid",
+    "project_id": "uuid",
+    "platforms_to_process": ["openai", "gemini"] // optional
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "eventId": "event-id",
+    "message": "Prompt processing triggered"
+  }
+  ```
+- **Behavior**:
+  - Sends `analysis/process-prompt` event to Inngest
+  - Event is processed immediately by `process-single-prompt` function
+  - If `platforms_to_process` is not provided, all available platforms are processed
+  - **Deduplication**: The `process-single-prompt` function checks for existing successful responses for TODAY before processing each platform, preventing duplicate processing if the daily cron already ran
+
+#### `/analyze-brand-website` (POST)
+
+- **Purpose**: Trigger brand website analysis when a project is created with a `client_url`
+- **Called by**: Frontend (`src/lib/actions/workspace.ts`) when a project is created
+- **Request Body**:
+  ```json
+  {
+    "project_id": "uuid",
+    "client_url": "https://example.com",
+    "force_refresh": false // optional
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "eventId": "event-id",
+    "message": "Brand website analysis triggered"
+  }
+  ```
+- **Behavior**:
+  - Sends `brand/analyze-website` event to Inngest
+  - Event is processed immediately by `analyze-brand-website` function
 
 ### 2. Inngest Orchestrator
 
@@ -132,11 +187,18 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   5. Send `analysis/process-prompt` events with `platforms_to_process` field
 - **Duplicate Prevention**: Verifies existing successful responses from today to avoid processing platforms that already succeeded
 - **Event Structure**: Includes `platforms_to_process` array to specify which platforms need processing
+- **Coexistence with Immediate Processing**:
+  - This cron job continues to run daily to process all active prompts
+  - If a prompt was already processed immediately (via `/process-prompt` endpoint), the cron will detect existing successful responses and skip those platforms
+  - This ensures no duplicate processing while maintaining the daily batch processing for all prompts
 
 #### process-single-prompt
 
 - **Type**: Event-Driven
 - **Trigger**: `analysis/process-prompt` event
+- **Triggered by**:
+  - **Immediate**: Frontend calls `/process-prompt` endpoint when a prompt is created (if `is_active !== false`)
+  - **Scheduled**: `schedule-daily-analysis` cron job (1:00 AM daily) for all active prompts
 - **Concurrency**: **5** (standard for efficient parallel processing)
 - **Processing Mode**: **PARALLEL** (all platforms processed simultaneously)
 - **Steps**:
@@ -156,8 +218,15 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   5. Dispatch brand analysis events (asynchronously)
   6. Update job status
 - **Retry Logic**: Automatically retries up to 3 times if rate limit is hit, waiting for the time specified by the API
-- **Duplicate Prevention**: Double-checks for existing successful responses before processing each platform
+- **Duplicate Prevention**:
+  - Double-checks for existing successful responses before processing each platform
+  - This prevents duplicate processing whether triggered immediately or by the daily cron
+  - Uses `DATE(created_at) = CURRENT_DATE` check to ensure only today's responses are considered
 - **Rate Limit Handling**: Uses `callAIWithRetry` which automatically handles rate limit errors with exponential backoff
+- **Immediate vs Scheduled Processing**:
+  - **Immediate**: When a user creates a prompt, the frontend immediately calls `/process-prompt`, allowing users to see results right away
+  - **Scheduled**: The daily cron ensures all active prompts are processed, even if immediate processing failed or was skipped
+  - Both paths use the same deduplication logic, so no duplicate work is performed
 
 #### analyze-brands-batch
 
@@ -301,6 +370,58 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Groq**: GPT-OSS-20B (for brand analysis)
 
 ### 4. Data Flow
+
+#### Prompt Creation and Immediate Processing Flow
+
+**When a user creates a prompt in the frontend:**
+
+1. **Frontend** (`src/lib/actions/prompt.ts`):
+
+   - User creates a prompt via `createPrompt()` server action
+   - Prompt is inserted into `prompt_tracking` table
+   - If prompt is active (`is_active !== false`), immediately triggers processing:
+     - Makes HTTP POST request to `/process-prompt` endpoint
+     - Sends `prompt_tracking_id` and `project_id`
+     - Does NOT fail prompt creation if trigger fails (logs error but continues)
+
+2. **Backend Orchestrator** (`/process-prompt` endpoint):
+
+   - Receives POST request with `prompt_tracking_id` and `project_id`
+   - Validates request (requires both IDs)
+   - Sends `analysis/process-prompt` event to Inngest
+   - Returns success response immediately (doesn't wait for processing)
+
+3. **Inngest** (`process-single-prompt` function):
+
+   - Receives `analysis/process-prompt` event
+   - Fetches prompt data from database
+   - Determines platforms to process (from `platforms_to_process` in event, or all available)
+   - Creates `analysis_jobs` record
+   - **For each platform in parallel**:
+     - Checks if successful response already exists TODAY (deduplication)
+     - If not, processes platform:
+       - Creates `ai_responses` record (status: "processing")
+       - Calls AI API with retry logic
+       - Updates `ai_responses` (status: "success"/"error")
+       - Saves citations to `citations` table
+       - Triggers citation processing
+   - Dispatches brand analysis events (asynchronously)
+   - Updates job status
+
+4. **Result**:
+   - User sees prompt processing start immediately
+   - Data appears in dashboard as soon as AI responses are received
+   - No need to wait for daily cron job
+
+**Coexistence with Daily Cron:**
+
+- The daily cron (`schedule-daily-analysis` at 1:00 AM) continues to run
+- When cron runs, it checks for existing successful responses TODAY
+- If a prompt was already processed immediately, the cron skips those platforms
+- This ensures:
+  - ✅ Immediate processing for new prompts (better UX)
+  - ✅ Daily batch processing for all active prompts (reliability)
+  - ✅ No duplicate processing (deduplication logic)
 
 #### Daily Analysis Flow
 

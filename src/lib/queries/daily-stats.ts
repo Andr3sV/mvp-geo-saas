@@ -36,18 +36,30 @@ export interface ShareOfVoiceData {
 /**
  * Get pre-aggregated daily stats for a project
  * Uses the daily_brand_stats table for fast queries
+ * For current day, supplements with real-time data after 4:30 AM
  */
 export async function getDailyStats(
   projectId: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
 ): Promise<DailyStats[]> {
   const supabase = await createClient();
 
   const start = startDate || subDays(new Date(), 30);
   const end = endDate || new Date();
 
-  const { data, error } = await supabase.rpc("get_daily_stats", {
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(end);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
+  // Get daily stats from pre-aggregated table
+  const { data: dailyStats, error } = await supabase.rpc("get_daily_stats", {
     p_project_id: projectId,
     p_start_date: format(start, "yyyy-MM-dd"),
     p_end_date: format(end, "yyyy-MM-dd"),
@@ -59,7 +71,13 @@ export async function getDailyStats(
     return getDailyStatsRealTime(projectId, start, end);
   }
 
-  return data || [];
+  // If querying today, supplement with real-time data after 4:30 AM
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeStats(projectId, platform, region, topicId);
+    return mergeDailyStats(dailyStats || [], realTimeStats);
+  }
+
+  return dailyStats || [];
 }
 
 // =============================================
@@ -185,9 +203,12 @@ async function getSentimentFromBrandEvaluations(
 export async function getMentionsSummary(
   projectId: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
 ) {
-  const stats = await getDailyStats(projectId, startDate, endDate);
+  const stats = await getDailyStats(projectId, startDate, endDate, platform, region, topicId);
   const sentimentData = await getSentimentFromBrandEvaluations(projectId, startDate, endDate);
 
   // Aggregate by entity
@@ -405,6 +426,203 @@ async function getDailyStatsRealTime(
   });
 
   return results;
+}
+
+// =============================================
+// REAL-TIME STATS FOR TODAY (After 4:30 AM)
+// =============================================
+
+/**
+ * Get real-time stats for today (after 4:30 AM cutoff)
+ * Used to supplement daily_brand_stats when querying current day
+ */
+async function getTodayRealTimeStats(
+  projectId: string,
+  platform?: string,
+  region?: string,
+  topicId?: string
+): Promise<DailyStats[]> {
+  const supabase = await createClient();
+  const today = new Date();
+  const cutoffTime = new Date(today);
+  cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("brand_name")
+    .eq("id", projectId)
+    .single();
+
+  const brandName = project?.brand_name || "Brand";
+  const todayStr = format(today, "yyyy-MM-dd");
+
+  // Get brand_mentions created after 4:30 AM today
+  let mentionsQuery = supabase
+    .from("brand_mentions")
+    .select("created_at, brand_type, competitor_id, ai_response_id")
+    .eq("project_id", projectId)
+    .gte("created_at", cutoffTime.toISOString())
+    .lte("created_at", today.toISOString());
+
+  const { data: brandMentions } = await mentionsQuery;
+
+  // Get citations created after 4:30 AM today
+  let citationsQuery = supabase
+    .from("citations")
+    .select("created_at, citation_type, competitor_id, ai_response_id")
+    .eq("project_id", projectId)
+    .gte("created_at", cutoffTime.toISOString())
+    .lte("created_at", today.toISOString());
+
+  const { data: citations } = await citationsQuery;
+
+  // Get ai_response_ids to fetch platform, region, topic_id
+  const aiResponseIds = new Set<string>();
+  brandMentions?.forEach((m: any) => {
+    if (m.ai_response_id) aiResponseIds.add(m.ai_response_id);
+  });
+  citations?.forEach((c: any) => {
+    if (c.ai_response_id) aiResponseIds.add(c.ai_response_id);
+  });
+
+  // Create a map for quick lookup
+  const aiResponseMap = new Map<string, any>();
+
+  // Only fetch if we have ai_response_ids
+  if (aiResponseIds.size > 0) {
+    // Fetch ai_responses with prompt_tracking data
+    let aiResponsesQuery = supabase
+      .from("ai_responses")
+      .select("id, platform, prompt_tracking_id, prompt_tracking(region, topic_id)")
+      .in("id", Array.from(aiResponseIds));
+
+    // Apply platform filter if provided
+    if (platform && platform !== "all") {
+      aiResponsesQuery = aiResponsesQuery.eq("platform", platform);
+    }
+
+    const { data: aiResponses } = await aiResponsesQuery;
+
+    // Filter by region and topic_id after fetching (since we can't filter nested relations easily)
+    let filteredAiResponses = aiResponses || [];
+    if (region && region !== "GLOBAL") {
+      filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+        ar.prompt_tracking?.region === region
+      );
+    }
+    if (topicId && topicId !== "all") {
+      filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+        ar.prompt_tracking?.topic_id === topicId
+      );
+    }
+
+    // Build map from filtered results
+    filteredAiResponses.forEach((ar: any) => {
+      aiResponseMap.set(ar.id, {
+        platform: ar.platform || "all",
+        region: ar.prompt_tracking?.region || "GLOBAL",
+        topic_id: ar.prompt_tracking?.topic_id || "all",
+      });
+    });
+  }
+
+  // Get competitors
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  // Aggregate by entity and dimensions
+  const statsMap = new Map<string, DailyStats>();
+
+  // Process brand mentions
+  brandMentions?.forEach((mention: any) => {
+    const aiResponseData = aiResponseMap.get(mention.ai_response_id);
+    if (!aiResponseData) return; // Skip if ai_response not found (filtered out)
+
+    const mentionPlatform = aiResponseData.platform;
+    const mentionRegion = aiResponseData.region;
+    const mentionTopicId = aiResponseData.topic_id;
+    
+    const key = `${mention.brand_type === "client" ? "brand" : mention.competitor_id || "unknown"}-${mentionPlatform}-${mentionRegion}-${mentionTopicId}`;
+    
+    if (!statsMap.has(key)) {
+      statsMap.set(key, {
+        stat_date: todayStr,
+        entity_type: mention.brand_type === "client" ? "brand" : "competitor",
+        competitor_id: mention.brand_type === "client" ? null : mention.competitor_id,
+        entity_name: mention.brand_type === "client" ? brandName : competitors?.find(c => c.id === mention.competitor_id)?.name || "Unknown",
+        mentions_count: 0,
+        citations_count: 0,
+        responses_analyzed: 0,
+      });
+    }
+    statsMap.get(key)!.mentions_count++;
+  });
+
+  // Process citations
+  citations?.forEach((citation: any) => {
+    const aiResponseData = aiResponseMap.get(citation.ai_response_id);
+    if (!aiResponseData) return; // Skip if ai_response not found (filtered out)
+
+    const citationPlatform = aiResponseData.platform;
+    const citationRegion = aiResponseData.region;
+    const citationTopicId = aiResponseData.topic_id;
+    
+    const key = `${citation.citation_type === "brand" ? "brand" : citation.competitor_id || "unknown"}-${citationPlatform}-${citationRegion}-${citationTopicId}`;
+    
+    if (!statsMap.has(key)) {
+      statsMap.set(key, {
+        stat_date: todayStr,
+        entity_type: citation.citation_type === "brand" ? "brand" : "competitor",
+        competitor_id: citation.citation_type === "brand" ? null : citation.competitor_id,
+        entity_name: citation.citation_type === "brand" ? brandName : competitors?.find(c => c.id === citation.competitor_id)?.name || "Unknown",
+        mentions_count: 0,
+        citations_count: 0,
+        responses_analyzed: 0,
+      });
+    }
+    statsMap.get(key)!.citations_count++;
+  });
+
+  return Array.from(statsMap.values());
+}
+
+/**
+ * Merge daily stats from pre-aggregated table with real-time stats
+ * Sums counts when entity and dimensions match
+ */
+function mergeDailyStats(
+  dailyStats: DailyStats[],
+  realTimeStats: DailyStats[]
+): DailyStats[] {
+  const mergedMap = new Map<string, DailyStats>();
+
+  // Add daily stats first
+  dailyStats.forEach((stat) => {
+    const key = `${stat.entity_type}-${stat.competitor_id || "brand"}-${stat.stat_date}`;
+    mergedMap.set(key, { ...stat });
+  });
+
+  // Add/merge real-time stats
+  realTimeStats.forEach((stat) => {
+    const key = `${stat.entity_type}-${stat.competitor_id || "brand"}-${stat.stat_date}`;
+    
+    if (mergedMap.has(key)) {
+      // Merge: sum counts
+      const existing = mergedMap.get(key)!;
+      existing.mentions_count += stat.mentions_count;
+      existing.citations_count += stat.citations_count;
+      existing.responses_analyzed += stat.responses_analyzed;
+    } else {
+      // Add new entry
+      mergedMap.set(key, { ...stat });
+    }
+  });
+
+  return Array.from(mergedMap.values());
 }
 
 // =============================================
