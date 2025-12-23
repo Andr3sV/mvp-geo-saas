@@ -69,11 +69,12 @@ const visibilityItems = [
     href: "/dashboard/queries",
     icon: Search,
   },
-  {
-    title: "Trending Queries",
-    href: "/dashboard/trending",
-    icon: Activity,
-  },
+  // Temporarily hidden
+  // {
+  //   title: "Trending Queries",
+  //   href: "/dashboard/trending",
+  //   icon: Activity,
+  // },
 ];
 
 const brandPerceptionItems = [
@@ -82,11 +83,12 @@ const brandPerceptionItems = [
     href: "/dashboard/sentiment",
     icon: Heart,
   },
-  {
-    title: "Sentiment Scoring",
-    href: "/dashboard/attributes",
-    icon: ListChecks,
-  },
+  // Temporarily hidden
+  // {
+  //   title: "Sentiment Scoring",
+  //   href: "/dashboard/attributes",
+  //   icon: ListChecks,
+  // },
 ];
 
 const dataManagementItems = [
@@ -131,10 +133,10 @@ export function AppSidebar() {
   const isVisibilityOpen = pathname.startsWith("/dashboard/share-of-voice") ||
     pathname.startsWith("/dashboard/citations") ||
     pathname.startsWith("/dashboard/platforms") ||
-    pathname.startsWith("/dashboard/queries") ||
-    pathname.startsWith("/dashboard/trending");
-  const isBrandPerceptionOpen = pathname.startsWith("/dashboard/sentiment") ||
-    pathname.startsWith("/dashboard/attributes");
+    pathname.startsWith("/dashboard/queries");
+    // Temporarily hidden: pathname.startsWith("/dashboard/trending");
+  const isBrandPerceptionOpen = pathname.startsWith("/dashboard/sentiment");
+    // Temporarily hidden: || pathname.startsWith("/dashboard/attributes");
   const isDataManagementOpen = pathname.startsWith("/dashboard/responses") ||
     pathname.startsWith("/dashboard/competitors") ||
     pathname.startsWith("/dashboard/prompts") ||
@@ -154,12 +156,12 @@ export function AppSidebar() {
       pathname.startsWith("/dashboard/share-of-voice") ||
       pathname.startsWith("/dashboard/citations") ||
       pathname.startsWith("/dashboard/platforms") ||
-      pathname.startsWith("/dashboard/queries") ||
-      pathname.startsWith("/dashboard/trending")
+      pathname.startsWith("/dashboard/queries")
+      // Temporarily hidden: || pathname.startsWith("/dashboard/trending")
     );
     setIsBrandPerceptionExpanded(
-      pathname.startsWith("/dashboard/sentiment") ||
-      pathname.startsWith("/dashboard/attributes")
+      pathname.startsWith("/dashboard/sentiment")
+      // Temporarily hidden: || pathname.startsWith("/dashboard/attributes")
     );
     setIsDataManagementExpanded(
       pathname.startsWith("/dashboard/responses") ||

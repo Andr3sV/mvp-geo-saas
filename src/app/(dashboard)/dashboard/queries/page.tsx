@@ -11,7 +11,6 @@ import { useProject } from "@/contexts/project-context";
 // Components
 import { QueryWordCloud } from "@/components/queries/query-word-cloud";
 import { QueryPlatformDistribution } from "@/components/queries/query-platform-distribution";
-import { QueryIntentBreakdown } from "@/components/queries/query-intent-breakdown";
 import { TopQueriesTable } from "@/components/queries/top-queries-table";
 import { QueryDomainHeatmap } from "@/components/queries/query-domain-heatmap";
 
@@ -20,7 +19,6 @@ import {
   getQueryOverview,
   getQueryWordCloudData,
   getQueryPlatformDistribution,
-  getQueryIntentBreakdown,
   getTopQueries,
   getQueryDomainCorrelation,
 } from "@/lib/queries/query-analytics";
@@ -50,7 +48,6 @@ export default function QueriesPage() {
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getQueryOverview>> | null>(null);
   const [wordCloudData, setWordCloudData] = useState<Awaited<ReturnType<typeof getQueryWordCloudData>>>([]);
   const [platformDistribution, setPlatformDistribution] = useState<Awaited<ReturnType<typeof getQueryPlatformDistribution>> | null>(null);
-  const [intentBreakdown, setIntentBreakdown] = useState<Awaited<ReturnType<typeof getQueryIntentBreakdown>>>([]);
   const [topQueries, setTopQueries] = useState<Awaited<ReturnType<typeof getTopQueries>>>([]);
   const [domainCorrelation, setDomainCorrelation] = useState<Awaited<ReturnType<typeof getQueryDomainCorrelation>> | null>(null);
 
@@ -93,22 +90,6 @@ export default function QueriesPage() {
     return { openai, gemini };
   };
 
-  const mergeIntentBreakdown = (results: Array<{ intent: string; count: number; color: string }>[]): Array<{ intent: string; count: number; color: string }> => {
-    const merged = new Map<string, { count: number; color: string }>();
-    results.forEach((result) => {
-      result.forEach((item) => {
-        const existing = merged.get(item.intent);
-        if (existing) {
-          existing.count += item.count;
-        } else {
-          merged.set(item.intent, { count: item.count, color: item.color });
-        }
-      });
-    });
-    return Array.from(merged.entries())
-      .map(([intent, { count, color }]) => ({ intent, count, color }))
-      .sort((a, b) => b.count - a.count);
-  };
 
   const mergeTopQueries = (results: Array<{ query: string; count: number; platforms: string[]; domains: string[] }>[]): Array<{ query: string; count: number; platforms: string[]; domains: string[] }> => {
     const merged = new Map<string, { count: number; platforms: Set<string>; domains: Set<string> }>();
@@ -219,11 +200,10 @@ export default function QueriesPage() {
         const entityId = isAllSelected ? null : entitiesList[0]?.id || null;
         const entityType = isAllSelected ? null : entitiesList[0]?.type || null;
 
-        const [overviewData, wordCloud, distribution, intent, queries, correlation] = await Promise.all([
+        const [overviewData, wordCloud, distribution, queries, correlation] = await Promise.all([
           getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entityId, entityType),
           getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region, 50, entityId, entityType),
           getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region, entityId, entityType),
-          getQueryIntentBreakdown(selectedProjectId, dateRange.from, dateRange.to, platform, region, entityId, entityType),
           getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region, entityId, entityType),
           getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entityId, entityType),
         ]);
@@ -231,21 +211,19 @@ export default function QueriesPage() {
         setOverview(overviewData);
         setWordCloudData(wordCloud);
         setPlatformDistribution(distribution);
-        setIntentBreakdown(intent);
         setTopQueries(queries);
         setDomainCorrelation(correlation);
       } else {
         // Multiple entities selected - make separate calls and merge
         const resultsPromises = entitiesList.map(async (entity) => {
-          const [overview, wordCloud, distribution, intent, queries, correlation] = await Promise.all([
+          const [overview, wordCloud, distribution, queries, correlation] = await Promise.all([
             getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
             getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region, 50, entity.id, entity.type),
             getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region, entity.id, entity.type),
-            getQueryIntentBreakdown(selectedProjectId, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
             getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
             getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entity.id, entity.type),
           ]);
-          return { overview, wordCloud, distribution, intent, queries, correlation };
+          return { overview, wordCloud, distribution, queries, correlation };
         });
 
         const results = await Promise.all(resultsPromises);
@@ -254,14 +232,12 @@ export default function QueriesPage() {
         const mergedOverview = mergeQueryOverview(results.map((r) => r.overview));
         const mergedWordCloud = mergeWordCloudData(results.map((r) => r.wordCloud));
         const mergedDistribution = mergePlatformDistribution(results.map((r) => r.distribution));
-        const mergedIntent = mergeIntentBreakdown(results.map((r) => r.intent));
         const mergedQueries = mergeTopQueries(results.map((r) => r.queries));
         const mergedCorrelation = mergeQueryDomainCorrelation(results.map((r) => r.correlation));
 
         setOverview(mergedOverview);
         setWordCloudData(mergedWordCloud);
         setPlatformDistribution(mergedDistribution);
-        setIntentBreakdown(mergedIntent);
         setTopQueries(mergedQueries);
         setDomainCorrelation(mergedCorrelation);
       }
@@ -350,10 +326,7 @@ export default function QueriesPage() {
         />
       )}
 
-      {/* Section 4: Intent Breakdown */}
-      <QueryIntentBreakdown data={intentBreakdown} isLoading={isLoading} />
-
-      {/* Section 5: Top Queries Table */}
+      {/* Section 4: Top Queries Table */}
       <TopQueriesTable data={topQueries} isLoading={isLoading} />
 
       {/* Section 6: Query-Domain Correlation */}
