@@ -2,7 +2,7 @@
 
 ## 🎯 ¿Qué es?
 
-Sistema automatizado que ejecuta análisis de IA para **todos los prompts activos** cada día a las **2:00 AM**, procesando miles de prompts sin saturar los servicios.
+Sistema automatizado que ejecuta análisis de IA para **todos los prompts activos** cada día a las **1:00 AM**, procesando miles de prompts sin saturar los servicios.
 
 ## ⚡ Inicio Rápido
 

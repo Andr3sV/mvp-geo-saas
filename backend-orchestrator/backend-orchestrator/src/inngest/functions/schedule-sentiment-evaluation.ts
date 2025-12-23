@@ -12,7 +12,7 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
     id: 'schedule-sentiment-evaluation',
     name: 'Schedule Sentiment Evaluation',
   },
-  { cron: '0 7 * * *' }, // 7:00 AM UTC daily
+  { cron: '30 3 * * *' }, // 3:30 AM UTC daily
   async ({ step }) => {
     const supabase = createSupabaseClient();
 

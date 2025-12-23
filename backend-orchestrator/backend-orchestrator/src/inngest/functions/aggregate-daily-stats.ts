@@ -26,7 +26,7 @@ interface ProcessingUnit {
 
 /**
  * Daily aggregation function for brand statistics
- * Runs at 1:30 AM every day to aggregate yesterday's stats
+ * Runs at 4:30 AM every day to aggregate today's stats
  * OPTIMIZED: Processes each entity (brand + each competitor) for each dimension combination
  */
 export const aggregateDailyStats = inngest.createFunction(
@@ -38,20 +38,20 @@ export const aggregateDailyStats = inngest.createFunction(
     },
     retries: 3,
   },
-  { cron: '30 1 * * *' },
+  { cron: '30 4 * * *' },
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
-    // Calculate yesterday's date
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const statDate = yesterday.toISOString().split('T')[0];
+    // Calculate today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const statDate = today.toISOString().split('T')[0];
 
     logInfo('aggregate-daily-stats', `Starting daily stats aggregation for ${statDate}`);
 
     // Step 1: Get all processing units (entity + dimension combinations)
     const processingUnits = await step.run('get-processing-units', async () => {
-      // Get projects with AI responses from yesterday
+      // Get projects with AI responses from today
       const { data: projectsWithData, error: projectsError } = await supabase
         .from('ai_responses')
         .select('project_id, projects!inner(id, name, brand_name)')
@@ -147,7 +147,7 @@ export const aggregateDailyStats = inngest.createFunction(
 
     if (processingUnits.length === 0) {
       logInfo('aggregate-daily-stats', 'No processing units found');
-      return { message: 'No data for yesterday', unitsProcessed: 0 };
+      return { message: 'No data for today', unitsProcessed: 0 };
     }
 
     // Step 2: Process units in batches (10 per step for efficiency)

@@ -32,7 +32,7 @@ A production-ready service for analyzing prompts across multiple AI providers (O
 
 ### 1. Schedule Daily Analysis (`schedule-daily-analysis`)
 
-**Trigger**: Cron job (runs daily at 2:00 AM UTC)
+**Trigger**: Cron job (runs daily at 1:00 AM UTC)
 
 **Process**:
 
@@ -43,7 +43,7 @@ A production-ready service for analyzing prompts across multiple AI providers (O
 
 **Configuration**:
 
-- Runs at `0 2 * * *` (2:00 AM daily)
+- Runs at `0 1 * * *` (1:00 AM daily)
 - Handles unlimited prompts via pagination (1000 per batch)
 
 ### 2. Process Single Prompt (`process-single-prompt`)
@@ -318,7 +318,7 @@ Modify in `src/inngest/functions/schedule-analysis.ts`:
 
 ```typescript
 {
-  cron: "0 2 * * *";
+  cron: "0 1 * * *";
 } // Change to your preferred schedule
 ```
 

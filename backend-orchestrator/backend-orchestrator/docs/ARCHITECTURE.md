@@ -38,11 +38,11 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │                                         │  │
 │  │  ┌──────────────────────────────────┐  │  │
 │  │  │  schedule-daily-analysis         │  │  │
-│  │  │  (Cron: 2 AM daily)              │  │  │
-│  │  │  aggregate-daily-stats          │  │  │
-│  │  │  (Cron: 1:30 AM daily)           │  │  │
+│  │  │  (Cron: 1 AM daily)              │  │  │
 │  │  │  schedule-sentiment-evaluation  │  │  │
-│  │  │  (Cron: 7 AM daily)              │  │  │
+│  │  │  (Cron: 3:30 AM daily)          │  │  │
+│  │  │  aggregate-daily-stats          │  │  │
+│  │  │  (Cron: 4:30 AM daily)           │  │  │
 │  │  │  process-single-sentiment-      │  │  │
 │  │  │  evaluation                      │  │  │
 │  │  │  (Event-driven: sentiment/      │  │  │
@@ -123,7 +123,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### schedule-daily-analysis
 
 - **Type**: Scheduled (Cron)
-- **Schedule**: `0 2 * * *` (2:00 AM daily)
+- **Schedule**: `0 1 * * *` (1:00 AM daily)
 - **Steps**:
   1. Fetch active prompts (paginated)
   2. For each prompt, check which platforms already have successful responses TODAY
@@ -194,11 +194,11 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### aggregate-daily-stats
 
 - **Type**: Scheduled (Cron)
-- **Schedule**: `30 1 * * *` (1:30 AM daily)
+- **Schedule**: `30 4 * * *` (4:30 AM daily)
 - **Concurrency**: 1 (only one aggregation workflow at a time)
 - **Purpose**: Pre-aggregate daily statistics for brands and competitors into `daily_brand_stats` table
 - **Steps**:
-  1. Get all projects that have data for yesterday
+  1. Get all projects that have data for today
   2. For each project, get client brand and all active competitors
   3. Process each entity (brand + each competitor) individually using specialized SQL functions:
      - `aggregate_brand_stats_only` for client brand
@@ -211,7 +211,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### schedule-sentiment-evaluation
 
 - **Type**: Scheduled (Cron)
-- **Schedule**: `0 7 * * *` (7:00 AM daily)
+- **Schedule**: `30 3 * * *` (3:30 AM daily)
 - **Concurrency**: N/A (scheduler only)
 - **Purpose**: Schedule sentiment evaluations for brands and competitors by generating evaluation events
 - **Steps**:
@@ -305,7 +305,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 #### Daily Analysis Flow
 
 ```
-1. Cron Trigger (2:00 AM)
+1. Cron Trigger (1:00 AM)
    ↓
 2. schedule-daily-analysis function
    ↓
@@ -323,10 +323,15 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
    - Use callAIWithRetry for automatic retry on rate limits
    - Save citations with automatic classification (brand/competitor/other)
    ↓
-7. Cron Trigger (1:30 AM next day)
+7. Cron Trigger (3:30 AM same day)
    ↓
-8. aggregate-daily-stats function
-   - Aggregates yesterday's data into daily_brand_stats
+8. schedule-sentiment-evaluation function
+   - Schedules sentiment evaluations for today
+   ↓
+9. Cron Trigger (4:30 AM same day)
+   ↓
+10. aggregate-daily-stats function
+   - Aggregates today's data into daily_brand_stats
    - Processes each entity (brand + competitors) individually
    - Uses optimized SQL functions with timestamp ranges
 ```
@@ -1069,7 +1074,7 @@ The Daily Brand Stats system pre-aggregates daily metrics for brands and competi
 │  (see Topic-Based Sentiment Evaluation section)              │
 └───────────────────────┬─────────────────────────────────────┘
                         │
-                        │ Daily Aggregation (1:30 AM)
+                        │ Daily Aggregation (4:30 AM)
                         │
             ┌───────────▼───────────┐
             │  aggregate-daily-stats │
@@ -1199,11 +1204,11 @@ Helper function to discover unique dimension combinations for a project on a giv
 ### Data Flow
 
 ```
-1. Daily Cron (1:30 AM)
+1. Daily Cron (4:30 AM)
    ↓
 2. aggregate-daily-stats function
    ↓
-3. Get all projects with data for yesterday
+3. Get all projects with data for today
    ↓
 4. For each project:
    - Get unique dimension combinations (platform, region, topic_id) via get_dimension_combinations
@@ -1316,7 +1321,7 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 
 **Configuration**:
 
-- Runs daily at 4:00 AM (after AI responses are generated at 2:00 AM)
+- Runs daily at 4:00 AM (after AI responses are generated at 1:00 AM)
 - Processes responses in order of creation (newest first)
 - Automatically skips already-analyzed responses
 
@@ -1341,7 +1346,7 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
 
 **Configuration**:
 
-- Runs daily at 6:00 AM (catches late responses from the 2:00 AM generation)
+- Runs daily at 6:00 AM (catches late responses from the 1:00 AM generation)
 - Processes responses in order of creation (newest first)
 - Automatically skips already-analyzed responses
 - Acts as a safety net for responses that took longer to generate
@@ -1971,7 +1976,7 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
                         │
                         │
             ┌───────────▼───────────┐
-            │ Daily Cron (7:00 AM)  │
+            │ Daily Cron (3:30 AM)  │
             │                       │
             │ schedule-sentiment-   │
             │ evaluation            │
@@ -2190,7 +2195,7 @@ This phase uses a **scheduler + processor pattern** (similar to `schedule-analys
 
 **2a. Schedule Evaluations** (`schedule-sentiment-evaluation`)
 
-1. **Trigger**: Daily cron at 7:00 AM UTC
+1. **Trigger**: Daily cron at 3:30 AM UTC
 2. **Function**: `schedule-sentiment-evaluation`
 3. **Process**:
    - Fetches all projects with `extracted_topics` populated

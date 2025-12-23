@@ -8,7 +8,7 @@ export const scheduleAnalysis = inngest.createFunction(
     id: "schedule-daily-analysis",
     name: "Schedule Daily Analysis"
   },
-  { cron: "0 2 * * *" }, // Runs at 2:00 AM daily
+  { cron: "0 1 * * *" }, // Runs at 1:00 AM daily
   async ({ step }) => {
     const supabase = createSupabaseClient();
     

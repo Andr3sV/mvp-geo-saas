@@ -2,7 +2,7 @@
 
 ## 📋 Descripción General
 
-El sistema de análisis diario automático ejecuta análisis de IA para todos los prompts activos en Supabase cada día a las 2:00 AM. Está diseñado para manejar miles de prompts de manera eficiente sin saturar las APIs de los proveedores de LLM.
+El sistema de análisis diario automático ejecuta análisis de IA para todos los prompts activos en Supabase cada día a las 1:00 AM. Está diseñado para manejar miles de prompts de manera eficiente sin saturar las APIs de los proveedores de LLM.
 
 ## 🎯 Objetivo
 
@@ -31,7 +31,7 @@ Almacena todos los trabajos de análisis pendientes, procesándose y completados
 
 ### 2. Edge Function: `trigger-daily-analysis`
 
-**Propósito:** Se ejecuta diariamente a las 2:00 AM vía cron job para:
+**Propósito:** Se ejecuta diariamente a las 1:00 AM vía cron job para:
 - Buscar todos los prompts activos (`is_active = true`)
 - Insertarlos en la cola `analysis_queue`
 - Iniciar el procesamiento llamando a `process-queue`
@@ -58,7 +58,7 @@ Almacena todos los trabajos de análisis pendientes, procesándose y completados
 ## 🔄 Flujo de Ejecución
 
 ```
-1. Cron Job (2:00 AM diario)
+1. Cron Job (1:00 AM diario)
    ↓
 2. trigger-daily-analysis
    ├─ Busca todos los prompts activos
