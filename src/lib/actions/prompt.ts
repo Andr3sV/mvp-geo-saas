@@ -107,6 +107,69 @@ export async function createPrompt(data: {
     return { error: error.message, data: null };
   }
 
+  // Trigger immediate prompt processing if prompt is active
+  if (prompt.is_active !== false) {
+    try {
+      let backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
+      
+      // Ensure URL has protocol
+      if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+        backendUrl = `https://${backendUrl}`;
+      }
+      
+      console.log('[PROMPT_PROCESSING_TRIGGER] Starting trigger', {
+        prompt_tracking_id: prompt.id,
+        project_id: data.project_id,
+        backend_url: backendUrl,
+        timestamp: new Date().toISOString(),
+      });
+      
+      const requestBody = {
+        prompt_tracking_id: prompt.id,
+        project_id: data.project_id,
+        // platforms_to_process is optional - if not provided, process-prompt will use all available platforms
+      };
+
+      const response = await fetch(`${backendUrl}/process-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const responseText = await response.text();
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        responseData = { raw: responseText };
+      }
+
+      if (!response.ok) {
+        console.error('[PROMPT_PROCESSING_TRIGGER] Failed', {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseData,
+          request_body: requestBody,
+        });
+      } else {
+        console.log('[PROMPT_PROCESSING_TRIGGER] Success', {
+          prompt_tracking_id: prompt.id,
+          response: responseData,
+        });
+      }
+    } catch (error: any) {
+      // Log error but don't fail prompt creation
+      console.error('[PROMPT_PROCESSING_TRIGGER] Exception', {
+        error: error?.message || String(error),
+        stack: error?.stack,
+        prompt_tracking_id: prompt.id,
+        project_id: data.project_id,
+      });
+    }
+  }
+
   revalidatePath("/dashboard");
   return { error: null, data: prompt };
 }

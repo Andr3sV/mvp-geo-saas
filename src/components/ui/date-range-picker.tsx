@@ -64,27 +64,24 @@ export function DateRangePicker({
   };
 
   const getQuickFilterRange = (filterType: "currentWeek" | "pastWeek" | "currentMonth" | "pastMonth"): DateRange => {
-    // Get yesterday as the maximum selectable date (today is blocked)
-    const yesterday = subDays(new Date(), 1);
-    const yesterdayStart = startOfDay(yesterday);
+    // Get today as the maximum selectable date (today is now included)
+    const today = new Date();
+    const todayStart = startOfDay(today);
     
     switch (filterType) {
       case "currentWeek": {
-        // Current week: Monday to Sunday of current week (ending at yesterday if before Sunday)
+        // Current week: Monday to today (including today)
         // startOfWeek with { weekStartsOn: 1 } gives us Monday
-        const weekStart = startOfWeek(yesterdayStart, { weekStartsOn: 1 }); // Monday of current week
-        // endOfWeek with { weekStartsOn: 1 } gives us Sunday
-        const weekEnd = endOfWeek(yesterdayStart, { weekStartsOn: 1 }); // Sunday of current week
-        // Cap at yesterday if Sunday hasn't arrived yet
-        const actualEnd = weekEnd > yesterdayStart ? yesterdayStart : weekEnd;
+        const weekStart = startOfWeek(todayStart, { weekStartsOn: 1 }); // Monday of current week
+        // End at today (inclusive)
         return {
           from: startOfDay(weekStart),
-          to: endOfDay(actualEnd),
+          to: endOfDay(todayStart),
         };
       }
       case "pastWeek": {
         // Past week: Monday to Sunday of previous week
-        const pastWeekDate = subWeeks(yesterdayStart, 1);
+        const pastWeekDate = subWeeks(todayStart, 1);
         const pastWeekStart = startOfWeek(pastWeekDate, { weekStartsOn: 1 }); // Monday of past week
         const pastWeekEnd = endOfWeek(pastWeekDate, { weekStartsOn: 1 }); // Sunday of past week
         return {
@@ -93,16 +90,16 @@ export function DateRangePicker({
         };
       }
       case "currentMonth": {
-        // Current month: from start of current month to yesterday
-        const monthStart = startOfMonth(yesterdayStart);
+        // Current month: from start of current month to today (inclusive)
+        const monthStart = startOfMonth(todayStart);
         return {
           from: startOfDay(monthStart),
-          to: endOfDay(yesterdayStart),
+          to: endOfDay(todayStart),
         };
       }
       case "pastMonth": {
         // Past month: complete previous month
-        const pastMonth = subMonths(yesterdayStart, 1);
+        const pastMonth = subMonths(todayStart, 1);
         const pastMonthStart = startOfMonth(pastMonth);
         const pastMonthEnd = endOfMonth(pastMonth);
         return {
@@ -231,9 +228,9 @@ export function DateRangePicker({
               onSelect={handleSelect}
               numberOfMonths={2}
               disabled={(date) => {
-                // Block today and future dates (today's data won't be available until tomorrow)
+                // Block future dates only (today is now included)
                 const today = startOfDay(new Date());
-                return date >= today;
+                return date > today;
               }}
             />
             {selectedRange?.from && selectedRange?.to && (

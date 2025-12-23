@@ -107,6 +107,55 @@ const app = new Elysia()
       return { success: false, error: error.message || "Unknown error" };
     }
   })
+  // Trigger prompt processing (called when a prompt is created)
+  // This route must be defined BEFORE /api/inngest to avoid conflicts
+  .post("/process-prompt", async ({ body, request }) => {
+    try {
+      // Parse body (same logic as /analyze-brand-website)
+      let parsedBody: any;
+      if (typeof body === 'string') {
+        try {
+          parsedBody = JSON.parse(body);
+        } catch {
+          // If body is string but not JSON, read from request
+          parsedBody = await request.json();
+        }
+      } else if (body && typeof body === 'object') {
+        parsedBody = body;
+      } else {
+        // Fallback: read from request
+        parsedBody = await request.json();
+      }
+
+      const { prompt_tracking_id, project_id, platforms_to_process } = parsedBody as {
+        prompt_tracking_id: string;
+        project_id: string;
+        platforms_to_process?: string[];
+      };
+
+      if (!prompt_tracking_id || !project_id) {
+        console.error(`[ERROR] Missing prompt_tracking_id or project_id. Received:`, JSON.stringify(parsedBody));
+        return { success: false, error: "Missing prompt_tracking_id or project_id" };
+      }
+
+      console.log(`[INFO] Received process-prompt request for prompt ${prompt_tracking_id}, project ${project_id}`);
+
+      const event = await inngest.send({
+        name: "analysis/process-prompt",
+        data: {
+          prompt_tracking_id,
+          project_id,
+          platforms_to_process: platforms_to_process || undefined,
+        }
+      });
+
+      console.log(`[INFO] Process-prompt triggered for prompt ${prompt_tracking_id}, event ID: ${event.ids[0]}`);
+      return { success: true, eventId: event.ids[0], message: "Prompt processing triggered" };
+    } catch (error: any) {
+      console.error(`[ERROR] Failed to trigger process-prompt:`, error.message, error.stack);
+      return { success: false, error: error.message || "Unknown error" };
+    }
+  })
   .all("/api/inngest", async ({ request }) => {
     return handler(request);
   })
@@ -120,3 +169,4 @@ console.log(
 );
 console.log(`📡 Inngest endpoint available at /api/inngest`);
 console.log(`✅ Functions registered: schedule-daily-analysis, process-single-prompt, test-function, manual-schedule-analysis, analyze-brands-batch, analyze-single-response, aggregate-daily-stats, backfill-project-stats, analyze-brand-website, schedule-sentiment-evaluation, process-single-sentiment-evaluation`);
+console.log(`🔗 Endpoints available: /analyze-brand-website, /process-prompt`);

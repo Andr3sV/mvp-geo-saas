@@ -177,8 +177,13 @@ export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutio
                 fontSize={11}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `${value}%`}
+                tickFormatter={(value) => {
+                  // Ensure values are capped at 100 and formatted correctly
+                  const cappedValue = Math.min(value, 100);
+                  return `${cappedValue}%`;
+                }}
                 domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
               />
 
               <Tooltip content={<CustomTooltip />} />
