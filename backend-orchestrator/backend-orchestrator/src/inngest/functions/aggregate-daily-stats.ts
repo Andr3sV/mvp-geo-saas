@@ -42,10 +42,9 @@ export const aggregateDailyStats = inngest.createFunction(
   async ({ step }) => {
     const supabase = createSupabaseClient();
 
-    // Calculate today's date
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const statDate = today.toISOString().split('T')[0];
+    // Calculate today's date in UTC
+    const now = new Date();
+    const statDate = now.toISOString().split('T')[0];
 
     logInfo('aggregate-daily-stats', `Starting daily stats aggregation for ${statDate}`);
 
