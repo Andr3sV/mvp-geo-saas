@@ -49,6 +49,11 @@ export async function getProjectPrompts(projectId: string) {
         id,
         name,
         color
+      ),
+      regions (
+        id,
+        code,
+        name
       )
     `)
     .eq("project_id", projectId)
@@ -58,7 +63,13 @@ export async function getProjectPrompts(projectId: string) {
     return { error: error.message, data: null };
   }
 
-  return { error: null, data };
+  // Add region code for backward compatibility (prompts-list uses prompt.region)
+  const promptsWithRegion = data?.map((prompt: any) => ({
+    ...prompt,
+    region: prompt.regions?.code || "US", // Default to US if no region
+  })) || [];
+
+  return { error: null, data: promptsWithRegion };
 }
 
 export async function createPrompt(data: {
@@ -66,7 +77,7 @@ export async function createPrompt(data: {
   prompt: string;
   category?: PromptCategory;
   topic_id?: string;
-  region?: string;
+  region?: string; // Region code (e.g., "US", "ES") - will be converted to region_id
   is_active?: boolean;
 }) {
   const supabase = await createClient();
@@ -78,12 +89,47 @@ export async function createPrompt(data: {
     return { error: "Not authenticated", data: null };
   }
 
+  // Convert region code to region_id
+  let regionId: string | null = null;
+  if (data.region && data.region !== "GLOBAL" && data.region !== "all") {
+    const regionCode = data.region.toUpperCase();
+    const { data: region } = await supabase
+      .from("regions")
+      .select("id")
+      .eq("project_id", data.project_id)
+      .eq("code", regionCode)
+      .eq("is_active", true)
+      .single();
+    
+    if (region) {
+      regionId = region.id;
+    } else {
+      // If region not found, default to US
+      const { data: usRegion } = await supabase
+        .from("regions")
+        .select("id")
+        .eq("project_id", data.project_id)
+        .eq("code", "US")
+        .single();
+      regionId = usRegion?.id || null;
+    }
+  } else {
+    // Default to US region if not specified or GLOBAL
+    const { data: usRegion } = await supabase
+      .from("regions")
+      .select("id")
+      .eq("project_id", data.project_id)
+      .eq("code", "US")
+      .single();
+    regionId = usRegion?.id || null;
+  }
+
   // topic_id is now provided directly by the user selection
   // category is kept separate as a tag (legacy support)
   const insertData: any = {
     project_id: data.project_id,
     prompt: data.prompt,
-    region: data.region || "GLOBAL",
+    region_id: regionId,
     is_active: data.is_active ?? true,
   };
 
@@ -179,7 +225,7 @@ export async function updatePrompt(
   data: {
     prompt?: string;
     category?: PromptCategory;
-    region?: string;
+    region?: string; // Region code (e.g., "US", "ES") - will be converted to region_id
     is_active?: boolean;
   }
 ) {
@@ -192,7 +238,7 @@ export async function updatePrompt(
     return { error: "Not authenticated", data: null };
   }
 
-  // Need project_id to look up topic, fetch current prompt first
+  // Need project_id to look up topic and region, fetch current prompt first
   const { data: currentPrompt } = await supabase
     .from("prompt_tracking")
     .select("project_id")
@@ -204,6 +250,45 @@ export async function updatePrompt(
   }
 
   const updates: any = { ...data };
+  
+  // Remove region from updates (we'll handle it separately)
+  delete updates.region;
+
+  // Convert region code to region_id if provided
+  if (data.region !== undefined) {
+    if (data.region === "GLOBAL" || data.region === "all") {
+      // Default to US region
+      const { data: usRegion } = await supabase
+        .from("regions")
+        .select("id")
+        .eq("project_id", currentPrompt.project_id)
+        .eq("code", "US")
+        .single();
+      updates.region_id = usRegion?.id || null;
+    } else {
+      const regionCode = data.region.toUpperCase();
+      const { data: region } = await supabase
+        .from("regions")
+        .select("id")
+        .eq("project_id", currentPrompt.project_id)
+        .eq("code", regionCode)
+        .eq("is_active", true)
+        .single();
+      
+      if (region) {
+        updates.region_id = region.id;
+      } else {
+        // If region not found, default to US
+        const { data: usRegion } = await supabase
+          .from("regions")
+          .select("id")
+          .eq("project_id", currentPrompt.project_id)
+          .eq("code", "US")
+          .single();
+        updates.region_id = usRegion?.id || null;
+      }
+    }
+  }
 
   // If category changed, update topic relation - REMOVED to decouple Tags from Topics
   // if (data.category) {

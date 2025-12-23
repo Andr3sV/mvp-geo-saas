@@ -18,12 +18,14 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { countries, type Country } from "@/lib/countries";
+import { getProjectRegionsForSelect } from "@/lib/queries/regions";
 
 interface CountrySelectProps {
   value?: string;
   onValueChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  projectId?: string; // Optional: if provided, use project-specific regions
 }
 
 export function CountrySelect({
@@ -31,21 +33,45 @@ export function CountrySelect({
   onValueChange,
   placeholder = "Select country...",
   disabled = false,
+  projectId,
 }: CountrySelectProps) {
   const [open, setOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [projectRegions, setProjectRegions] = React.useState<Array<{ code: string; name: string; flag: string }> | null>(null);
+  const [isLoadingRegions, setIsLoadingRegions] = React.useState(false);
 
-  const selectedCountry = countries.find(
+  // Load project regions if projectId is provided
+  React.useEffect(() => {
+    if (projectId) {
+      setIsLoadingRegions(true);
+      getProjectRegionsForSelect(projectId)
+        .then((regions) => {
+          setProjectRegions(regions);
+        })
+        .catch((error) => {
+          console.error("Error loading project regions:", error);
+          setProjectRegions(null); // Fallback to static list
+        })
+        .finally(() => {
+          setIsLoadingRegions(false);
+        });
+    }
+  }, [projectId]);
+
+  // Use project regions if available, otherwise fallback to static countries list
+  const availableCountries = projectRegions || countries;
+
+  const selectedCountry = availableCountries.find(
     (country) => country.code.toLowerCase() === value?.toLowerCase()
   );
 
   const filteredCountries = searchQuery
-    ? countries.filter(
+    ? availableCountries.filter(
         (country) =>
           country.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           country.code.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : countries;
+    : availableCountries;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,14 +94,19 @@ export function CountrySelect({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
+      <PopoverContent 
+        className="w-[var(--radix-popover-trigger-width)] p-0" 
+        align="start" 
+        sideOffset={4}
+        modal={false}
+      >
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search country..."
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
-          <CommandList>
+          <CommandList className="max-h-[300px]">
             <CommandEmpty>No country found.</CommandEmpty>
             <CommandGroup>
               {filteredCountries.map((country) => (

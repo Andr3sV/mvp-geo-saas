@@ -9,18 +9,42 @@ import { PromptsList } from "./prompts-list";
 import { CreatePromptDialog } from "./create-prompt-dialog";
 import { getProjectPrompts } from "@/lib/actions/prompt";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getProjectRegionsForSelect } from "@/lib/queries/regions";
 
 export function PromptsManager() {
   const { selectedProjectId } = useProject();
   const [prompts, setPrompts] = useState<any[]>([]);
+  const [allPrompts, setAllPrompts] = useState<any[]>([]); // Store all prompts for filtering
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<string>("all");
+  const [regions, setRegions] = useState<Array<{ code: string; name: string; flag: string }>>([]);
 
   useEffect(() => {
     if (selectedProjectId) {
       loadPrompts();
+      loadRegions();
     }
   }, [selectedProjectId]);
+
+  const loadRegions = async () => {
+    if (!selectedProjectId) return;
+    try {
+      const regionsData = await getProjectRegionsForSelect(selectedProjectId);
+      setRegions(regionsData);
+    } catch (error) {
+      console.error("Error loading regions:", error);
+    }
+  };
 
   const loadPrompts = async () => {
     if (!selectedProjectId) return;
@@ -29,10 +53,33 @@ export function PromptsManager() {
     const result = await getProjectPrompts(selectedProjectId);
     
     if (result.data) {
-      setPrompts(result.data);
+      setAllPrompts(result.data);
+      // Apply region filter
+      filterPromptsByRegion(result.data, selectedRegion);
     }
     setLoading(false);
   };
+
+  const filterPromptsByRegion = (promptsToFilter: any[], regionCode: string) => {
+    if (regionCode === "all" || regionCode === "GLOBAL") {
+      setPrompts(promptsToFilter);
+      return;
+    }
+
+    // Filter by region code (prompts have region_id, need to match with region code)
+    const filtered = promptsToFilter.filter((prompt) => {
+      const promptRegionCode = prompt.regions?.code;
+      return promptRegionCode === regionCode;
+    });
+
+    setPrompts(filtered);
+  };
+
+  useEffect(() => {
+    if (allPrompts.length > 0) {
+      filterPromptsByRegion(allPrompts, selectedRegion);
+    }
+  }, [selectedRegion, allPrompts]);
 
   if (!selectedProjectId) {
     return (
@@ -66,6 +113,32 @@ export function PromptsManager() {
           </div>
         </CardHeader>
         <CardContent>
+          {regions.length > 0 && (
+            <div className="mb-4">
+              <Select 
+                value={selectedRegion} 
+                onValueChange={setSelectedRegion}
+              >
+                <SelectTrigger className="w-full md:w-52">
+                  <SelectValue placeholder="Filter by region..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Region</SelectLabel>
+                    <SelectItem value="all">All Regions</SelectItem>
+                    {regions.map((region) => (
+                      <SelectItem key={region.code} value={region.code}>
+                        <span className="flex items-center gap-2">
+                          <span>{region.flag}</span>
+                          <span>{region.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {loading ? (
             <div className="text-center py-8 text-muted-foreground">
               Loading prompts...

@@ -26,6 +26,7 @@ import {
   Eye,
   Database,
   Bot,
+  Globe,
 } from "lucide-react";
 import {
   Sidebar,
@@ -108,6 +109,11 @@ const dataManagementItems = [
     title: "Topics",
     href: "/dashboard/topics",
     icon: Tag,
+  },
+  {
+    title: "Regions",
+    href: "/dashboard/regions",
+    icon: Globe,
   },
 ];
 

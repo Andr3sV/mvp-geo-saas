@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { format, subDays, eachDayOfInterval } from "date-fns";
+import { getRegionIdByCode } from "@/lib/actions/regions";
 
 // =============================================
 // DAILY BRAND STATS QUERIES
@@ -73,7 +74,11 @@ export async function getDailyStats(
 
   // If querying today, supplement with real-time data after 4:30 AM
   if (isQueryingToday) {
-    const realTimeStats = await getTodayRealTimeStats(projectId, platform, region, topicId);
+    // Convert region code to region_id if not GLOBAL
+    const regionId = region && region !== "GLOBAL" && region !== "all"
+      ? await getRegionIdByCode(projectId, region)
+      : null;
+    const realTimeStats = await getTodayRealTimeStats(projectId, platform, regionId, topicId);
     return mergeDailyStats(dailyStats || [], realTimeStats);
   }
 
@@ -205,7 +210,7 @@ export async function getMentionsSummary(
   startDate?: Date,
   endDate?: Date,
   platform?: string,
-  region?: string,
+  region?: string, // Region code (e.g., "US", "ES") or "GLOBAL"
   topicId?: string
 ) {
   const stats = await getDailyStats(projectId, startDate, endDate, platform, region, topicId);
@@ -439,7 +444,7 @@ async function getDailyStatsRealTime(
 async function getTodayRealTimeStats(
   projectId: string,
   platform?: string,
-  region?: string,
+  regionId?: string | null, // Now accepts region_id instead of region code
   topicId?: string
 ): Promise<DailyStats[]> {
   const supabase = await createClient();
@@ -491,10 +496,10 @@ async function getTodayRealTimeStats(
 
   // Only fetch if we have ai_response_ids
   if (aiResponseIds.size > 0) {
-    // Fetch ai_responses with prompt_tracking data
+    // Fetch ai_responses with prompt_tracking data (including region_id)
     let aiResponsesQuery = supabase
       .from("ai_responses")
-      .select("id, platform, prompt_tracking_id, prompt_tracking(region, topic_id)")
+      .select("id, platform, prompt_tracking_id, prompt_tracking(region_id, topic_id, regions(code))")
       .in("id", Array.from(aiResponseIds));
 
     // Apply platform filter if provided
@@ -504,13 +509,14 @@ async function getTodayRealTimeStats(
 
     const { data: aiResponses } = await aiResponsesQuery;
 
-    // Filter by region and topic_id after fetching (since we can't filter nested relations easily)
+    // Filter by region_id and topic_id after fetching (since we can't filter nested relations easily)
     let filteredAiResponses = aiResponses || [];
-    if (region && region !== "GLOBAL") {
+    if (regionId) {
       filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-        ar.prompt_tracking?.region === region
+        ar.prompt_tracking?.region_id === regionId
       );
     }
+    // If regionId is null, it means GLOBAL (don't filter by region)
     if (topicId && topicId !== "all") {
       filteredAiResponses = filteredAiResponses.filter((ar: any) => 
         ar.prompt_tracking?.topic_id === topicId
@@ -521,7 +527,7 @@ async function getTodayRealTimeStats(
     filteredAiResponses.forEach((ar: any) => {
       aiResponseMap.set(ar.id, {
         platform: ar.platform || "all",
-        region: ar.prompt_tracking?.region || "GLOBAL",
+        region: ar.prompt_tracking?.regions?.code || "US", // Use region code for compatibility
         topic_id: ar.prompt_tracking?.topic_id || "all",
       });
     });
