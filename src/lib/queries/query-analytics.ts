@@ -36,7 +36,9 @@ export async function getQueryOverview(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -50,6 +52,8 @@ export async function getQueryOverview(
     p_to_date: endDate.toISOString(),
     p_platform: platform && platform !== "all" ? platform : null,
     p_region: region && region !== "GLOBAL" ? region : null,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {
@@ -83,7 +87,9 @@ export async function getQueryWordCloudData(
   toDate?: Date,
   platform?: string,
   region?: string,
-  limit: number = 50
+  limit: number = 50,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -98,6 +104,8 @@ export async function getQueryWordCloudData(
     p_platform: platform && platform !== "all" ? platform : null,
     p_region: region && region !== "GLOBAL" ? region : null,
     p_limit: limit,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {
@@ -116,7 +124,9 @@ export async function getQueryPlatformDistribution(
   projectId: string,
   fromDate?: Date,
   toDate?: Date,
-  region?: string
+  region?: string,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -129,6 +139,8 @@ export async function getQueryPlatformDistribution(
     p_from_date: startDate.toISOString(),
     p_to_date: endDate.toISOString(),
     p_region: region && region !== "GLOBAL" ? region : null,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {
@@ -161,7 +173,9 @@ export async function getQueryIntentBreakdown(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -175,6 +189,8 @@ export async function getQueryIntentBreakdown(
     p_to_date: endDate.toISOString(),
     p_platform: platform && platform !== "all" ? platform : null,
     p_region: region && region !== "GLOBAL" ? region : null,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {
@@ -199,7 +215,9 @@ export async function getTopQueries(
   fromDate?: Date,
   toDate?: Date,
   platform?: string,
-  region?: string
+  region?: string,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -214,6 +232,8 @@ export async function getTopQueries(
     p_platform: platform && platform !== "all" ? platform : null,
     p_region: region && region !== "GLOBAL" ? region : null,
     p_limit: limit,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {
@@ -240,7 +260,9 @@ export async function getQueryDomainCorrelation(
   platform?: string,
   region?: string,
   queryLimit: number = 10,
-  domainLimit: number = 10
+  domainLimit: number = 10,
+  entityId?: string | null,
+  entityType?: 'brand' | 'competitor' | null
 ) {
   const supabase = await createClient();
 
@@ -256,6 +278,8 @@ export async function getQueryDomainCorrelation(
     p_region: region && region !== "GLOBAL" ? region : null,
     p_query_limit: queryLimit,
     p_domain_limit: domainLimit,
+    p_entity_id: entityId || null,
+    p_entity_type: entityType || null,
   });
 
   if (error) {

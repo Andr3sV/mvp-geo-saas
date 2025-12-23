@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CountrySelect } from "@/components/ui/country-select";
 import { DateRangePicker, DateRangeValue } from "@/components/ui/date-range-picker";
+import { EntityFilterSelect, type EntityFilterValue } from "@/components/dashboard/entity-filter-select";
 import { useState, useEffect } from "react";
 import { useProject } from "@/contexts/project-context";
 import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
@@ -29,12 +30,15 @@ interface FiltersToolbarProps {
 	hidePlatformFilter?: boolean;
 	hideTopicFilter?: boolean;
 	showSentimentThemeFilter?: boolean;
+	showEntityFilter?: boolean;
+	selectedEntities?: EntityFilterValue;
 	onApply?: (filters: { 
 		region: string; 
 		dateRange: DateRangeValue;
 		platform: string;
 		topicId?: string;
 		sentimentTheme?: string;
+		selectedEntities?: EntityFilterValue;
 	}) => void;
 }
 
@@ -48,6 +52,8 @@ export function FiltersToolbar({
 	hidePlatformFilter = false,
 	hideTopicFilter = false,
 	showSentimentThemeFilter = false,
+	showEntityFilter = false,
+	selectedEntities: controlledSelectedEntities,
 	onApply 
 }: FiltersToolbarProps) {
 	const { selectedProjectId } = useProject();
@@ -58,6 +64,9 @@ export function FiltersToolbar({
 	const [platform, setPlatform] = useState<string>(controlledPlatform || "all");
 	const [topicId, setTopicId] = useState<string>(controlledTopicId || "all");
 	const [sentimentTheme, setSentimentTheme] = useState<string>(controlledSentimentTheme || "all");
+	const [selectedEntities, setSelectedEntities] = useState<EntityFilterValue>(
+		controlledSelectedEntities || [{ id: null, type: "brand" }]
+	);
 	const [topics, setTopics] = useState<any[]>([]);
 	const [sentimentTopics, setSentimentTopics] = useState<string[]>([]);
 
@@ -118,6 +127,12 @@ export function FiltersToolbar({
 		}
 	}, [controlledSentimentTheme]);
 
+	useEffect(() => {
+		if (controlledSelectedEntities !== undefined) {
+			setSelectedEntities(controlledSelectedEntities);
+		}
+	}, [controlledSelectedEntities]);
+
 	const getDefaultDateRange = () => getCurrentWeekDateRange();
 
 	const resetFilters = () => {
@@ -126,13 +141,22 @@ export function FiltersToolbar({
 		const resetPlatform = "all";
 		const resetTopicId = "all";
 		const resetSentimentTheme = "all";
+		const resetSelectedEntities: EntityFilterValue = [{ id: null, type: "brand" }];
 		setRegion(resetRegion);
 		setDateRange(resetDateRange);
 		setPlatform(resetPlatform);
 		setTopicId(resetTopicId);
 		setSentimentTheme(resetSentimentTheme);
+		setSelectedEntities(resetSelectedEntities);
 		// Auto-apply reset
-		onApply?.({ region: resetRegion, dateRange: resetDateRange, platform: resetPlatform, topicId: resetTopicId, sentimentTheme: resetSentimentTheme });
+		onApply?.({ 
+			region: resetRegion, 
+			dateRange: resetDateRange, 
+			platform: resetPlatform, 
+			topicId: resetTopicId, 
+			sentimentTheme: resetSentimentTheme,
+			selectedEntities: resetSelectedEntities
+		});
 	};
 
 	// Helper to compare dates (same day, ignoring time)
@@ -163,12 +187,21 @@ export function FiltersToolbar({
 		isSameDay(appliedDateRange.from, defaultDateRange.from) &&
 		isSameDay(appliedDateRange.to, defaultDateRange.to);
 	
+	const appliedSelectedEntities = controlledSelectedEntities ?? selectedEntities;
+	const isDefaultEntityFilter = 
+		!showEntityFilter || 
+		(Array.isArray(appliedSelectedEntities) && 
+		 appliedSelectedEntities.length === 1 && 
+		 appliedSelectedEntities[0].type === "brand" && 
+		 appliedSelectedEntities[0].id === null);
+
 	const hasActiveFilters = 
 		appliedRegion !== "GLOBAL" ||
 		appliedPlatform !== "all" ||
 		(!hideTopicFilter && appliedTopicId !== "all") ||
 		(showSentimentThemeFilter && appliedSentimentTheme !== "all") ||
-		!isDefaultDateRange;
+		!isDefaultDateRange ||
+		!isDefaultEntityFilter;
 
 	return (
 		<div className={`rounded-lg bg-card p-3 ${className ?? ""}`}>
@@ -180,7 +213,7 @@ export function FiltersToolbar({
 							onValueChange={(newRegion) => {
 								setRegion(newRegion);
 								// Auto-apply when region changes
-								onApply?.({ region: newRegion, dateRange, platform, topicId, sentimentTheme });
+								onApply?.({ region: newRegion, dateRange, platform, topicId, sentimentTheme, selectedEntities });
 							}}
 							placeholder="Select country..."
 							projectId={selectedProjectId || undefined}
@@ -195,11 +228,26 @@ export function FiltersToolbar({
 								setDateRange(newRange);
 								// Apply immediately when Apply button is clicked in picker
 								if (newRange.from && newRange.to) {
-									onApply?.({ region, dateRange: newRange, platform, topicId, sentimentTheme });
+									onApply?.({ region, dateRange: newRange, platform, topicId, sentimentTheme, selectedEntities });
 								}
 							}}
 						/>
 					</div>
+
+					{showEntityFilter && selectedProjectId && (
+					<div className="w-full md:w-52">
+						<EntityFilterSelect
+							projectId={selectedProjectId}
+							value={selectedEntities}
+							onValueChange={(newEntities) => {
+								setSelectedEntities(newEntities);
+								// Auto-apply when entity filter changes
+								onApply?.({ region, dateRange, platform, topicId, sentimentTheme, selectedEntities: newEntities });
+							}}
+							placeholder="Select entities..."
+						/>
+					</div>
+					)}
 
 					{!hidePlatformFilter && (
 					<div className="w-full md:w-52">
@@ -208,7 +256,7 @@ export function FiltersToolbar({
 							onValueChange={(newPlatform) => {
 								setPlatform(newPlatform);
 								// Auto-apply when platform changes
-								onApply?.({ region, dateRange, platform: newPlatform, topicId, sentimentTheme });
+								onApply?.({ region, dateRange, platform: newPlatform, topicId, sentimentTheme, selectedEntities });
 							}}
 						>
 							<SelectTrigger className="w-full">
@@ -233,7 +281,7 @@ export function FiltersToolbar({
 							onValueChange={(newTheme) => {
 								setSentimentTheme(newTheme);
 								// Auto-apply when sentiment theme changes
-								onApply?.({ region, dateRange, platform, topicId, sentimentTheme: newTheme });
+								onApply?.({ region, dateRange, platform, topicId, sentimentTheme: newTheme, selectedEntities });
 							}}
 						>
 							<SelectTrigger className="w-full">
@@ -261,7 +309,7 @@ export function FiltersToolbar({
 							onValueChange={(newTopicId) => {
 								setTopicId(newTopicId);
 								// Auto-apply when topic changes
-								onApply?.({ region, dateRange, platform, topicId: newTopicId, sentimentTheme });
+								onApply?.({ region, dateRange, platform, topicId: newTopicId, sentimentTheme, selectedEntities });
 							}}
 						>
 							<SelectTrigger className="w-full">

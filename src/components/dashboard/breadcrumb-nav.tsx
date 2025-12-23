@@ -94,6 +94,11 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
       return;
     }
 
+    if (!clientUrl.trim()) {
+      setError("Website URL is required");
+      return;
+    }
+
     if (!currentWorkspace?.id) {
       setError("No workspace selected");
       return;
@@ -106,7 +111,7 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
       const result = await createProject({
         name: projectName.trim(),
         workspace_id: currentWorkspace.id,
-        client_url: clientUrl.trim() || undefined,
+        client_url: clientUrl.trim(),
       });
 
       if (result.data && !result.error) {
