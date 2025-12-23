@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startOfWeek } from "date-fns";
 import { useProject } from "@/contexts/project-context";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { CitationsEvolutionChart } from "@/components/citations/citations-evolution-chart";
@@ -26,15 +26,6 @@ import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 
-/**
- * Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
- */
-function getYesterday(): Date {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
-  return yesterday;
-}
 
 export default function CitationsPage() {
   const { selectedProjectId } = useProject();
@@ -49,15 +40,8 @@ export default function CitationsPage() {
   const [citationSourcesTotalPages, setCitationSourcesTotalPages] = useState(0);
 
   // Filters state
-  // Date range state (default to current week - Monday to yesterday)
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: (() => {
-      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-      date.setHours(0, 0, 0, 0);
-      return date;
-    })(),
-    to: getYesterday(),
-  });
+  // Date range state (default to current week - Monday to today)
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
   const [topicId, setTopicId] = useState<string>("all");

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Search, Hash, Globe, Ruler } from "lucide-react";
-import { startOfWeek } from "date-fns";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { useProject } from "@/contexts/project-context";
@@ -30,23 +30,8 @@ type DateRangeValue = {
   to: Date | undefined;
 };
 
-// Get yesterday's date
-function getYesterday(): Date {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
-  return yesterday;
-}
-
-// Default date range: current week (Monday to yesterday)
-const defaultDateRange: DateRangeValue = {
-  from: (() => {
-    const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-    date.setHours(0, 0, 0, 0);
-    return date;
-  })(),
-  to: getYesterday(),
-};
+// Default date range: current week (Monday to today)
+const defaultDateRange: DateRangeValue = getCurrentWeekDateRange();
 
 export default function QueriesPage() {
   const { selectedProjectId } = useProject();

@@ -1,30 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { startOfWeek } from "date-fns";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { ResponsesTable } from "@/components/responses/responses-table";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-
-// Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
-function getYesterday(): Date {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
-  return yesterday;
-}
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 
 export default function AIResponsesPage() {
-  // Date range state (default to current week - Monday to yesterday)
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: (() => {
-      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-      date.setHours(0, 0, 0, 0);
-      return date;
-    })(),
-    to: getYesterday(),
-  });
+  // Date range state (default to current week - Monday to today)
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
 
   // Platform filter state
   const [platform, setPlatform] = useState<string>("all");

@@ -8,15 +8,7 @@ import { HighValueOpportunitiesTable } from "@/components/citations/high-value-o
 import { UnmentionedSourcesTable } from "@/components/citations/unmentioned-sources-table";
 import { getHighValueOpportunities, getUnmentionedSources } from "@/lib/queries/citations-real";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { startOfWeek } from "date-fns";
-
-// Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
-function getYesterday(): Date {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
-  return yesterday;
-}
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 
 export default function OpportunitiesPage() {
   const { selectedProjectId } = useProject();
@@ -24,16 +16,8 @@ export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [unmentionedSources, setUnmentionedSources] = useState<any[]>([]);
 
-  // Date range state (default to current week - Monday to yesterday)
-  // Today's data won't be available until tomorrow, so max date is yesterday
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: (() => {
-      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-      date.setHours(0, 0, 0, 0);
-      return date;
-    })(),
-    to: getYesterday(),
-  });
+  // Date range state (default to current week - Monday to today)
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
 

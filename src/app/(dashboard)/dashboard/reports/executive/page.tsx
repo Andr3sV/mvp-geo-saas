@@ -5,7 +5,7 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { startOfWeek } from "date-fns";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 
 // Executive Dashboard Components
 import { CompetitiveHero } from "@/components/executive/competitive-hero";
@@ -25,27 +25,12 @@ import {
 } from "@/lib/queries/executive-overview";
 import { type SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
 
-// Get yesterday's date
-function getYesterday(): Date {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(23, 59, 59, 999);
-  return yesterday;
-}
-
 export default function ExecutiveOverviewPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filter states - default to current week
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: (() => {
-      const date = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-      date.setHours(0, 0, 0, 0);
-      return date;
-    })(),
-    to: getYesterday(),
-  });
+  // Filter states - default to current week (Monday to today)
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
   const [topicId, setTopicId] = useState<string>("all");

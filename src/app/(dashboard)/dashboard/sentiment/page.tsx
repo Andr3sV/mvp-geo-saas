@@ -5,8 +5,9 @@ import { useProject } from "@/contexts/project-context";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
-import { subDays, differenceInDays } from "date-fns";
+import { differenceInDays, subDays } from "date-fns";
 import { toast } from "sonner";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 // Sentiment Analysis Components
 import { SentimentTrendsChart } from "@/components/sentiment/sentiment-trends-chart";
@@ -36,10 +37,7 @@ export default function SentimentPage() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Filter states
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    from: subDays(new Date(), 29),
-    to: new Date(),
-  });
+  const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
   const [platform, setPlatform] = useState<string>("all");
   const [region, setRegion] = useState<string>("GLOBAL");
   const [selectedTopic, setSelectedTopic] = useState<string>("all");

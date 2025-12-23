@@ -14,8 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { CountrySelect } from "@/components/ui/country-select";
 import { DateRangePicker, DateRangeValue } from "@/components/ui/date-range-picker";
 import { useState, useEffect } from "react";
-import { subDays } from "date-fns";
 import { useProject } from "@/contexts/project-context";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { getProjectTopics } from "@/lib/actions/topics";
 import { getProjectTopics as getBrandEvaluationTopics } from "@/lib/queries/brand-evaluations";
 
@@ -53,10 +53,7 @@ export function FiltersToolbar({
 	const { selectedProjectId } = useProject();
 	const [region, setRegion] = useState<string>(controlledRegion || "GLOBAL");
 	const [dateRange, setDateRange] = useState<DateRangeValue>(
-		controlledDateRange || {
-			from: subDays(new Date(), 29),
-			to: new Date(),
-		}
+		controlledDateRange || getCurrentWeekDateRange()
 	);
 	const [platform, setPlatform] = useState<string>(controlledPlatform || "all");
 	const [topicId, setTopicId] = useState<string>(controlledTopicId || "all");
@@ -121,10 +118,7 @@ export function FiltersToolbar({
 		}
 	}, [controlledSentimentTheme]);
 
-	const getDefaultDateRange = () => ({
-		from: subDays(new Date(), 29),
-		to: new Date(),
-	});
+	const getDefaultDateRange = () => getCurrentWeekDateRange();
 
 	const resetFilters = () => {
 		const resetDateRange = getDefaultDateRange();
