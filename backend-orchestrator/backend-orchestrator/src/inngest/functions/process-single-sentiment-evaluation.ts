@@ -25,13 +25,13 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
   },
   { event: 'sentiment/evaluate-single' },
   async ({ event, step }) => {
-    const { project_id, topic, region, entity_type, entity_name, competitor_id } = event.data;
+    const { project_id, topic, region_id, entity_type, entity_name, competitor_id } = event.data;
     const supabase = createSupabaseClient();
 
     logInfo('process-single-sentiment-evaluation', 'Processing evaluation', {
       project_id,
       topic,
-      region,
+      region_id,
       entity_type,
       entity_name,
       competitor_id,
@@ -56,7 +56,27 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       return data;
     });
 
-    // 2. Fetch existing themes for the project
+    // 2. Get region code from region_id (if not null, for prompt context)
+    const regionCode = await step.run('get-region-code', async () => {
+      if (!region_id) {
+        return null; // GLOBAL
+      }
+
+      const { data: region, error } = await supabase
+        .from('regions')
+        .select('code')
+        .eq('id', region_id)
+        .single();
+
+      if (error) {
+        logError('process-single-sentiment-evaluation', `Failed to fetch region code for region_id ${region_id}`, error);
+        return null;
+      }
+
+      return region?.code || null;
+    });
+
+    // 3. Fetch existing themes for the project
     const themes = await step.run('fetch-themes', async () => {
       const [positiveThemes, negativeThemes] = await Promise.all([
         getThemesByProject(project_id, 'positive'),
@@ -70,20 +90,21 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       return { positiveThemes, negativeThemes };
     });
 
-    // 3. Check Gemini API key
+    // 4. Check Gemini API key
     const geminiApiKey = getAPIKey('gemini');
     if (!geminiApiKey) {
       throw new Error('Missing GEMINI_API_KEY');
     }
 
-    // 4. Build evaluation prompt with themes
+    // 5. Build evaluation prompt with themes
+    // Use region code (string) for prompt, or null/undefined for GLOBAL
     const prompt = buildEvaluationPrompt(project.industry, entity_name, topic, {
-      region,
+      region: regionCode || undefined, // Pass code as string or undefined for GLOBAL
       positiveThemes: themes.positiveThemes,
       negativeThemes: themes.negativeThemes,
     });
 
-    // 5. Call Gemini to get evaluation
+    // 6. Call Gemini to get evaluation
     const result = await step.run('call-gemini', async () => {
       return await callGeminiWithRetry(prompt, {
         apiKey: geminiApiKey,
@@ -93,12 +114,12 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       });
     });
 
-    // 6. Parse evaluation response (now contains theme names)
+    // 7. Parse evaluation response (now contains theme names)
     const parsed = await step.run('parse-response', async () => {
       return parseEvaluationResponse(result.text);
     });
 
-    // 7. Match theme names to existing themes or create new ones
+    // 8. Match theme names to existing themes or create new ones
     const themeIds = await step.run('process-themes', async () => {
       const positiveThemeIds: string[] = [];
       const negativeThemeIds: string[] = [];
@@ -140,7 +161,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       return { positiveThemeIds, negativeThemeIds };
     });
 
-    // 8. Save to brand_evaluations
+    // 9. Save to brand_evaluations
     await step.run('save-evaluation', async () => {
       const { error: insertError } = await supabase
         .from('brand_evaluations')
@@ -156,7 +177,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
           positive_theme_ids: themeIds.positiveThemeIds,
           negative_theme_ids: themeIds.negativeThemeIds,
           natural_response: parsed.naturalResponse || null,
-          region: region || 'GLOBAL',
+          region_id: region_id || null, // NULL represents GLOBAL
           query_search: result.webSearchQueries || [],
           uri_sources: result.uriSources || [],
           url_sources: result.urlSources || [],
@@ -170,7 +191,8 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       logInfo('process-single-sentiment-evaluation', 'Evaluation saved successfully', {
         project_id,
         topic,
-        region,
+        region_id,
+        region_code: regionCode,
         entity_type,
         entity_name,
         sentiment_score: parsed.sentimentScore,
@@ -185,7 +207,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       success: true,
       project_id,
       topic,
-      region,
+      region_id,
       entity_type,
       entity_name,
       sentiment_score: parsed.sentimentScore,

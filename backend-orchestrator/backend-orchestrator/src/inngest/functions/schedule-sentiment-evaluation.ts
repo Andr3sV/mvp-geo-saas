@@ -51,7 +51,7 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
         data: {
           project_id: string;
           topic: string;
-          region: string;
+          region_id: string | null;
           entity_type: 'brand' | 'competitor';
           entity_name: string;
           competitor_id: string | null;
@@ -81,15 +81,10 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
 
         const activeCompetitors = competitors || [];
 
-        // Get distinct regions from prompt_tracking for this project
+        // Get distinct region_ids from prompt_tracking for this project
         const { data: regionsData, error: regionsError } = await supabase
           .from('prompt_tracking')
-          .select(`
-            region_id,
-            regions:region_id (
-              code
-            )
-          `)
+          .select('region_id')
           .eq('project_id', project.id)
           .eq('is_active', true)
           .not('region_id', 'is', null);
@@ -98,41 +93,36 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
           logError('schedule-sentiment-evaluation', `Failed to fetch regions for project ${project.id}`, regionsError);
         }
 
-        // Extract unique region codes from the joined regions table
-        // Handle both array and object cases (Supabase may return array for joins)
-        const distinctRegions = [...new Set(
-          regionsData
-            ?.map((r: any) => {
-              const regions = r.regions;
-              // Handle both array and object cases
-              if (Array.isArray(regions)) {
-                return regions[0]?.code;
-              }
-              return regions?.code;
-            })
-            .filter((code): code is string => !!code) || []
+        // Extract unique region_ids
+        const distinctRegionIds = [...new Set(
+          regionsData?.map((r: any) => r.region_id).filter((id): id is string => !!id) || []
         )];
 
-        // If no regions or only GLOBAL, default to ['GLOBAL']
-        const regionsToProcess = distinctRegions.length > 0 && !distinctRegions.includes('GLOBAL') 
-          ? distinctRegions 
-          : ['GLOBAL'];
+        // If no regions, use null for GLOBAL (virtual sum of all regions)
+        const regionsToProcess = distinctRegionIds.length > 0 ? distinctRegionIds : [null];
 
-        // Generate all combinations: (topic, region) × (brand + competitors)
-        for (const region of regionsToProcess) {
+        // Generate all combinations: (topic, region_id) × (brand + competitors)
+        for (const regionId of regionsToProcess) {
           for (const topic of topics) {
             // Check if brand evaluation already exists today
-            const { data: existingBrandEval } = await supabase
+            let existingBrandQuery = supabase
               .from('brand_evaluations')
               .select('id')
               .eq('project_id', project.id)
               .eq('topic', topic)
-              .eq('region', region || 'GLOBAL')
               .eq('entity_type', 'brand')
               .is('competitor_id', null)
               .gte('created_at', startOfToday.toISOString())
-              .lte('created_at', endOfToday.toISOString())
-              .limit(1);
+              .lte('created_at', endOfToday.toISOString());
+
+            // Filter by region_id (null means GLOBAL, don't filter)
+            if (regionId !== null) {
+              existingBrandQuery = existingBrandQuery.eq('region_id', regionId);
+            } else {
+              existingBrandQuery = existingBrandQuery.is('region_id', null);
+            }
+
+            const { data: existingBrandEval } = await existingBrandQuery.limit(1);
 
             if (!existingBrandEval || existingBrandEval.length === 0) {
               eventsToSend.push({
@@ -140,7 +130,7 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
                 data: {
                   project_id: project.id,
                   topic,
-                  region: region || 'GLOBAL',
+                  region_id: regionId,
                   entity_type: 'brand',
                   entity_name: brandName,
                   competitor_id: null,
@@ -150,17 +140,24 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
 
             // Check each competitor
             for (const competitor of activeCompetitors) {
-              const { data: existingCompetitorEval } = await supabase
+              let existingCompetitorQuery = supabase
                 .from('brand_evaluations')
                 .select('id')
                 .eq('project_id', project.id)
                 .eq('topic', topic)
-                .eq('region', region || 'GLOBAL')
                 .eq('entity_type', 'competitor')
                 .eq('competitor_id', competitor.id)
                 .gte('created_at', startOfToday.toISOString())
-                .lte('created_at', endOfToday.toISOString())
-                .limit(1);
+                .lte('created_at', endOfToday.toISOString());
+
+              // Filter by region_id (null means GLOBAL, don't filter)
+              if (regionId !== null) {
+                existingCompetitorQuery = existingCompetitorQuery.eq('region_id', regionId);
+              } else {
+                existingCompetitorQuery = existingCompetitorQuery.is('region_id', null);
+              }
+
+              const { data: existingCompetitorEval } = await existingCompetitorQuery.limit(1);
 
               if (!existingCompetitorEval || existingCompetitorEval.length === 0) {
                 eventsToSend.push({
@@ -168,7 +165,7 @@ export const scheduleSentimentEvaluation = inngest.createFunction(
                   data: {
                     project_id: project.id,
                     topic,
-                    region: region || 'GLOBAL',
+                    region_id: regionId,
                     entity_type: 'competitor',
                     entity_name: competitor.name,
                     competitor_id: competitor.id,

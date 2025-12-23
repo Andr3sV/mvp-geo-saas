@@ -24,7 +24,8 @@ export interface BrandEvaluation {
   total_positive_attributes?: number;
   total_negative_attributes?: number;
   natural_response: string | null;
-  region: string | null;
+  region_id: string | null; // UUID foreign key to regions table. NULL represents GLOBAL
+  regions?: { code: string; name: string } | null; // Joined region data (optional)
   query_search: string[] | null;
   uri_sources: string[] | null;
   url_sources: string[] | null;
@@ -86,13 +87,18 @@ export async function getBrandEvaluations(
     startDate?: Date;
     endDate?: Date;
     limit?: number;
+    region?: string; // Region code (e.g., "US", "GB") or "GLOBAL"
   }
 ): Promise<BrandEvaluation[]> {
   const supabase = await createClient();
 
+  // Select with optional region join to get region code
   let query = supabase
     .from("brand_evaluations")
-    .select("*")
+    .select(`
+      *,
+      regions:region_id (code, name)
+    `)
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
 
@@ -116,6 +122,27 @@ export async function getBrandEvaluations(
     query = query.lte("created_at", options.endDate.toISOString());
   }
 
+  // Filter by region if provided
+  if (options?.region && options.region !== "GLOBAL") {
+    // For specific region, need to get region_id first
+    const { data: regionData } = await supabase
+      .from("regions")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("code", options.region)
+      .single();
+
+    if (regionData?.id) {
+      query = query.eq("region_id", regionData.id);
+    } else {
+      // Region not found, return empty
+      return [];
+    }
+  } else if (options?.region === "GLOBAL") {
+    // GLOBAL means NULL region_id (sum of all regions)
+    // Don't filter, show all regions
+  }
+
   if (options?.limit) {
     query = query.limit(options.limit);
   }
@@ -127,7 +154,11 @@ export async function getBrandEvaluations(
     return [];
   }
 
-  return (data || []) as BrandEvaluation[];
+  // Transform data to match BrandEvaluation interface
+  return (data || []).map((eval_: any) => ({
+    ...eval_,
+    regions: Array.isArray(eval_.regions) ? eval_.regions[0] : eval_.regions,
+  })) as BrandEvaluation[];
 }
 
 // =============================================
@@ -840,7 +871,15 @@ export async function getRegionalSentimentComparison(
 
   let query = supabase
     .from("brand_evaluations")
-    .select("region, entity_name, entity_type, competitor_id, sentiment_score, created_at")
+    .select(`
+      region_id,
+      regions:region_id (code, name),
+      entity_name,
+      entity_type,
+      competitor_id,
+      sentiment_score,
+      created_at
+    `)
     .eq("project_id", projectId);
 
   if (topic) {
@@ -868,20 +907,24 @@ export async function getRegionalSentimentComparison(
   // Group by region and entity
   const regional = new Map<string, Map<string, number[]>>();
 
-  (data || []).forEach((eval_) => {
+  (data || []).forEach((eval_: any) => {
     if (eval_.sentiment_score === null) return;
 
-    const region = eval_.region || "GLOBAL";
+    // Get region code from joined regions table, default to "GLOBAL" if null
+    const regionCode = eval_.region_id 
+      ? (Array.isArray(eval_.regions) ? eval_.regions[0]?.code : eval_.regions?.code) || "GLOBAL"
+      : "GLOBAL";
+    
     const entityKey =
       eval_.entity_type === "brand"
         ? "brand"
         : `${eval_.competitor_id || eval_.entity_name}`;
 
-    if (!regional.has(region)) {
-      regional.set(region, new Map());
+    if (!regional.has(regionCode)) {
+      regional.set(regionCode, new Map());
     }
 
-    const regionMap = regional.get(region)!;
+    const regionMap = regional.get(regionCode)!;
     if (!regionMap.has(entityKey)) {
       regionMap.set(entityKey, []);
     }
@@ -901,7 +944,7 @@ export async function getRegionalSentimentComparison(
 
   const entityNames = new Map<string, { name: string; type: "brand" | "competitor"; competitor_id: string | null }>();
 
-  (data || []).forEach((eval_) => {
+  (data || []).forEach((eval_: any) => {
     const entityKey =
       eval_.entity_type === "brand"
         ? "brand"

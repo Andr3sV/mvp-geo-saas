@@ -66,7 +66,7 @@ export async function getProjectPrompts(projectId: string) {
   // Add region code for backward compatibility (prompts-list uses prompt.region)
   const promptsWithRegion = data?.map((prompt: any) => ({
     ...prompt,
-    region: prompt.regions?.code || "US", // Default to US if no region
+    region: prompt.regions?.code || null, // Return null if no region (shouldn't happen if data is valid)
   })) || [];
 
   return { error: null, data: promptsWithRegion };
@@ -90,39 +90,25 @@ export async function createPrompt(data: {
   }
 
   // Convert region code to region_id
-  let regionId: string | null = null;
-  if (data.region && data.region !== "GLOBAL" && data.region !== "all") {
-    const regionCode = data.region.toUpperCase();
-    const { data: region } = await supabase
-      .from("regions")
-      .select("id")
-      .eq("project_id", data.project_id)
-      .eq("code", regionCode)
-      .eq("is_active", true)
-      .single();
-    
-    if (region) {
-      regionId = region.id;
-    } else {
-      // If region not found, default to US
-      const { data: usRegion } = await supabase
-        .from("regions")
-        .select("id")
-        .eq("project_id", data.project_id)
-        .eq("code", "US")
-        .single();
-      regionId = usRegion?.id || null;
-    }
-  } else {
-    // Default to US region if not specified or GLOBAL
-    const { data: usRegion } = await supabase
-      .from("regions")
-      .select("id")
-      .eq("project_id", data.project_id)
-      .eq("code", "US")
-      .single();
-    regionId = usRegion?.id || null;
+  // Region is required - GLOBAL is virtual (not stored)
+  if (!data.region || data.region === "GLOBAL" || data.region === "all") {
+    return { error: "Region is required. GLOBAL is a virtual option and cannot be used for prompts.", data: null };
   }
+
+  const regionCode = data.region.toUpperCase();
+  const { data: region } = await supabase
+    .from("regions")
+    .select("id")
+    .eq("project_id", data.project_id)
+    .eq("code", regionCode)
+    .eq("is_active", true)
+    .single();
+  
+  if (!region) {
+    return { error: `Region "${regionCode}" not found or is inactive. Please create the region first or select an active region.`, data: null };
+  }
+
+  const regionId = region.id;
 
   // topic_id is now provided directly by the user selection
   // category is kept separate as a tag (legacy support)
@@ -257,37 +243,23 @@ export async function updatePrompt(
   // Convert region code to region_id if provided
   if (data.region !== undefined) {
     if (data.region === "GLOBAL" || data.region === "all") {
-      // Default to US region
-      const { data: usRegion } = await supabase
-        .from("regions")
-        .select("id")
-        .eq("project_id", currentPrompt.project_id)
-        .eq("code", "US")
-        .single();
-      updates.region_id = usRegion?.id || null;
-    } else {
-      const regionCode = data.region.toUpperCase();
-      const { data: region } = await supabase
-        .from("regions")
-        .select("id")
-        .eq("project_id", currentPrompt.project_id)
-        .eq("code", regionCode)
-        .eq("is_active", true)
-        .single();
-      
-      if (region) {
-        updates.region_id = region.id;
-      } else {
-        // If region not found, default to US
-        const { data: usRegion } = await supabase
-          .from("regions")
-          .select("id")
-          .eq("project_id", currentPrompt.project_id)
-          .eq("code", "US")
-          .single();
-        updates.region_id = usRegion?.id || null;
-      }
+      return { error: "Region is required. GLOBAL is a virtual option and cannot be used for prompts.", data: null };
     }
+
+    const regionCode = data.region.toUpperCase();
+    const { data: region } = await supabase
+      .from("regions")
+      .select("id")
+      .eq("project_id", currentPrompt.project_id)
+      .eq("code", regionCode)
+      .eq("is_active", true)
+      .single();
+    
+    if (!region) {
+      return { error: `Region "${regionCode}" not found or is inactive. Please create the region first or select an active region.`, data: null };
+    }
+
+    updates.region_id = region.id;
   }
 
   // If category changed, update topic relation - REMOVED to decouple Tags from Topics

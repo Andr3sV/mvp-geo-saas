@@ -106,17 +106,6 @@ export async function updateRegion(
     return { error: "Not authenticated", data: null };
   }
 
-  // Check if this is the US region (cannot be deactivated)
-  const { data: region } = await supabase
-    .from("regions")
-    .select("code")
-    .eq("id", regionId)
-    .single();
-
-  if (region?.code === "US" && data.is_active === false) {
-    return { error: "US region cannot be deactivated (it is the default region)", data: null };
-  }
-
   const { data: updatedRegion, error } = await supabase
     .from("regions")
     .update(data)
@@ -141,17 +130,6 @@ export async function deleteRegion(regionId: string) {
 
   if (!user) {
     return { error: "Not authenticated", success: false };
-  }
-
-  // Check if this is the US region (cannot be deleted)
-  const { data: region } = await supabase
-    .from("regions")
-    .select("code, project_id")
-    .eq("id", regionId)
-    .single();
-
-  if (region?.code === "US") {
-    return { error: "US region cannot be deleted (it is the default region)", success: false };
   }
 
   // Check if region is in use

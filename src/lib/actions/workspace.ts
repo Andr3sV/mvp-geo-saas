@@ -107,38 +107,6 @@ export async function createProject(data: {
     return { error: projectError.message, data: null };
   }
 
-  // Create default US region if region_id not provided
-  let finalRegionId = data.region_id;
-  if (!finalRegionId) {
-    // Get or create US region for this project
-    const { data: usRegion } = await supabase
-      .from("regions")
-      .select("id")
-      .eq("project_id", project.id)
-      .eq("code", "US")
-      .single();
-
-    if (usRegion) {
-      finalRegionId = usRegion.id;
-    } else {
-      // Create US region
-      const { data: newRegion, error: regionError } = await supabase
-        .from("regions")
-        .insert({
-          project_id: project.id,
-          code: "US",
-          name: "United States",
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (!regionError && newRegion) {
-        finalRegionId = newRegion.id;
-      }
-    }
-  }
-
   // Add user as admin to project_members
   const { error: memberError } = await supabase.from("project_members").insert({
     project_id: project.id,
@@ -292,36 +260,6 @@ export async function createProjectWithPrompts(data: {
     return { error: projectError.message, data: null };
   }
 
-  // Get or create region (use provided region_id or default to US)
-  let finalRegionId = data.region_id;
-  if (!finalRegionId) {
-    const { data: usRegion } = await supabase
-      .from("regions")
-      .select("id")
-      .eq("project_id", project.id)
-      .eq("code", "US")
-      .single();
-
-    if (usRegion) {
-      finalRegionId = usRegion.id;
-    } else {
-      const { data: newRegion, error: regionError } = await supabase
-        .from("regions")
-        .insert({
-          project_id: project.id,
-          code: "US",
-          name: "United States",
-          is_active: true,
-        })
-        .select()
-        .single();
-
-      if (!regionError && newRegion) {
-        finalRegionId = newRegion.id;
-      }
-    }
-  }
-
   // Add user as admin to project_members
   const { error: memberError } = await supabase.from("project_members").insert({
     project_id: project.id,
@@ -334,11 +272,13 @@ export async function createProjectWithPrompts(data: {
   }
 
   // Create prompts in prompt_tracking
-  if (data.prompts && data.prompts.length > 0 && finalRegionId) {
+  // Note: Each prompt should have its own region_id, but for backward compatibility
+  // we use data.region_id if provided. If not, prompts won't be created.
+  if (data.prompts && data.prompts.length > 0 && data.region_id) {
     const promptsData = data.prompts.map((p) => ({
       project_id: project.id,
       prompt: p.prompt.trim(),
-      region_id: finalRegionId,
+      region_id: data.region_id,
       is_active: true,
     }));
 

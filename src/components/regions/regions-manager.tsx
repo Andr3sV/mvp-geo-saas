@@ -108,7 +108,7 @@ export function RegionsManager() {
             <div>
               <CardTitle>Regions</CardTitle>
               <CardDescription>
-                Manage regions (countries) for tracking. US is the default region and cannot be deleted.
+                Manage regions (countries) for tracking. Create regions to filter and track data by country.
               </CardDescription>
             </div>
             <Button onClick={() => { setRegionToEdit(null); setIsDialogOpen(true); }}>
@@ -126,7 +126,7 @@ export function RegionsManager() {
             <EmptyState
               icon={Globe}
               title="No regions yet"
-              description="Create your first region to track data by country. US is automatically created as the default."
+              description="Create your first region to track data by country."
               action={{
                 label: "Create First Region",
                 onClick: () => { setRegionToEdit(null); setIsDialogOpen(true); }
@@ -147,7 +147,6 @@ export function RegionsManager() {
                 <TableBody>
                   {regions.map((region) => {
                     const country = getCountryByCode(region.code);
-                    const isUS = region.code === "US";
                     return (
                       <TableRow key={region.id}>
                         <TableCell>
@@ -168,8 +167,6 @@ export function RegionsManager() {
                           <Switch
                             checked={region.is_active}
                             onCheckedChange={(checked) => handleToggleActive(region.id, region.is_active)}
-                            disabled={isUS} // US cannot be deactivated
-                            title={isUS ? "US region cannot be deactivated" : undefined}
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -179,8 +176,6 @@ export function RegionsManager() {
                               size="icon"
                               className="text-destructive hover:text-destructive"
                               onClick={() => setRegionToDelete(region)}
-                              disabled={isUS} // US cannot be deleted
-                              title={isUS ? "US region cannot be deleted" : undefined}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -203,9 +198,9 @@ export function RegionsManager() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
-          <p>• <strong>Default:</strong> US (United States) is the default region and cannot be deleted</p>
           <p>• <strong>Filtering:</strong> All dashboard filters include your regions. "GLOBAL" aggregates all regions</p>
           <p>• <strong>Tracking:</strong> Create prompts with specific regions to track performance by country</p>
+          <p>• <strong>Required:</strong> Prompts require a valid, active region. GLOBAL is a virtual option and cannot be used for prompts</p>
           <p>• <strong>Billing:</strong> Additional regions may be subject to billing (coming soon)</p>
         </CardContent>
       </Card>
