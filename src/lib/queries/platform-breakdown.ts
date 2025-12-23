@@ -13,6 +13,170 @@ function getYesterday(): Date {
   return yesterday;
 }
 
+/**
+ * Get real-time stats for today (after 4:30 AM cutoff) aggregated by platform
+ * Used to supplement daily_brand_stats when querying current day
+ */
+async function getTodayRealTimeStatsByPlatform(
+  projectId: string,
+  platform?: string,
+  region?: string,
+  topicId?: string
+): Promise<Array<{
+  platform: string;
+  entity_type: "brand" | "competitor";
+  competitor_id: string | null;
+  mentions_count: number;
+  citations_count: number;
+}>> {
+  const supabase = await createClient();
+  const { format } = await import("date-fns");
+  const today = new Date();
+  const cutoffTime = new Date(today);
+  cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
+
+  // Get brand_mentions created after 4:30 AM today
+  let mentionsQuery = supabase
+    .from("brand_mentions")
+    .select("created_at, brand_type, competitor_id, ai_response_id")
+    .eq("project_id", projectId)
+    .gte("created_at", cutoffTime.toISOString())
+    .lte("created_at", today.toISOString());
+
+  const { data: brandMentions } = await mentionsQuery;
+
+  // Get citations created after 4:30 AM today
+  let citationsQuery = supabase
+    .from("citations")
+    .select("created_at, citation_type, competitor_id, ai_response_id")
+    .eq("project_id", projectId)
+    .gte("created_at", cutoffTime.toISOString())
+    .lte("created_at", today.toISOString());
+
+  const { data: citations } = await citationsQuery;
+
+  // Get ai_response_ids
+  const aiResponseIds = new Set<string>();
+  brandMentions?.forEach((m: any) => {
+    if (m.ai_response_id) aiResponseIds.add(m.ai_response_id);
+  });
+  citations?.forEach((c: any) => {
+    if (c.ai_response_id) aiResponseIds.add(c.ai_response_id);
+  });
+
+  if (aiResponseIds.size === 0) {
+    return [];
+  }
+
+  // Fetch ai_responses with prompt_tracking data
+  let aiResponsesQuery = supabase
+    .from("ai_responses")
+    .select("id, platform, prompt_tracking(region, topic_id)")
+    .in("id", Array.from(aiResponseIds));
+
+  // Apply platform filter if provided
+  if (platform && platform !== "all") {
+    // Map frontend platform to database platform
+    const platformMap: Record<string, string> = {
+      chatgpt: "openai",
+      anthropic: "claude",
+      gemini: "gemini",
+      perplexity: "perplexity",
+    };
+    const mappedPlatform = platformMap[platform] || platform;
+    aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
+  }
+
+  const { data: aiResponses } = await aiResponsesQuery;
+
+  // Filter by region and topic_id after fetching
+  let filteredAiResponses = aiResponses || [];
+  if (region && region !== "GLOBAL") {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+      ar.prompt_tracking?.region === region
+    );
+  }
+  if (topicId && topicId !== "all") {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+      ar.prompt_tracking?.topic_id === topicId
+    );
+  }
+
+  // Create map for quick lookup
+  const aiResponseMap = new Map<string, any>();
+  filteredAiResponses.forEach((ar: any) => {
+    aiResponseMap.set(ar.id, {
+      platform: ar.platform || "all",
+      region: ar.prompt_tracking?.region || "GLOBAL",
+      topic_id: ar.prompt_tracking?.topic_id || "all",
+    });
+  });
+
+  // Get competitors
+  const { data: competitors } = await supabase
+    .from("competitors")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .eq("is_active", true);
+
+  // Aggregate by platform, entity and dimensions
+  const statsMap = new Map<string, {
+    platform: string;
+    entity_type: "brand" | "competitor";
+    competitor_id: string | null;
+    mentions_count: number;
+    citations_count: number;
+  }>();
+
+  // Process brand mentions
+  brandMentions?.forEach((mention: any) => {
+    const aiResponseData = aiResponseMap.get(mention.ai_response_id);
+    if (!aiResponseData) return; // Skip if filtered out
+
+    const mentionPlatform = aiResponseData.platform;
+    // Only include openai and gemini for platform breakdown
+    if (mentionPlatform !== "openai" && mentionPlatform !== "gemini") return;
+
+    const key = `${mention.brand_type === "client" ? "brand" : mention.competitor_id || "unknown"}-${mentionPlatform}`;
+    
+    if (!statsMap.has(key)) {
+      statsMap.set(key, {
+        platform: mentionPlatform,
+        entity_type: mention.brand_type === "client" ? "brand" : "competitor",
+        competitor_id: mention.brand_type === "client" ? null : mention.competitor_id,
+        mentions_count: 0,
+        citations_count: 0,
+      });
+    }
+    statsMap.get(key)!.mentions_count++;
+  });
+
+  // Process citations
+  citations?.forEach((citation: any) => {
+    const aiResponseData = aiResponseMap.get(citation.ai_response_id);
+    if (!aiResponseData) return; // Skip if filtered out
+
+    const citationPlatform = aiResponseData.platform;
+    // Only include openai and gemini for platform breakdown
+    if (citationPlatform !== "openai" && citationPlatform !== "gemini") return;
+
+    const key = `${citation.citation_type === "brand" ? "brand" : citation.competitor_id || "unknown"}-${citationPlatform}`;
+    
+    if (!statsMap.has(key)) {
+      statsMap.set(key, {
+        platform: citationPlatform,
+        entity_type: citation.citation_type === "brand" ? "brand" : "competitor",
+        competitor_id: citation.citation_type === "brand" ? null : citation.competitor_id,
+        mentions_count: 0,
+        citations_count: 0,
+      });
+    }
+    statsMap.get(key)!.citations_count++;
+  });
+
+  return Array.from(statsMap.values());
+}
+
 // =============================================
 // PLATFORM OVERVIEW
 // =============================================
@@ -38,6 +202,13 @@ export async function getPlatformOverview(
     date.setHours(0, 0, 0, 0);
     return date;
   })();
+
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
 
   // Calculate previous period for trends
   const periodDuration = endDate.getTime() - startDate.getTime();
@@ -94,6 +265,18 @@ export async function getPlatformOverview(
       currentByPlatform[stat.platform].citations += stat.citations_count || 0;
     }
   });
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+    
+    realTimeStats.forEach((stat) => {
+      if (stat.platform && currentByPlatform[stat.platform]) {
+        currentByPlatform[stat.platform].mentions += stat.mentions_count || 0;
+        currentByPlatform[stat.platform].citations += stat.citations_count || 0;
+      }
+    });
+  }
 
   // Aggregate by platform - previous period
   const previousByPlatform: Record<string, { mentions: number; citations: number }> = {
@@ -162,6 +345,13 @@ export async function getPlatformEvolution(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
@@ -190,12 +380,70 @@ export async function getPlatformEvolution(
     return [];
   }
 
+  // Supplement with real-time data for today if querying today
+  let realTimeStats: any[] = [];
+  if (isQueryingToday) {
+    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+    const todayStr = format(today, "yyyy-MM-dd");
+    
+    // Aggregate real-time stats by platform for today
+    const realTimeByPlatform: Record<string, number> = {
+      openai: 0,
+      gemini: 0,
+    };
+    
+    realTimeData.forEach((stat) => {
+      if (stat.platform && realTimeByPlatform.hasOwnProperty(stat.platform)) {
+        realTimeByPlatform[stat.platform] += stat.mentions_count || 0;
+      }
+    });
+
+    // Add to stats array for today
+    Object.entries(realTimeByPlatform).forEach(([platform, count]) => {
+      if (count > 0) {
+        realTimeStats.push({
+          stat_date: todayStr,
+          platform,
+          mentions_count: count,
+        });
+      }
+    });
+  }
+
+  // Merge daily stats with real-time stats
+  let allStats = [...(stats || [])];
+  if (isQueryingToday && realTimeStats.length > 0) {
+    const todayStr = format(today, "yyyy-MM-dd");
+    const todayDailyStats = allStats.filter((s: any) => s.stat_date === todayStr);
+    const todayRealTimeStats = realTimeStats.filter((s: any) => s.stat_date === todayStr);
+    
+    // Merge by platform
+    const mergedTodayStats = new Map<string, any>();
+    todayDailyStats.forEach((stat: any) => {
+      const key = stat.platform;
+      mergedTodayStats.set(key, { ...stat });
+    });
+    
+    todayRealTimeStats.forEach((stat: any) => {
+      const key = stat.platform;
+      if (mergedTodayStats.has(key)) {
+        mergedTodayStats.get(key)!.mentions_count += stat.mentions_count;
+      } else {
+        mergedTodayStats.set(key, { ...stat });
+      }
+    });
+    
+    // Replace today's stats in allStats
+    const otherDaysStats = allStats.filter((s: any) => s.stat_date !== todayStr);
+    allStats = [...otherDaysStats, ...Array.from(mergedTodayStats.values())];
+  }
+
   // Generate all days in range
   const allDays = eachDayOfInterval({ start: startDate, end: endDate });
 
   const dailyData = allDays.map((day) => {
     const dayStr = format(day, "yyyy-MM-dd");
-    const dayStats = stats?.filter((s: any) => s.stat_date === dayStr) || [];
+    const dayStats = allStats.filter((s: any) => s.stat_date === dayStr);
 
     const openaiMentions = dayStats
       .filter((s: any) => s.platform === "openai")
@@ -242,6 +490,13 @@ export async function getPlatformEntityBreakdown(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
@@ -273,6 +528,75 @@ export async function getPlatformEntityBreakdown(
 
   const { data: stats, error } = await query;
 
+  // Supplement with real-time data for today if querying today
+  let realTimeStats: any[] = [];
+  if (isQueryingToday && !error) {
+    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+    
+    // Get competitor names for real-time stats
+    const competitorIds = new Set<string>();
+    realTimeData.forEach((stat) => {
+      if (stat.entity_type === "competitor" && stat.competitor_id) {
+        competitorIds.add(stat.competitor_id);
+      }
+    });
+
+    if (competitorIds.size > 0) {
+      const { data: realTimeCompetitors } = await supabase
+        .from("competitors")
+        .select("id, name, domain, is_active")
+        .in("id", Array.from(competitorIds));
+
+      const competitorMap = new Map<string, any>();
+      realTimeCompetitors?.forEach((c: any) => {
+        competitorMap.set(c.id, c);
+      });
+
+      // Convert to stats format
+      realTimeData.forEach((stat) => {
+        if (stat.platform === "openai" || stat.platform === "gemini") {
+          realTimeStats.push({
+            platform: stat.platform,
+            entity_type: stat.entity_type,
+            competitor_id: stat.competitor_id,
+            entity_name: stat.entity_type === "brand" 
+              ? (project?.name || "Your Brand")
+              : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
+            mentions_count: stat.mentions_count,
+            competitors: stat.entity_type === "competitor" && stat.competitor_id
+              ? competitorMap.get(stat.competitor_id)
+              : null,
+          });
+        }
+      });
+    }
+  }
+
+  // Merge daily stats with real-time stats
+  let allStats = [...(stats || [])];
+  if (isQueryingToday && realTimeStats.length > 0) {
+    // Merge by platform, entity_type, and competitor_id
+    const mergedMap = new Map<string, any>();
+    
+    // Add daily stats
+    allStats.forEach((stat: any) => {
+      const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+      mergedMap.set(key, { ...stat });
+    });
+    
+    // Merge real-time stats
+    realTimeStats.forEach((stat: any) => {
+      const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+      if (mergedMap.has(key)) {
+        mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
+      } else {
+        mergedMap.set(key, { ...stat });
+      }
+    });
+    
+    allStats = Array.from(mergedMap.values());
+  }
+
   if (error) {
     console.error("Error fetching platform entity breakdown:", error);
     return {
@@ -283,7 +607,7 @@ export async function getPlatformEntityBreakdown(
 
   // Process data per platform
   const processForPlatform = (platform: string) => {
-    const platformStats = stats?.filter((s: any) => s.platform === platform) || [];
+    const platformStats = allStats.filter((s: any) => s.platform === platform);
 
     // Brand stats
     const brandMentions = platformStats
@@ -366,6 +690,13 @@ export async function getTopicPerformanceByPlatform(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   const regionFilter = region && region !== "GLOBAL";
 
   const startDateStr = format(startDate, "yyyy-MM-dd");
@@ -402,6 +733,109 @@ export async function getTopicPerformanceByPlatform(
 
   const { data: stats, error } = await query;
 
+  // Supplement with real-time data for today if querying today
+  let realTimeStats: any[] = [];
+  if (isQueryingToday && !error) {
+    const today = new Date();
+    const cutoffTime = new Date(today);
+    cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
+
+    // Get brand_mentions created after 4:30 AM today (brand only)
+    let realTimeMentionsQuery = supabase
+      .from("brand_mentions")
+      .select("created_at, brand_type, ai_response_id")
+      .eq("project_id", projectId)
+      .eq("brand_type", "client")
+      .gte("created_at", cutoffTime.toISOString())
+      .lte("created_at", today.toISOString());
+
+    const { data: realTimeMentions } = await realTimeMentionsQuery;
+
+    // Get ai_response_ids
+    const aiResponseIds = new Set<string>();
+    realTimeMentions?.forEach((m: any) => {
+      if (m.ai_response_id) aiResponseIds.add(m.ai_response_id);
+    });
+
+    if (aiResponseIds.size > 0) {
+      let aiResponsesQuery = supabase
+        .from("ai_responses")
+        .select("id, platform, prompt_tracking(region, topic_id)")
+        .in("id", Array.from(aiResponseIds));
+
+      const { data: aiResponses } = await aiResponsesQuery;
+
+      // Filter by region and topic_id
+      let filteredAiResponses = aiResponses || [];
+      if (regionFilter) {
+        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+          ar.prompt_tracking?.region === region
+        );
+      }
+      // Only include responses with topic_id (not null)
+      filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+        ar.prompt_tracking?.topic_id !== null && ar.prompt_tracking?.topic_id !== undefined
+      );
+
+      // Aggregate by platform and topic_id
+      const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
+      const topicPlatformMap = new Map<string, { platform: string; mentions: number }>();
+
+      realTimeMentions?.forEach((mention: any) => {
+        if (!aiResponseMap.has(mention.ai_response_id)) return;
+
+        const aiResponse = filteredAiResponses.find((ar: any) => ar.id === mention.ai_response_id);
+        if (!aiResponse || !aiResponse.prompt_tracking?.topic_id) return;
+
+        const platform = aiResponse.platform;
+        if (platform !== "openai" && platform !== "gemini") return;
+
+        const topicId = aiResponse.prompt_tracking.topic_id;
+        const key = `${topicId}-${platform}`;
+        
+        if (!topicPlatformMap.has(key)) {
+          topicPlatformMap.set(key, { platform, mentions: 0 });
+        }
+        topicPlatformMap.get(key)!.mentions++;
+      });
+
+      // Convert to stats format
+      topicPlatformMap.forEach((value, key) => {
+        const [topicIdStr] = key.split("-");
+        realTimeStats.push({
+          platform: value.platform,
+          topic_id: topicIdStr,
+          mentions_count: value.mentions,
+        });
+      });
+    }
+  }
+
+  // Merge daily stats with real-time stats
+  let allStats = [...(stats || [])];
+  if (isQueryingToday && realTimeStats.length > 0) {
+    // Merge by platform and topic_id
+    const mergedMap = new Map<string, any>();
+    
+    // Add daily stats
+    allStats.forEach((stat: any) => {
+      const key = `${stat.platform}-${stat.topic_id}`;
+      mergedMap.set(key, { ...stat });
+    });
+    
+    // Merge real-time stats
+    realTimeStats.forEach((stat: any) => {
+      const key = `${stat.platform}-${stat.topic_id}`;
+      if (mergedMap.has(key)) {
+        mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
+      } else {
+        mergedMap.set(key, { ...stat });
+      }
+    });
+    
+    allStats = Array.from(mergedMap.values());
+  }
+
   if (error) {
     console.error("Error fetching topic performance:", error);
     return [];
@@ -409,7 +843,7 @@ export async function getTopicPerformanceByPlatform(
 
   // Aggregate by topic and platform
   const topicPerformance = (topics || []).map((topic: any) => {
-    const topicStats = stats?.filter((s: any) => s.topic_id === topic.id) || [];
+    const topicStats = allStats.filter((s: any) => s.topic_id === topic.id);
 
     const openaiMentions = topicStats
       .filter((s: any) => s.platform === "openai")
@@ -529,6 +963,13 @@ export async function getPlatformMomentum(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   // Calculate previous period
   const periodDuration = endDate.getTime() - startDate.getTime();
   const previousEndDate = new Date(startDate);
@@ -574,6 +1015,72 @@ export async function getPlatformMomentum(
     buildQuery(previousStartStr, previousEndStr),
   ]);
 
+  // Supplement current period with real-time data if querying today
+  let currentStats = currentResult.data || [];
+  if (isQueryingToday && !currentResult.error) {
+    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+    
+    // Get competitor names for real-time stats
+    const competitorIds = new Set<string>();
+    realTimeData.forEach((stat) => {
+      if (stat.entity_type === "competitor" && stat.competitor_id) {
+        competitorIds.add(stat.competitor_id);
+      }
+    });
+
+    if (competitorIds.size > 0) {
+      const { data: realTimeCompetitors } = await supabase
+        .from("competitors")
+        .select("id, name, domain, is_active")
+        .in("id", Array.from(competitorIds));
+
+      const competitorMap = new Map<string, any>();
+      realTimeCompetitors?.forEach((c: any) => {
+        competitorMap.set(c.id, c);
+      });
+
+      // Convert to stats format
+      const realTimeStats: any[] = [];
+      realTimeData.forEach((stat) => {
+        if (stat.platform === "openai" || stat.platform === "gemini") {
+          realTimeStats.push({
+            platform: stat.platform,
+            entity_type: stat.entity_type,
+            competitor_id: stat.competitor_id,
+            entity_name: stat.entity_type === "brand" 
+              ? (project?.name || "Your Brand")
+              : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
+            mentions_count: stat.mentions_count,
+            competitors: stat.entity_type === "competitor" && stat.competitor_id
+              ? competitorMap.get(stat.competitor_id)
+              : null,
+          });
+        }
+      });
+
+      // Merge by platform, entity_type, and competitor_id
+      const mergedMap = new Map<string, any>();
+      
+      // Add daily stats
+      currentStats.forEach((stat: any) => {
+        const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+        mergedMap.set(key, { ...stat });
+      });
+      
+      // Merge real-time stats
+      realTimeStats.forEach((stat: any) => {
+        const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+        if (mergedMap.has(key)) {
+          mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
+        } else {
+          mergedMap.set(key, { ...stat });
+        }
+      });
+      
+      currentStats = Array.from(mergedMap.values());
+    }
+  }
+
   if (currentResult.error) {
     console.error("Error fetching platform momentum:", currentResult.error);
     return { openai: [], gemini: [] };
@@ -581,14 +1088,14 @@ export async function getPlatformMomentum(
 
   // Process for each platform
   const processForPlatform = (platform: string) => {
-    const currentStats = currentResult.data?.filter((s: any) => s.platform === platform) || [];
+    const currentPlatformStats = currentStats.filter((s: any) => s.platform === platform);
     const previousStats = previousResult.data?.filter((s: any) => s.platform === platform) || [];
 
     // Current period - aggregate by entity
     const currentEntityMap = new Map<string, { name: string; domain: string; mentions: number; isBrand: boolean }>();
 
     // Brand
-    const currentBrandMentions = currentStats
+    const currentBrandMentions = currentPlatformStats
       .filter((s: any) => s.entity_type === "brand" && !s.competitor_id)
       .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
 
@@ -600,7 +1107,7 @@ export async function getPlatformMomentum(
     });
 
     // Competitors
-    currentStats
+    currentPlatformStats
       .filter((s: any) => s.entity_type === "competitor" && s.competitor_id)
       .forEach((s: any) => {
         const comp = s.competitors as any;

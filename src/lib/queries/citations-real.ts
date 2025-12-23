@@ -68,6 +68,105 @@ function getYesterday(): Date {
 }
 
 /**
+ * Get real-time citations stats for today (after 4:30 AM cutoff)
+ * Used to supplement daily_brand_stats when querying current day
+ */
+async function getTodayRealTimeCitationsStats(
+  projectId: string,
+  platform?: string,
+  region?: string,
+  topicId?: string
+): Promise<{
+  brandCitations: number;
+  competitorCitations: Array<{
+    competitor_id: string;
+    citations_count: number;
+  }>;
+}> {
+  const supabase = await createClient();
+  const today = new Date();
+  const cutoffTime = new Date(today);
+  cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
+
+  // Map platform filter
+  const mappedPlatform = mapPlatformToDatabase(platform);
+  const platformFilter = mappedPlatform !== null;
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  // Get citations created after 4:30 AM today
+  let citationsQuery = supabase
+    .from("citations")
+    .select("created_at, citation_type, competitor_id, ai_response_id")
+    .eq("project_id", projectId)
+    .gte("created_at", cutoffTime.toISOString())
+    .lte("created_at", today.toISOString());
+
+  const { data: citations } = await citationsQuery;
+
+  // Get ai_response_ids
+  const aiResponseIds = new Set<string>();
+  citations?.forEach((c: any) => {
+    if (c.ai_response_id) aiResponseIds.add(c.ai_response_id);
+  });
+
+  if (aiResponseIds.size === 0) {
+    return { brandCitations: 0, competitorCitations: [] };
+  }
+
+  // Fetch ai_responses with prompt_tracking data
+  let aiResponsesQuery = supabase
+    .from("ai_responses")
+    .select("id, platform, prompt_tracking(region, topic_id)")
+    .in("id", Array.from(aiResponseIds));
+
+  if (platformFilter) {
+    aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
+  }
+
+  const { data: aiResponses } = await aiResponsesQuery;
+
+  // Filter by region and topic_id after fetching
+  let filteredAiResponses = aiResponses || [];
+  if (regionFilter) {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+      ar.prompt_tracking?.region === region
+    );
+  }
+  if (topicFilter) {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+      ar.prompt_tracking?.topic_id === topicId
+    );
+  }
+
+  // Create map for quick lookup
+  const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
+
+  // Count brand citations
+  const brandCitations = citations?.filter((c: any) => 
+    c.citation_type === "brand" && aiResponseMap.has(c.ai_response_id)
+  ).length || 0;
+
+  // Count competitor citations by competitor_id
+  const competitorCitationsMap = new Map<string, number>();
+  citations?.forEach((citation: any) => {
+    if (!aiResponseMap.has(citation.ai_response_id)) return;
+    
+    if (citation.citation_type === "competitor" && citation.competitor_id) {
+      const currentCount = competitorCitationsMap.get(citation.competitor_id) || 0;
+      competitorCitationsMap.set(citation.competitor_id, currentCount + 1);
+    }
+  });
+
+  const competitorCitations = Array.from(competitorCitationsMap.entries()).map(([competitor_id, citations_count]) => ({
+    competitor_id,
+    citations_count,
+  }));
+
+  return { brandCitations, competitorCitations };
+}
+
+/**
  * Map frontend platform values to database platform values
  */
 function mapPlatformToDatabase(platform: string | undefined): string | null {
@@ -108,6 +207,13 @@ export async function getQuickLookMetrics(
     date.setHours(0, 0, 0, 0);
     return date;
   })();
+
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
 
   // Map platform filter
   const mappedPlatform = mapPlatformToDatabase(filters?.platform);
@@ -246,10 +352,23 @@ export async function getQuickLookMetrics(
   ]);
 
   // Total Citation Pages
-  const totalCitationPages = totalCitationPagesResult.data || 0;
+  let totalCitationPages = totalCitationPagesResult.data || 0;
 
   // My Pages Cited (same as totalCitationPages)
-  const myPagesCited = myPagesCitedResult.data || 0;
+  let myPagesCited = myPagesCitedResult.data || 0;
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeCitationsStats(
+      projectId,
+      filters?.platform,
+      filters?.region,
+      filters?.topicId
+    );
+    
+    totalCitationPages += realTimeStats.brandCitations;
+    myPagesCited += realTimeStats.brandCitations;
+  }
 
   // Build competitor citations ranking
   const competitorCitationsMap = new Map<string, { id: string; name: string; domain: string; citations: number }>();
@@ -281,6 +400,36 @@ export async function getQuickLookMetrics(
 
     competitorCitationsMap.get(competitorId)!.citations += stat.citations_count || 0;
   });
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeCitationsStats(
+      projectId,
+      filters?.platform,
+      filters?.region,
+      filters?.topicId
+    );
+    
+    realTimeStats.competitorCitations.forEach((compStat) => {
+      const competitorId = compStat.competitor_id;
+      if (!competitorCitationsMap.has(competitorId)) {
+        // Need to get competitor info
+        const competitor = allCompetitorsResult.data?.find((c: any) => c.id === competitorId);
+        if (competitor) {
+          competitorCitationsMap.set(competitorId, {
+            id: competitorId,
+            name: competitor.name,
+            domain: competitor.domain || "",
+            citations: 0,
+          });
+        }
+      }
+      
+      if (competitorCitationsMap.has(competitorId)) {
+        competitorCitationsMap.get(competitorId)!.citations += compStat.citations_count;
+      }
+    });
+  }
 
   // Calculate totals
   const competitorCitationsTotal = Array.from(competitorCitationsMap.values()).reduce(
@@ -573,6 +722,13 @@ export async function getCitationsRanking(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   // Map platform filter
   const mappedPlatform = mapPlatformToDatabase(platform);
   const platformFilter = mappedPlatform !== null;
@@ -614,7 +770,7 @@ export async function getCitationsRanking(
     console.error('Error fetching brand citations from daily_brand_stats:', brandError);
   }
 
-  const brandCitations = brandStats?.reduce((sum, stat) => sum + (stat.citations_count || 0), 0) || 0;
+  let brandCitations = brandStats?.reduce((sum, stat) => sum + (stat.citations_count || 0), 0) || 0;
 
   // =============================================
   // GET COMPETITOR CITATIONS (from daily_brand_stats)
@@ -687,6 +843,34 @@ export async function getCitationsRanking(
 
     competitorCitationsMap.get(competitorId)!.citations += stat.citations_count || 0;
   });
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeCitationsStats(projectId, platform, region, topicId);
+    
+    brandCitations += realTimeStats.brandCitations;
+    
+    realTimeStats.competitorCitations.forEach((compStat) => {
+      const competitorId = compStat.competitor_id;
+      if (!competitorCitationsMap.has(competitorId)) {
+        // Need to get competitor info
+        const competitor = allCompetitors?.find((c: any) => c.id === competitorId);
+        if (competitor) {
+          competitorCitationsMap.set(competitorId, {
+            id: competitorId,
+            name: competitor.name,
+            domain: competitor.domain || "",
+            color: competitor.color || undefined,
+            citations: 0,
+          });
+        }
+      }
+      
+      if (competitorCitationsMap.has(competitorId)) {
+        competitorCitationsMap.get(competitorId)!.citations += compStat.citations_count;
+      }
+    });
+  }
 
   // Calculate totals
   const competitorCitationsTotal = Array.from(competitorCitationsMap.values()).reduce(
@@ -1553,6 +1737,13 @@ export async function getCitationsTrends(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentEndDateOnly = new Date(currentEndDate);
+  currentEndDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = currentEndDateOnly.getTime() === today.getTime();
+
   // Calculate period duration
   const periodDuration = currentEndDate.getTime() - currentStartDate.getTime();
 
@@ -1612,7 +1803,7 @@ export async function getCitationsTrends(
   ]);
 
   // Calculate current period stats
-  const currentBrandCitations = currentBrandResult.data?.reduce(
+  let currentBrandCitations = currentBrandResult.data?.reduce(
     (sum, stat) => sum + (stat.citations_count || 0),
     0
   ) || 0;
@@ -1625,6 +1816,18 @@ export async function getCitationsTrends(
     const currentCount = currentCompCitationsMap.get(stat.competitor_id) || 0;
     currentCompCitationsMap.set(stat.competitor_id, currentCount + (stat.citations_count || 0));
   });
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeCitationsStats(projectId, platform, region, topicId);
+    
+    currentBrandCitations += realTimeStats.brandCitations;
+    
+    realTimeStats.competitorCitations.forEach((compStat) => {
+      const currentCount = currentCompCitationsMap.get(compStat.competitor_id) || 0;
+      currentCompCitationsMap.set(compStat.competitor_id, currentCount + compStat.citations_count);
+    });
+  }
 
   const currentCompCitations = Array.from(currentCompCitationsMap.values()).reduce(
     (sum, count) => sum + count,
@@ -1759,6 +1962,13 @@ export async function getCitationsShareEvolution(
     return date;
   })();
 
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
   // Map platform filter
   const mappedPlatform = mapPlatformToDatabase(platform);
   const platformFilter = mappedPlatform !== null;
@@ -1788,6 +1998,123 @@ export async function getCitationsShareEvolution(
 
   const { data: stats, error } = await query;
 
+  // Supplement with real-time data for today if querying today
+  let realTimeStats: any[] = [];
+  if (isQueryingToday && !error) {
+    const today = new Date();
+    const cutoffTime = new Date(today);
+    cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
+
+    // Get citations created after 4:30 AM today
+    let realTimeCitationsQuery = supabase
+      .from("citations")
+      .select("created_at, citation_type, competitor_id, ai_response_id")
+      .eq("project_id", projectId)
+      .gte("created_at", cutoffTime.toISOString())
+      .lte("created_at", today.toISOString());
+
+    const { data: realTimeCitations } = await realTimeCitationsQuery;
+
+    // Get ai_response_ids
+    const aiResponseIds = new Set<string>();
+    realTimeCitations?.forEach((c: any) => {
+      if (c.ai_response_id) aiResponseIds.add(c.ai_response_id);
+    });
+
+    if (aiResponseIds.size > 0) {
+      let aiResponsesQuery = supabase
+        .from("ai_responses")
+        .select("id, platform, prompt_tracking(region, topic_id)")
+        .in("id", Array.from(aiResponseIds));
+
+      if (platformFilter) {
+        aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
+      }
+
+      const { data: aiResponses } = await aiResponsesQuery;
+
+      let filteredAiResponses = aiResponses || [];
+      if (regionFilter) {
+        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+          ar.prompt_tracking?.region === region
+        );
+      }
+      if (topicFilter) {
+        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
+          ar.prompt_tracking?.topic_id === topicId
+        );
+      }
+
+      // Aggregate real-time citations by entity and date
+      const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
+      const todayStr = format(today, "yyyy-MM-dd");
+      const realTimeMap = new Map<string, { brand: number; competitors: Map<string, number> }>();
+
+      realTimeCitations?.forEach((citation: any) => {
+        if (!aiResponseMap.has(citation.ai_response_id)) return;
+
+        if (citation.citation_type === "brand") {
+          const key = `${todayStr}-brand`;
+          if (!realTimeMap.has(key)) {
+            realTimeMap.set(key, { brand: 0, competitors: new Map() });
+          }
+          realTimeMap.get(key)!.brand++;
+        } else if (citation.competitor_id) {
+          const key = `${todayStr}-competitor-${citation.competitor_id}`;
+          if (!realTimeMap.has(key)) {
+            realTimeMap.set(key, { brand: 0, competitors: new Map() });
+          }
+          const compCount = realTimeMap.get(key)!.competitors.get(citation.competitor_id) || 0;
+          realTimeMap.get(key)!.competitors.set(citation.competitor_id, compCount + 1);
+        }
+      });
+
+      // Get competitor names for real-time stats
+      const competitorIds = new Set<string>();
+      realTimeCitations?.forEach((c: any) => {
+        if (c.citation_type === "competitor" && c.competitor_id) {
+          competitorIds.add(c.competitor_id);
+        }
+      });
+
+      if (competitorIds.size > 0) {
+        const { data: realTimeCompetitors } = await supabase
+          .from("competitors")
+          .select("id, name")
+          .in("id", Array.from(competitorIds));
+
+        const competitorNameMap = new Map<string, string>();
+        realTimeCompetitors?.forEach((c: any) => {
+          competitorNameMap.set(c.id, c.name);
+        });
+
+        // Convert to stats format
+        realTimeMap.forEach((value, key) => {
+          const [dateStr, entityType, competitorId] = key.split("-");
+          if (entityType === "brand") {
+            realTimeStats.push({
+              stat_date: dateStr,
+              entity_type: "brand",
+              competitor_id: null,
+              citations_count: value.brand,
+              entity_name: project?.name || "Your Brand",
+            });
+          } else if (entityType === "competitor" && competitorId) {
+            value.competitors.forEach((count, compId) => {
+              realTimeStats.push({
+                stat_date: dateStr,
+                entity_type: "competitor",
+                competitor_id: compId,
+                citations_count: count,
+                entity_name: competitorNameMap.get(compId) || "Unknown",
+              });
+            });
+          }
+        });
+      }
+    }
+  }
+
   if (error) {
     console.error("Error fetching citations share evolution:", error);
     return { data: [], entities: [] };
@@ -1806,11 +2133,39 @@ export async function getCitationsShareEvolution(
     ...(competitors || []).map((c: any) => ({ id: c.id, name: c.name, domain: c.domain || "", color: c.color || undefined, isBrand: false })),
   ];
 
+  // Merge daily stats with real-time stats for today
+  let allStats = [...(stats || [])];
+  if (isQueryingToday && realTimeStats.length > 0) {
+    const todayStr = format(today, "yyyy-MM-dd");
+    const todayDailyStats = allStats.filter((s: any) => s.stat_date === todayStr);
+    const todayRealTimeStats = realTimeStats.filter((s: any) => s.stat_date === todayStr);
+    
+    // Merge by entity
+    const mergedTodayStats = new Map<string, any>();
+    todayDailyStats.forEach((stat: any) => {
+      const key = `${stat.entity_type}-${stat.competitor_id || "brand"}`;
+      mergedTodayStats.set(key, { ...stat });
+    });
+    
+    todayRealTimeStats.forEach((stat: any) => {
+      const key = `${stat.entity_type}-${stat.competitor_id || "brand"}`;
+      if (mergedTodayStats.has(key)) {
+        mergedTodayStats.get(key)!.citations_count += stat.citations_count;
+      } else {
+        mergedTodayStats.set(key, { ...stat });
+      }
+    });
+    
+    // Replace today's stats in allStats
+    const otherDaysStats = allStats.filter((s: any) => s.stat_date !== todayStr);
+    allStats = [...otherDaysStats, ...Array.from(mergedTodayStats.values())];
+  }
+
   // Group stats by date
   const allDays = eachDayOfInterval({ start: startDate, end: endDate });
   const dailyData = allDays.map((day) => {
     const dayStr = format(day, "yyyy-MM-dd");
-    const dayStats = stats?.filter((s: any) => s.stat_date === dayStr) || [];
+    const dayStats = allStats.filter((s: any) => s.stat_date === dayStr);
 
     // Calculate citations for each entity
     const entityCitations: Record<string, number> = {};
