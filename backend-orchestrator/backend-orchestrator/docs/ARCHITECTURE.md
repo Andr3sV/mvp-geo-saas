@@ -287,10 +287,10 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   1. Fetch all projects with extracted industry and topics (from `projects.industry` and `projects.extracted_topics`)
   2. For each project:
      - Get brand name and active competitors
-     - Get distinct regions from `prompt_tracking` for the project
-     - Generate all combinations: (topic, region) × (brand + competitors)
-     - For each combination, check if evaluation already exists TODAY in `brand_evaluations`
-     - Generate `sentiment/evaluate-single` events only for missing evaluations
+     - Get distinct region_ids from `prompt_tracking` for the project (UUIDs referencing `regions` table)
+     - Generate all combinations: (topic, region_id) × (brand + competitors)
+     - For each combination, check if evaluation already exists TODAY in `brand_evaluations` (filtering by `region_id`)
+     - Generate `sentiment/evaluate-single` events only for missing evaluations (passing `region_id` instead of region code)
   3. Send events in batches (1000 per batch) using `step.sendEvent`
 - **Important**:
   - These evaluations do NOT contribute to mention or citation metrics
@@ -304,14 +304,15 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Concurrency**: 5 (processes up to 5 evaluations simultaneously)
 - **Purpose**: Process a single sentiment evaluation (one topic + one region + one entity)
 - **Steps**:
-  1. Receive event with: `project_id`, `topic`, `region`, `entity_type`, `entity_name`, `competitor_id`
+  1. Receive event with: `project_id`, `topic`, `region_id` (UUID), `entity_type`, `entity_name`, `competitor_id`
   2. Fetch project data to get `industry`
-  3. Build evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
-  4. Enrich prompt with region-specific context if region is not GLOBAL
-  5. Call Gemini 2.5 Flash Lite with web search (using `callGeminiWithRetry` for rate limiting)
-  6. Parse structured response (sentiment, sentiment_score, positive_attributes, negative_attributes, natural_response)
-  7. Extract web search queries and domains from Gemini metadata
-  8. Save to `brand_evaluations` table
+  3. Fetch region code from `regions` table using `region_id` (for prompt context, if not NULL)
+  4. Build evaluation prompt: "Evaluate the [INDUSTRY] company [BRAND] on [TOPIC]"
+  5. Enrich prompt with region-specific context if `region_id` is not NULL (GLOBAL is represented by NULL)
+  6. Call Gemini 2.5 Flash Lite with web search (using `callGeminiWithRetry` for rate limiting)
+  7. Parse structured response (sentiment, sentiment_score, positive_attributes, negative_attributes, natural_response)
+  8. Extract web search queries and domains from Gemini metadata
+  9. Save to `brand_evaluations` table with `region_id` (NULL for GLOBAL)
 - **Rate Limiting**: Uses `callGeminiWithRetry` helper which handles rate limits automatically via `waitForRateLimit`
 - **Data Source**: Uses Gemini 2.5 Flash Lite with Google Search for web-grounded evaluations
 - **Benefits**:
@@ -2147,7 +2148,7 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
             │ - positive_theme_ids  │
             │ - negative_theme_ids  │
             │ - natural_response    │
-            │ - region              │
+            │ - region_id           │
             │ - query_search        │
             │ - uri_sources         │
             │ - url_sources         │
@@ -2169,7 +2170,7 @@ The Topic-Based Sentiment Evaluation system provides granular, structured sentim
 
 1. **Proactive Evaluation**: Generates sentiment evaluations proactively using structured prompts, rather than analyzing existing responses
 2. **Topic-Based**: Evaluates brands/competitors on specific topics extracted from their website (e.g., "pricing", "customer support", "ease of use")
-3. **Region-Aware**: Generates separate evaluations for each active region (e.g., GLOBAL, ES, US) with region-specific context
+3. **Region-Aware**: Generates separate evaluations for each active region using `region_id` (UUID foreign key to `regions` table). GLOBAL is represented by `region_id = NULL` (virtual sum of all regions). Evaluations include region-specific context when `region_id` is not NULL.
 4. **Web-Grounded**: Uses Gemini 2.5 Flash Lite with Google Search for real-time web information
 5. **Dual Output**: Provides both structured data (sentiment score, themes) and natural language responses for user-facing display
 6. **Theme-Based Categorization**: Attributes are standardized using a theme-based system that matches or creates new themes for consistent analysis
@@ -2207,8 +2208,8 @@ CREATE TABLE brand_evaluations (
   -- Natural language response (for user display)
   natural_response TEXT,
 
-  -- Region context
-  region TEXT DEFAULT 'GLOBAL',
+  -- Region context (foreign key to regions table, NULL = GLOBAL)
+  region_id UUID REFERENCES regions(id) ON DELETE SET NULL,
 
   -- Web search metadata
   query_search JSONB DEFAULT '[]'::jsonb,  -- Array of search queries used
@@ -2232,7 +2233,7 @@ CREATE TABLE brand_evaluations (
 - `positive_theme_ids`: JSONB array of UUIDs referencing `sentiment_themes` table for positive attributes
 - `negative_theme_ids`: JSONB array of UUIDs referencing `sentiment_themes` table for negative attributes
 - `natural_response`: Human-readable evaluation (2-3 paragraphs) for direct user display
-- `region`: Geographic region for which evaluation was performed (defaults to 'GLOBAL')
+- `region_id`: Foreign key to `regions` table (UUID). NULL represents GLOBAL (virtual sum of all regions)
 - `query_search`: Array of web search queries used by Gemini during evaluation
 - `uri_sources`: Array of full URIs from Gemini's grounding metadata (e.g., `gs://vertexaisearch...`)
 - `url_sources`: Array of generic URLs extracted from URIs (e.g., `https://example.com`)
