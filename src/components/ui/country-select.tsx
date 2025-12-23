@@ -98,7 +98,6 @@ export function CountrySelect({
         className="w-[var(--radix-popover-trigger-width)] p-0" 
         align="start" 
         sideOffset={4}
-        modal={false}
       >
         <Command shouldFilter={false}>
           <CommandInput

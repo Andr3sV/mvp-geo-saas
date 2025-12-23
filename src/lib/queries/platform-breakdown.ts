@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { PLATFORMS } from "@/lib/constants/platforms";
+import { getRegionIdByCode } from "@/lib/actions/regions";
 
 /**
  * Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
@@ -68,10 +69,16 @@ async function getTodayRealTimeStatsByPlatform(
     return [];
   }
 
-  // Fetch ai_responses with prompt_tracking data
+  // Convert region code to region_id if needed
+  let regionId: string | null = null;
+  if (region && region !== "GLOBAL" && region !== "all") {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
+  // Fetch ai_responses with prompt_tracking data (including region_id and regions join)
   let aiResponsesQuery = supabase
     .from("ai_responses")
-    .select("id, platform, prompt_tracking(region, topic_id)")
+    .select("id, platform, prompt_tracking(region_id, topic_id, regions:region_id(code))")
     .in("id", Array.from(aiResponseIds));
 
   // Apply platform filter if provided
@@ -89,26 +96,35 @@ async function getTodayRealTimeStatsByPlatform(
 
   const { data: aiResponses } = await aiResponsesQuery;
 
-  // Filter by region and topic_id after fetching
+  // Filter by region_id and topic_id after fetching
   let filteredAiResponses = aiResponses || [];
-  if (region && region !== "GLOBAL") {
-    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-      ar.prompt_tracking?.region === region
-    );
+  if (regionId) {
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+      const pt = ar.prompt_tracking;
+      // Handle both array and object cases for Supabase joins
+      const tracking = Array.isArray(pt) ? pt[0] : pt;
+      return tracking?.region_id === regionId;
+    });
   }
   if (topicId && topicId !== "all") {
-    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-      ar.prompt_tracking?.topic_id === topicId
-    );
+    filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+      const pt = ar.prompt_tracking;
+      const tracking = Array.isArray(pt) ? pt[0] : pt;
+      return tracking?.topic_id === topicId;
+    });
   }
 
   // Create map for quick lookup
   const aiResponseMap = new Map<string, any>();
   filteredAiResponses.forEach((ar: any) => {
+    const pt = ar.prompt_tracking;
+    const tracking = Array.isArray(pt) ? pt[0] : pt;
+    const regions = tracking?.regions;
+    const regionCode = Array.isArray(regions) ? regions[0]?.code : regions?.code;
     aiResponseMap.set(ar.id, {
       platform: ar.platform || "all",
-      region: ar.prompt_tracking?.region || "GLOBAL",
-      topic_id: ar.prompt_tracking?.topic_id || "all",
+      region: regionCode || "GLOBAL",
+      topic_id: tracking?.topic_id || "all",
     });
   });
 
@@ -758,24 +774,34 @@ export async function getTopicPerformanceByPlatform(
     });
 
     if (aiResponseIds.size > 0) {
+      // Convert region code to region_id if needed
+      let regionId: string | null = null;
+      if (regionFilter && region && region !== "GLOBAL") {
+        regionId = await getRegionIdByCode(projectId, region);
+      }
+
       let aiResponsesQuery = supabase
         .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
+        .select("id, platform, prompt_tracking(region_id, topic_id, regions:region_id(code))")
         .in("id", Array.from(aiResponseIds));
 
       const { data: aiResponses } = await aiResponsesQuery;
 
-      // Filter by region and topic_id
+      // Filter by region_id and topic_id
       let filteredAiResponses = aiResponses || [];
-      if (regionFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
+      if (regionId) {
+        filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+          const pt = ar.prompt_tracking;
+          const tracking = Array.isArray(pt) ? pt[0] : pt;
+          return tracking?.region_id === regionId;
+        });
       }
       // Only include responses with topic_id (not null)
-      filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-        ar.prompt_tracking?.topic_id !== null && ar.prompt_tracking?.topic_id !== undefined
-      );
+      filteredAiResponses = filteredAiResponses.filter((ar: any) => {
+        const pt = ar.prompt_tracking;
+        const tracking = Array.isArray(pt) ? pt[0] : pt;
+        return tracking?.topic_id !== null && tracking?.topic_id !== undefined;
+      });
 
       // Aggregate by platform and topic_id
       const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
@@ -785,12 +811,17 @@ export async function getTopicPerformanceByPlatform(
         if (!aiResponseMap.has(mention.ai_response_id)) return;
 
         const aiResponse = filteredAiResponses.find((ar: any) => ar.id === mention.ai_response_id);
-        if (!aiResponse || !aiResponse.prompt_tracking?.topic_id) return;
+        if (!aiResponse) return;
+        
+        // Handle both array and object cases for prompt_tracking
+        const pt = aiResponse.prompt_tracking;
+        const tracking = Array.isArray(pt) ? pt[0] : pt;
+        if (!tracking || !tracking.topic_id) return;
 
         const platform = aiResponse.platform;
         if (platform !== "openai" && platform !== "gemini") return;
 
-        const topicId = aiResponse.prompt_tracking.topic_id;
+        const topicId = tracking.topic_id;
         const key = `${topicId}-${platform}`;
         
         if (!topicPlatformMap.has(key)) {
@@ -893,10 +924,16 @@ export async function getPlatformCitationSources(
     return date;
   })();
 
+  // Convert region code to region_id if needed
+  let regionId: string | null = null;
+  if (region && region !== "GLOBAL" && region !== "all") {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Get citations with platform info
   let query = supabase
     .from("citations")
-    .select("domain, ai_responses!inner(platform, prompt_tracking!inner(project_id, region, topic_id))")
+    .select("domain, ai_responses!inner(platform, prompt_tracking!inner(project_id, region_id, topic_id, regions:region_id(code)))")
     .eq("ai_responses.prompt_tracking.project_id", projectId)
     .gte("created_at", startDate.toISOString())
     .lte("created_at", endDate.toISOString())
@@ -914,8 +951,22 @@ export async function getPlatformCitationSources(
     const platformCitations = citations?.filter((c: any) => {
       const p = c.ai_responses?.platform;
       const matchesPlatform = p === platform;
-      const matchesRegion = !region || region === "GLOBAL" || c.ai_responses?.prompt_tracking?.region === region;
-      const matchesTopic = !topicId || topicId === "all" || c.ai_responses?.prompt_tracking?.topic_id === topicId;
+      
+      // Handle region filter
+      let matchesRegion = true;
+      if (regionId) {
+        const pt = c.ai_responses?.prompt_tracking;
+        const tracking = Array.isArray(pt) ? pt[0] : pt;
+        matchesRegion = tracking?.region_id === regionId;
+      } else if (!region || region === "GLOBAL" || region === "all") {
+        matchesRegion = true;
+      }
+      
+      // Handle topic filter
+      const pt = c.ai_responses?.prompt_tracking;
+      const tracking = Array.isArray(pt) ? pt[0] : pt;
+      const matchesTopic = !topicId || topicId === "all" || tracking?.topic_id === topicId;
+      
       return matchesPlatform && matchesRegion && matchesTopic;
     }) || [];
 
