@@ -119,7 +119,7 @@ export default function QueriesPage() {
       .sort((a, b) => b.count - a.count);
   };
 
-  const mergeQueryOverview = (results: Array<{ totalQueries: number; uniqueQueries: number; topPlatform: string; avgQueryLength: number }>[]): { totalQueries: number; uniqueQueries: number; topPlatform: string; avgQueryLength: number } => {
+  const mergeQueryOverview = (results: { totalQueries: number; uniqueQueries: number; topPlatform: string; avgQueryLength: number }[]): { totalQueries: number; uniqueQueries: number; topPlatform: string; avgQueryLength: number } => {
     const totalQueries = results.reduce((sum, r) => sum + r.totalQueries, 0);
     // For unique queries, we sum them as an approximation (actual unique count would require storing all query strings)
     const uniqueQueries = results.reduce((sum, r) => sum + r.uniqueQueries, 0);
@@ -148,7 +148,7 @@ export default function QueriesPage() {
     };
   };
 
-  const mergeQueryDomainCorrelation = (results: Array<{ queries: string[]; domains: string[]; matrix: number[][] }>[]): { queries: string[]; domains: string[]; matrix: number[][] } => {
+  const mergeQueryDomainCorrelation = (results: { queries: string[]; domains: string[]; matrix: number[][] }[]): { queries: string[]; domains: string[]; matrix: number[][] } => {
     const allQueries = new Set<string>();
     const allDomains = new Set<string>();
 

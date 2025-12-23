@@ -212,8 +212,7 @@ export function EntityFilterSelect({
             {/* Select All option */}
             <CommandGroup>
               <CommandItem
-                onSelect={(e) => {
-                  e.preventDefault();
+                onSelect={() => {
                   handleSelectAllIndividual();
                 }}
                 className="cursor-pointer"
@@ -236,8 +235,7 @@ export function EntityFilterSelect({
             {/* Brand option */}
             <CommandGroup>
               <CommandItem
-                onSelect={(e) => {
-                  e.preventDefault();
+                onSelect={() => {
                   handleToggleEntity({ id: null, type: "brand" });
                 }}
                 className="cursor-pointer"
@@ -265,8 +263,7 @@ export function EntityFilterSelect({
                   {filteredCompetitors.map((competitor) => (
                     <CommandItem
                       key={competitor.id}
-                      onSelect={(e) => {
-                        e.preventDefault();
+                      onSelect={() => {
                         handleToggleEntity({ id: competitor.id, type: "competitor" });
                       }}
                       className="cursor-pointer"
