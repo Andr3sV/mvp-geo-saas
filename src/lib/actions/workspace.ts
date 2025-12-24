@@ -213,6 +213,108 @@ export async function getSuggestedPrompts(projectId: string) {
 }
 
 /**
+ * Trigger brand website analysis for a project
+ */
+export async function triggerBrandWebsiteAnalysis(data: {
+  project_id: string;
+  client_url: string;
+  force_refresh?: boolean;
+}): Promise<{ error: string | null; success: boolean; eventId?: string }> {
+  try {
+    // Determine backend URL: use env vars if set, otherwise use localhost for development or production fallback
+    let backendUrl = process.env.BACKEND_ORCHESTRATOR_URL || process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL;
+    
+    if (!backendUrl) {
+      // In development, default to localhost:3000 (backend orchestrator port)
+      // Frontend runs on 3055, backend runs on 3000
+      if (process.env.NODE_ENV === 'development') {
+        backendUrl = 'http://localhost:3000';
+      } else {
+        // Production fallback
+        backendUrl = 'https://mvp-geo-saas-production.up.railway.app';
+      }
+    }
+    
+    // Ensure URL has protocol
+    if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
+      backendUrl = `https://${backendUrl}`;
+    }
+    
+    // Log to both console and potentially to a monitoring service
+    const endpointUrl = `${backendUrl}/analyze-brand-website`;
+    console.log('[BRAND_ANALYSIS_TRIGGER] Starting trigger', {
+      project_id: data.project_id,
+      client_url: data.client_url,
+      backend_url: backendUrl,
+      endpoint_url: endpointUrl,
+      timestamp: new Date().toISOString(),
+      env_backend: process.env.BACKEND_ORCHESTRATOR_URL,
+      env_next_public_backend: process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL,
+    });
+    
+    const requestBody = {
+      project_id: data.project_id,
+      client_url: data.client_url,
+      force_refresh: data.force_refresh || false,
+    };
+
+    const response = await fetch(endpointUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const responseText = await response.text();
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { raw: responseText };
+    }
+
+    if (!response.ok) {
+      console.error('[BRAND_ANALYSIS_TRIGGER] Failed', {
+        status: response.status,
+        statusText: response.statusText,
+        response: responseData,
+        request_body: requestBody,
+        endpoint_url: endpointUrl,
+        backend_url: backendUrl,
+      });
+      return {
+        error: responseData.error || `Failed to trigger analysis: ${response.status} ${response.statusText}`,
+        success: false,
+      };
+    }
+
+    console.log('[BRAND_ANALYSIS_TRIGGER] Success', {
+      project_id: data.project_id,
+      response: responseData,
+    });
+
+    return {
+      error: null,
+      success: true,
+      eventId: responseData.eventId,
+    };
+  } catch (error: any) {
+    // Log error and return error state
+    console.error('[BRAND_ANALYSIS_TRIGGER] Exception', {
+      error: error?.message || String(error),
+      stack: error?.stack,
+      project_id: data.project_id,
+      client_url: data.client_url,
+    });
+    return {
+      error: error?.message || 'An unexpected error occurred while triggering analysis',
+      success: false,
+    };
+  }
+}
+
+/**
  * Create project and batch create prompts in prompt_tracking
  */
 export async function createProjectWithPrompts(data: {

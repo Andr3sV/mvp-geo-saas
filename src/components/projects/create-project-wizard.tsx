@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProgressSteps } from "@/components/onboarding/progress-steps";
 import { CountrySelect } from "@/components/ui/country-select";
-import { createProject, getSuggestedPrompts } from "@/lib/actions/workspace";
-import { getRegionIdByCode } from "@/lib/actions/regions";
+import { createProject, getSuggestedPrompts, triggerBrandWebsiteAnalysis } from "@/lib/actions/workspace";
+import { getRegionIdByCode, createRegion } from "@/lib/actions/regions";
 import { batchCreatePrompts } from "@/lib/actions/prompt";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, X, Plus, Trash2, Edit2 } from "lucide-react";
@@ -102,58 +102,6 @@ export function CreateProjectWizard({
     }
   }, [open, defaultWorkspaceId, workspaces]);
 
-  // Helper function to trigger analyze-brand-website
-  const triggerBrandWebsiteAnalysis = async (projectId: string, clientUrl: string): Promise<boolean> => {
-    try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_ORCHESTRATOR_URL || process.env.BACKEND_ORCHESTRATOR_URL || 'https://mvp-geo-saas-production.up.railway.app';
-      
-      // Ensure URL has protocol
-      if (backendUrl && !backendUrl.startsWith('http://') && !backendUrl.startsWith('https://')) {
-        backendUrl = `https://${backendUrl}`;
-      }
-      
-      console.log('[CreateProjectWizard] Triggering analyze-brand-website', {
-        project_id: projectId,
-        client_url: clientUrl,
-        backend_url: backendUrl,
-      });
-      
-      const response = await fetch(`${backendUrl}/analyze-brand-website`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          client_url: clientUrl,
-          force_refresh: false,
-        }),
-      });
-
-      const responseText = await response.text();
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch {
-        responseData = { raw: responseText };
-      }
-
-      if (!response.ok) {
-        console.error('[CreateProjectWizard] Failed to trigger analyze-brand-website', {
-          status: response.status,
-          response: responseData,
-        });
-        return false;
-      }
-
-      console.log('[CreateProjectWizard] Successfully triggered analyze-brand-website', responseData);
-      return true;
-    } catch (error: any) {
-      console.error('[CreateProjectWizard] Error triggering analyze-brand-website', error);
-      return false;
-    }
-  };
-
   // Step 1: Handle project creation (without analysis)
   const handleStep1Next = async () => {
     if (!projectName.trim()) {
@@ -195,9 +143,33 @@ export function CreateProjectWizard({
       
       setCreatedProjectId(newProjectId);
       
-      // Get region_id for this project after creation
-      const finalRegionId = await getRegionIdByCode(newProjectId, selectedRegion);
-      setRegionId(finalRegionId || null);
+      // Get or create region_id for this project
+      let finalRegionId: string | null = null;
+      
+      if (selectedRegion && selectedRegion !== "GLOBAL") {
+        // Try to get existing region
+        finalRegionId = await getRegionIdByCode(newProjectId, selectedRegion);
+        
+        // If region doesn't exist, create it automatically
+        if (!finalRegionId) {
+          console.log('[CreateProjectWizard] Region not found, creating new region:', selectedRegion);
+          const regionResult = await createRegion({
+            project_id: newProjectId,
+            code: selectedRegion,
+          });
+          
+          if (regionResult.error || !regionResult.data) {
+            setError(regionResult.error || "Failed to create region");
+            setIsLoading(false);
+            return;
+          }
+          
+          finalRegionId = regionResult.data.id;
+          console.log('[CreateProjectWizard] ✅ Region created successfully:', finalRegionId);
+        }
+      }
+      
+      setRegionId(finalRegionId);
       console.log('[CreateProjectWizard] Region ID:', finalRegionId);
 
       // Move to step 2 immediately (no waiting for prompts)
@@ -324,11 +296,15 @@ export function CreateProjectWizard({
     setError(null);
 
     try {
-      // Trigger analyze-brand-website
-      const triggered = await triggerBrandWebsiteAnalysis(createdProjectId, clientUrl.trim());
+      // Trigger analyze-brand-website using Server Action
+      const result = await triggerBrandWebsiteAnalysis({
+        project_id: createdProjectId,
+        client_url: clientUrl.trim(),
+        force_refresh: false,
+      });
       
-      if (!triggered) {
-        setError("Failed to start website analysis. Please try again.");
+      if (result.error || !result.success) {
+        setError(result.error || "Failed to start website analysis. Please try again.");
         setIsLoading(false);
         return;
       }
@@ -513,7 +489,6 @@ export function CreateProjectWizard({
                 <CountrySelect
                   value={selectedRegion}
                   onValueChange={setSelectedRegion}
-                  projectId={createdProjectId || undefined}
                   disabled={isLoading}
                 />
                 <p className="text-xs text-muted-foreground">

@@ -55,11 +55,25 @@ export function CountrySelect({
         .finally(() => {
           setIsLoadingRegions(false);
         });
+    } else {
+      // If no projectId, explicitly use static countries list
+      setProjectRegions(null);
     }
   }, [projectId]);
 
-  // Use project regions if available, otherwise fallback to static countries list
-  const availableCountries = projectRegions || countries;
+  // Use project regions if projectId is provided and regions are loaded, otherwise use full countries list
+  const availableCountries = (projectId && projectRegions) ? projectRegions : countries;
+
+  // Debug: Log when countries list changes
+  React.useEffect(() => {
+    console.log('[CountrySelect] State:', {
+      projectId,
+      projectRegionsCount: projectRegions?.length || 0,
+      availableCountriesCount: availableCountries.length,
+      value,
+      open
+    });
+  }, [projectId, projectRegions, availableCountries.length, value, open]);
 
   const selectedCountry = availableCountries.find(
     (country) => country.code.toLowerCase() === value?.toLowerCase()
@@ -95,7 +109,7 @@ export function CountrySelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0" 
+        className="w-[var(--radix-popover-trigger-width)] p-0 z-[101]" 
         align="start" 
         sideOffset={4}
       >
@@ -108,16 +122,18 @@ export function CountrySelect({
           <CommandList className="max-h-[300px]">
             <CommandEmpty>No country found.</CommandEmpty>
             <CommandGroup>
-              {filteredCountries.map((country) => (
-                <CommandItem
-                  key={country.code}
-                  value={country.code}
-                  onSelect={(currentValue) => {
-                    onValueChange?.(currentValue.toUpperCase());
-                    setOpen(false);
-                    setSearchQuery("");
-                  }}
-                >
+              {filteredCountries.length > 0 ? (
+                filteredCountries.map((country) => (
+                  <CommandItem
+                    key={country.code}
+                    value={country.code.toLowerCase()}
+                    onSelect={(currentValue) => {
+                      console.log('[CountrySelect] Item selected:', currentValue, 'country:', country);
+                      onValueChange?.(country.code.toUpperCase());
+                      setOpen(false);
+                      setSearchQuery("");
+                    }}
+                  >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
@@ -132,7 +148,12 @@ export function CountrySelect({
                     {country.code}
                   </span>
                 </CommandItem>
-              ))}
+                ))
+              ) : (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  No countries available
+                </div>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>
