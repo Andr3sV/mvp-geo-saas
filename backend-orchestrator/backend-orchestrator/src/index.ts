@@ -29,8 +29,34 @@ const handler = serve({
   ],
 });
 
-// Create Elysia app
+// Create Elysia app with CORS support
 const app = new Elysia()
+  // CORS headers for all routes
+  .onBeforeHandle(({ request, set }) => {
+    const origin = request.headers.get("origin");
+    
+    if (origin) {
+      // Allow localhost for development (any port)
+      const isLocalhost = origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:");
+      
+      // Production allowed origins from env
+      const allowedProductionOrigins = [
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.APP_URL,
+      ].filter((url): url is string => typeof url === "string");
+
+      if (isLocalhost || allowedProductionOrigins.includes(origin)) {
+        set.headers["Access-Control-Allow-Origin"] = origin;
+        set.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+        set.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization";
+        set.headers["Access-Control-Allow-Credentials"] = "true";
+      }
+    }
+  })
+  .options("/*", ({ set }) => {
+    set.status = 204;
+    return "";
+  })
   .get("/", () => "Prompt Analysis Orchestrator Running")
   .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
   // Test endpoint to trigger functions manually

@@ -62,7 +62,7 @@ export function CreateProjectWizard({
   const [regionId, setRegionId] = useState<string | null>(null);
 
   // Step 2: Prompt selection
-  const [totalPrompts, setTotalPrompts] = useState(30);
+  const [totalPrompts, setTotalPrompts] = useState(10);
   const [promptDistribution, setPromptDistribution] = useState<Record<string, number>>({});
 
   // Step 3: Review/Edit
@@ -92,7 +92,7 @@ export function CreateProjectWizard({
       setProjectColor("#3B82F6");
       setCreatedProjectId(null);
       setRegionId(null);
-      setTotalPrompts(30);
+      setTotalPrompts(10);
       setPromptDistribution({});
       setSuggestedPrompts(null);
       setEditablePrompts({ categories: [] });
@@ -315,8 +315,8 @@ export function CreateProjectWizard({
       return;
     }
 
-    if (totalPrompts < 5 || totalPrompts > 50) {
-      setError("Please select a number between 5 and 50");
+    if (totalPrompts < 10 || totalPrompts > 200) {
+      setError("Please select a number between 10 and 200");
       return;
     }
 
@@ -378,12 +378,13 @@ export function CreateProjectWizard({
         return;
       }
 
-      // Success - close wizard and refresh
+      // Success - close wizard, refresh, and redirect to project dashboard
       if (onProjectCreated) {
         onProjectCreated(createdProjectId);
       }
-      router.refresh();
       onOpenChange(false);
+      router.refresh();
+      router.push(`/dashboard?project=${createdProjectId}`);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsLoading(false);
@@ -556,23 +557,29 @@ export function CreateProjectWizard({
               
               <div className="space-y-2">
                 <Label htmlFor="total-prompts">Total Prompts to Track</Label>
-                <div className="space-y-2">
-                  <Input
-                    id="total-prompts"
-                    type="number"
-                    min={5}
-                    max={50}
-                    value={totalPrompts}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 5;
-                      setTotalPrompts(Math.max(5, Math.min(50, value)));
-                    }}
-                    disabled={isLoading}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Minimum: 5</span>
-                    <span>Maximum: 50</span>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <input
+                      id="total-prompts"
+                      type="range"
+                      min={10}
+                      max={200}
+                      step={5}
+                      value={totalPrompts}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 10;
+                        setTotalPrompts(Math.max(10, Math.min(200, value)));
+                      }}
+                      disabled={isLoading}
+                      className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 accent-primary"
+                    />
+                    <div className="w-20 text-center">
+                      <span className="text-lg font-semibold">{totalPrompts}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground px-1">
+                    <span>10</span>
+                    <span>200</span>
                   </div>
                 </div>
               </div>
@@ -639,7 +646,7 @@ export function CreateProjectWizard({
                   Starting analysis...
                 </>
               ) : (
-                "Next"
+                "Generar prompts"
               )}
             </Button>
           )}
@@ -651,7 +658,7 @@ export function CreateProjectWizard({
                   Creating...
                 </>
               ) : (
-                "Create Project"
+                "Finalizar creación del proyecto"
               )}
             </Button>
           )}
