@@ -317,6 +317,7 @@ export async function batchCreatePrompts(data: {
   region_id: string;
   prompts: Array<{
     prompt: string;
+    categoryName?: string; // Nombre de la categoría para crear/obtener topic
   }>;
 }) {
   const supabase = await createClient();
@@ -332,12 +333,39 @@ export async function batchCreatePrompts(data: {
     return { error: "No prompts provided", data: null };
   }
 
-  const promptsData = data.prompts.map((p) => ({
-    project_id: data.project_id,
-    prompt: p.prompt.trim(),
-    region_id: data.region_id,
-    is_active: true,
-  }));
+  // Create/get topics for each unique category name
+  const categoryToTopicId = new Map<string, string | null>();
+  
+  // Get unique category names
+  const uniqueCategories = Array.from(
+    new Set(data.prompts.map((p) => p.categoryName).filter((cat): cat is string => !!cat))
+  );
+
+  // Create or get topics for each category
+  for (const categoryName of uniqueCategories) {
+    const topicId = await getOrCreateTopic(supabase, data.project_id, categoryName);
+    categoryToTopicId.set(categoryName, topicId);
+  }
+
+  // Map prompts with their topic_ids
+  const promptsData = data.prompts.map((p) => {
+    const promptData: any = {
+      project_id: data.project_id,
+      prompt: p.prompt.trim(),
+      region_id: data.region_id,
+      is_active: true,
+    };
+
+    // Add topic_id if categoryName is provided
+    if (p.categoryName) {
+      const topicId = categoryToTopicId.get(p.categoryName);
+      if (topicId) {
+        promptData.topic_id = topicId;
+      }
+    }
+
+    return promptData;
+  });
 
   const { data: createdPrompts, error } = await supabase
     .from("prompt_tracking")

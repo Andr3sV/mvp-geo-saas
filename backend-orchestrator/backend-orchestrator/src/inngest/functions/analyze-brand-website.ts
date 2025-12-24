@@ -96,6 +96,44 @@ TOPICS / USER INTENTS:
 ...`;
 
 /**
+ * Extract JSON from response text (handles code blocks and pure JSON)
+ */
+function extractJsonFromResponse(responseText: string): {
+  categories: Array<{ name: string; prompts: Array<{ text: string; order: number }> }>;
+} | null {
+  try {
+    // Try to find JSON in code blocks first
+    // Match from ```json or ``` to ```
+    const codeBlockMatch = responseText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      const jsonStr = codeBlockMatch[1].trim();
+      const parsed = JSON.parse(jsonStr);
+      if (parsed.categories && Array.isArray(parsed.categories)) {
+        return parsed;
+      }
+    }
+    
+    // Try to find JSON object in the text (look for { ... } structure)
+    const jsonObjectMatch = responseText.match(/\{[\s\S]*"categories"[\s\S]*\}/);
+    if (jsonObjectMatch) {
+      const parsed = JSON.parse(jsonObjectMatch[0]);
+      if (parsed.categories && Array.isArray(parsed.categories)) {
+        return parsed;
+      }
+    }
+    
+    // Try to parse entire response as JSON
+    const parsed = JSON.parse(responseText);
+    if (parsed.categories && Array.isArray(parsed.categories)) {
+      return parsed;
+    }
+  } catch (e) {
+    // Not valid JSON, return null to use text parser
+  }
+  return null;
+}
+
+/**
  * Parse the structured response from Gemini to extract AEO prompts (Phase 1) and sentiment topics (Phase 2)
  */
 function parseAnalysisResponse(responseText: string): {
@@ -106,6 +144,74 @@ function parseAnalysisResponse(responseText: string): {
     prompts: Array<{ text: string; order: number }>;
   }>;
 } {
+  // First, try to parse as JSON
+  const jsonResult = extractJsonFromResponse(responseText);
+  if (jsonResult && jsonResult.categories.length > 0) {
+    // JSON parsing successful - use it for AEO categories
+    // Still need to parse industry and topics from text (Phase 2)
+    const lines = responseText.split('\n').map(line => line.trim());
+    let industry: string | null = null;
+    const topics: string[] = [];
+    
+    let section: 'none' | 'industry' | 'topics' = 'none';
+    
+    // Parse Phase 2 (sentiment topics) from text
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Detect Phase 2: Sentiment Taxonomy section
+      if (line.toUpperCase().includes('SENTIMENT TAXONOMY') || line.toUpperCase().includes('SENTIMENT')) {
+        section = 'none'; // Reset before checking for industry/topics
+        continue;
+      }
+      
+      // Detect section headers within sentiment
+      if (line.toLowerCase().includes('industry') && line.toLowerCase().includes('company type')) {
+        section = 'industry';
+        continue;
+      }
+      if (line.toLowerCase().includes('topics') || line.toLowerCase().includes('user intents')) {
+        section = 'topics';
+        continue;
+      }
+      
+      // Parse sentiment topics (Phase 2)
+      if (section === 'topics') {
+        if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+          const content = line.replace(/^[-•*]\s*/, '').trim();
+          if (!content) continue;
+          
+          const normalizedTopic = content
+            .toLowerCase()
+            .replace(/[.,:;!?]$/g, '')
+            .trim();
+          if (normalizedTopic && !topics.includes(normalizedTopic)) {
+            topics.push(normalizedTopic);
+          }
+        }
+      }
+      
+      // Parse industry (Phase 2)
+      if (section === 'industry') {
+        if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+          const content = line.replace(/^[-•*]\s*/, '').trim();
+          if (!content) continue;
+          
+          if (!industry) {
+            industry = content;
+          }
+        }
+      }
+    }
+    
+    return {
+      industry,
+      topics,
+      aeoCategories: jsonResult.categories,
+    };
+  }
+  
+  // JSON parsing failed - use text parser as fallback
   const lines = responseText.split('\n').map(line => line.trim());
   let industry: string | null = null;
   const topics: string[] = [];

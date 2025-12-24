@@ -330,9 +330,12 @@ export function CreateProjectWizard({
     setError(null);
 
     try {
-      // Flatten prompts from all categories
+      // Flatten prompts from all categories, preserving category information
       const allPrompts = editablePrompts.categories.flatMap((cat) =>
-        cat.prompts.map((p) => ({ prompt: p.text }))
+        cat.prompts.map((p) => ({ 
+          prompt: p.text,
+          categoryName: cat.name, // Incluir el nombre de la categoría
+        }))
       );
 
       if (allPrompts.length === 0) {
