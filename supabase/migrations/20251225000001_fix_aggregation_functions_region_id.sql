@@ -1,21 +1,57 @@
 -- =============================================
--- MIGRATION: Update Aggregation Functions with Dimensions
--- Description: Add platform, region, topic_id parameters to aggregation functions
--- Date: 2025-12-19
+-- MIGRATION: Fix Aggregation Functions Region ID
+-- Description: Update aggregation functions to use region_id from regions table instead of removed region TEXT column
+-- Date: 2025-12-25
 -- =============================================
 
 -- =============================================
--- FUNCTION: aggregate_brand_stats_only (with dimensions)
--- Uses timestamp ranges for index usage
--- Joins with ai_responses and prompt_tracking for dimensions
+-- FUNCTION: get_dimension_combinations
+-- Update to JOIN with regions table and get region code from region_id
+-- =============================================
+
+CREATE OR REPLACE FUNCTION get_dimension_combinations(
+  p_project_id UUID,
+  p_stat_date DATE
+)
+RETURNS TABLE (
+  platform TEXT,
+  region TEXT,
+  topic_id UUID
+) AS $$
+DECLARE
+  v_start_ts TIMESTAMP;
+  v_end_ts TIMESTAMP;
+BEGIN
+  v_start_ts := p_stat_date::timestamp;
+  v_end_ts := (p_stat_date + INTERVAL '1 day')::timestamp;
+
+  RETURN QUERY
+  SELECT DISTINCT 
+    ar.platform::TEXT,
+    COALESCE(r.code, 'GLOBAL')::TEXT,
+    pt.topic_id
+  FROM ai_responses ar
+  JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
+  LEFT JOIN regions r ON r.id = pt.region_id
+  WHERE ar.project_id = p_project_id
+    AND ar.status = 'success'
+    AND ar.created_at >= v_start_ts
+    AND ar.created_at < v_end_ts
+  ORDER BY ar.platform, COALESCE(r.code, 'GLOBAL'), pt.topic_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================
+-- FUNCTION: aggregate_brand_stats_only
+-- Update to filter by region_id from regions table instead of removed region column
 -- =============================================
 
 CREATE OR REPLACE FUNCTION aggregate_brand_stats_only(
   p_project_id UUID,
   p_stat_date DATE,
-  p_platform TEXT,      -- NEW: openai, gemini
-  p_region TEXT,        -- NEW: GLOBAL, ES, US, etc.
-  p_topic_id UUID       -- NEW: topic UUID or NULL
+  p_platform TEXT,
+  p_region TEXT,
+  p_topic_id UUID
 )
 RETURNS INTEGER AS $$
 DECLARE
@@ -121,16 +157,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
--- FUNCTION: aggregate_competitor_stats_only (with dimensions)
+-- FUNCTION: aggregate_competitor_stats_only
+-- Update to filter by region_id from regions table instead of removed region column
 -- =============================================
 
 CREATE OR REPLACE FUNCTION aggregate_competitor_stats_only(
   p_project_id UUID,
   p_competitor_id UUID,
   p_stat_date DATE,
-  p_platform TEXT,      -- NEW
-  p_region TEXT,        -- NEW
-  p_topic_id UUID       -- NEW
+  p_platform TEXT,
+  p_region TEXT,
+  p_topic_id UUID
 )
 RETURNS INTEGER AS $$
 DECLARE
@@ -238,47 +275,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
--- FUNCTION: get_dimension_combinations
--- Returns unique (platform, region, topic_id) combinations for a project on a given date
--- =============================================
-
-CREATE OR REPLACE FUNCTION get_dimension_combinations(
-  p_project_id UUID,
-  p_stat_date DATE
-)
-RETURNS TABLE (
-  platform TEXT,
-  region TEXT,
-  topic_id UUID
-) AS $$
-DECLARE
-  v_start_ts TIMESTAMP;
-  v_end_ts TIMESTAMP;
-BEGIN
-  v_start_ts := p_stat_date::timestamp;
-  v_end_ts := (p_stat_date + INTERVAL '1 day')::timestamp;
-
-  RETURN QUERY
-  SELECT DISTINCT 
-    ar.platform::TEXT,
-    COALESCE(r.code, 'GLOBAL')::TEXT,
-    pt.topic_id
-  FROM ai_responses ar
-  JOIN prompt_tracking pt ON pt.id = ar.prompt_tracking_id
-  LEFT JOIN regions r ON r.id = pt.region_id
-  WHERE ar.project_id = p_project_id
-    AND ar.status = 'success'
-    AND ar.created_at >= v_start_ts
-    AND ar.created_at < v_end_ts
-  ORDER BY ar.platform, COALESCE(r.code, 'GLOBAL'), pt.topic_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- =============================================
 -- COMMENTS
 -- =============================================
 
-COMMENT ON FUNCTION aggregate_brand_stats_only(UUID, DATE, TEXT, TEXT, UUID) IS 'Aggregates brand stats with platform, region, and topic dimensions';
-COMMENT ON FUNCTION aggregate_competitor_stats_only(UUID, UUID, DATE, TEXT, TEXT, UUID) IS 'Aggregates competitor stats with platform, region, and topic dimensions';
-COMMENT ON FUNCTION get_dimension_combinations(UUID, DATE) IS 'Returns unique (platform, region, topic_id) combinations for aggregation';
+COMMENT ON FUNCTION get_dimension_combinations(UUID, DATE) IS 'Returns unique (platform, region, topic_id) combinations for aggregation. Uses region_id from prompt_tracking joined with regions table.';
+COMMENT ON FUNCTION aggregate_brand_stats_only(UUID, DATE, TEXT, TEXT, UUID) IS 'Aggregates brand stats with platform, region, and topic dimensions. Filters by region_id from regions table.';
+COMMENT ON FUNCTION aggregate_competitor_stats_only(UUID, UUID, DATE, TEXT, TEXT, UUID) IS 'Aggregates competitor stats with platform, region, and topic dimensions. Filters by region_id from regions table.';
 
