@@ -19,8 +19,8 @@ import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
 import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
-import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
-import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
+// import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
+// import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 
 
@@ -354,10 +354,10 @@ export default function ShareOfVoicePage() {
             />
 
             {/* Competitive Momentum Matrix - Full row */}
-            <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} />
+            {/* <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} /> */}
 
             {/* Competitive Gap Tracker - Full row, top 4 competitors */}
-            <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} />
+            {/* <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} /> */}
           </>
         );
             })()}

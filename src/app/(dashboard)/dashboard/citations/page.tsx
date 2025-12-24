@@ -10,8 +10,8 @@ import { MostCitedDomainsTable } from "@/components/citations/most-cited-domains
 import { CitationSourcesTable } from "@/components/citations/citation-sources-table";
 import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
 import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
-import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
-import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
+// import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
+// import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { TrendingUp, Users, Trophy, FileText } from "lucide-react";
 import {
   getQuickLookMetrics,
@@ -402,10 +402,10 @@ export default function CitationsPage() {
             />
 
             {/* Competitive Momentum Matrix */}
-            <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" />
+            {/* <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" /> */}
 
             {/* Competitive Gap Tracker */}
-            <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" />
+            {/* <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} metricLabel="citations" /> */}
           </>
         );
       })()}
