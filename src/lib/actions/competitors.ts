@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { generateRandomColor } from "@/lib/utils";
 
 export interface Competitor {
   id: string;
@@ -224,16 +225,22 @@ export async function batchCreateCompetitors(data: {
 
   const regionCode = region.code;
 
-  // Create competitors one by one (using createCompetitor to handle duplicates)
+  // Generate distinct colors for each competitor
+  const usedColors = new Set<string>();
   const createdCompetitors = [];
   const errors = [];
 
+  // Create competitors one by one (using createCompetitor to handle duplicates)
   for (const competitor of data.competitors) {
+    const color = generateRandomColor(usedColors);
+    usedColors.add(color);
+    
     const result = await createCompetitor({
       project_id: data.project_id,
       name: competitor.name.trim(),
       domain: competitor.domain.trim(),
       region: regionCode,
+      color, // Assign distinct color to each competitor
     });
 
     if (result.error) {

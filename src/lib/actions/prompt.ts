@@ -2,13 +2,14 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { generateRandomColor } from "@/lib/utils";
 
 // Changed to string to allow dynamic user-created tags/topics
 // Users can now create any category/topic they want
 export type PromptCategory = string;
 
 // Helper to get/create topic by name
-async function getOrCreateTopic(supabase: any, projectId: string, name: string) {
+async function getOrCreateTopic(supabase: any, projectId: string, name: string, color?: string) {
   if (!name || name === "general") return null;
 
   // 1. Try to find existing topic
@@ -30,7 +31,8 @@ async function getOrCreateTopic(supabase: any, projectId: string, name: string) 
     .insert({
       project_id: projectId,
       name,
-      slug
+      slug,
+      color: color || generateRandomColor() // Use provided color or generate random one
     })
     .select("id")
     .single();
@@ -341,9 +343,12 @@ export async function batchCreatePrompts(data: {
     new Set(data.prompts.map((p) => p.categoryName).filter((cat): cat is string => !!cat))
   );
 
-  // Create or get topics for each category
+  // Create or get topics for each category with distinct colors
+  const usedColors = new Set<string>();
   for (const categoryName of uniqueCategories) {
-    const topicId = await getOrCreateTopic(supabase, data.project_id, categoryName);
+    const color = generateRandomColor(usedColors);
+    usedColors.add(color);
+    const topicId = await getOrCreateTopic(supabase, data.project_id, categoryName, color);
     categoryToTopicId.set(categoryName, topicId);
   }
 
