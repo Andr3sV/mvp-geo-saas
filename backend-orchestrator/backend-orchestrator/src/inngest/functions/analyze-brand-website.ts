@@ -36,22 +36,35 @@ Analyze the website and the Target Brand's position within the {COUNTRY} market.
    * *Good Example:* "What are the most affordable email marketing tools for startups in 2025?" (Use this).
 
 **Output Format for Phase 1:**
-## AEO VISIBILITY ANALYSIS (UNBRANDED)
-**Context:** Market: {COUNTRY} | Brand: {BRAND_NAME}
-**Inferred Competitors:** [List]
 
-### Category 1: [Category Name]
-1. [Unbranded User Query]
-2. [Unbranded User Query]
-...
-10. [Unbranded User Query]
+IMPORTANT: You MUST provide your response in JSON format. Include both the categories/prompts AND the inferred competitors in a structured JSON object.
 
-### Category 2: [Category Name]
-1. [Unbranded User Query]
-...
-10. [Unbranded User Query]
+JSON Structure (use code block with json):
+\`\`\`json
+{
+  "categories": [
+    {
+      "name": "Category Name",
+      "prompts": [
+        { "text": "Unbranded User Query", "order": 1 },
+        { "text": "Unbranded User Query", "order": 2 }
+      ]
+    }
+  ],
+  "competitors": [
+    { "name": "Competitor Name", "domain": "competitor.com" },
+    { "name": "Competitor Name 2", "domain": "competitor2.com" }
+  ]
+}
+\`\`\`
 
-(Repeat for all 5 categories)
+Requirements:
+- Provide 5 categories, each with 10 prompts (50 total prompts)
+- Infer 3-5 most likely direct competitors in {COUNTRY}
+- For each competitor, provide name and domain (website URL)
+- Ensure competitor domains are valid URLs (with or without protocol)
+
+If you need to provide additional context, you can include a text explanation, but the JSON object with categories and competitors is REQUIRED.
 
 ---
 
@@ -100,6 +113,7 @@ TOPICS / USER INTENTS:
  */
 function extractJsonFromResponse(responseText: string): {
   categories: Array<{ name: string; prompts: Array<{ text: string; order: number }> }>;
+  competitors?: Array<{ name: string; domain: string }>;
 } | null {
   try {
     // Try to find JSON in code blocks first
@@ -109,11 +123,12 @@ function extractJsonFromResponse(responseText: string): {
       const jsonStr = codeBlockMatch[1].trim();
       const parsed = JSON.parse(jsonStr);
       if (parsed.categories && Array.isArray(parsed.categories)) {
+        // competitors is optional, but if present should be an array
         return parsed;
       }
     }
     
-    // Try to find JSON object in the text (look for { ... } structure)
+    // Try to find JSON object in the text (look for { ... } structure with categories)
     const jsonObjectMatch = responseText.match(/\{[\s\S]*"categories"[\s\S]*\}/);
     if (jsonObjectMatch) {
       const parsed = JSON.parse(jsonObjectMatch[0]);
@@ -143,11 +158,12 @@ function parseAnalysisResponse(responseText: string): {
     name: string;
     prompts: Array<{ text: string; order: number }>;
   }>;
+  competitors: Array<{ name: string; domain: string }>;
 } {
   // First, try to parse as JSON
   const jsonResult = extractJsonFromResponse(responseText);
   if (jsonResult && jsonResult.categories.length > 0) {
-    // JSON parsing successful - use it for AEO categories
+    // JSON parsing successful - use it for AEO categories and competitors
     // Still need to parse industry and topics from text (Phase 2)
     const lines = responseText.split('\n').map(line => line.trim());
     let industry: string | null = null;
@@ -208,6 +224,7 @@ function parseAnalysisResponse(responseText: string): {
       industry,
       topics,
       aeoCategories: jsonResult.categories,
+      competitors: jsonResult.competitors || [],
     };
   }
   
@@ -315,7 +332,8 @@ function parseAnalysisResponse(responseText: string): {
     aeoCategories.push(currentCategory);
   }
   
-  return { industry, topics, aeoCategories };
+  // For text parser fallback, competitors are not extracted (return empty array)
+  return { industry, topics, aeoCategories, competitors: [] };
 }
 
 /**
@@ -457,6 +475,12 @@ export const analyzeBrandWebsite = inngest.createFunction(
         generated_at: new Date().toISOString(),
       };
       
+      // Prepare suggested_competitors structure
+      const suggestedCompetitors = {
+        competitors: parsedResult.competitors,
+        generated_at: new Date().toISOString(),
+      };
+      
       const { error } = await supabase
         .from('projects')
         .update({
@@ -464,6 +488,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
           extracted_topics: parsedResult.topics,
           topics_extracted_at: new Date().toISOString(),
           suggested_aeo_prompts: suggestedAeoPrompts,
+          suggested_competitors: suggestedCompetitors,
         })
         .eq('id', project_id);
 
@@ -477,6 +502,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
         topics_count: parsedResult.topics.length,
         aeo_categories_count: parsedResult.aeoCategories.length,
         aeo_prompts_total: parsedResult.aeoCategories.reduce((sum, cat) => sum + cat.prompts.length, 0),
+        competitors_count: parsedResult.competitors.length,
       });
 
       return { saved: true };

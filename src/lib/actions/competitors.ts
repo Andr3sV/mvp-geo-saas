@@ -187,3 +187,66 @@ export async function toggleCompetitorActive(competitorId: string, isActive: boo
   return updateCompetitor(competitorId, { is_active: isActive });
 }
 
+/**
+ * Batch create competitors for a project
+ */
+export async function batchCreateCompetitors(data: {
+  project_id: string;
+  region_id: string; // Para asignar región a los competidores
+  competitors: Array<{
+    name: string;
+    domain: string;
+  }>;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated", data: null };
+  }
+
+  if (!data.competitors || data.competitors.length === 0) {
+    return { error: "No competitors provided", data: null };
+  }
+
+  // Get region code from region_id
+  const { data: region, error: regionError } = await supabase
+    .from("regions")
+    .select("code")
+    .eq("id", data.region_id)
+    .single();
+
+  if (regionError || !region) {
+    return { error: "Region not found", data: null };
+  }
+
+  const regionCode = region.code;
+
+  // Create competitors one by one (using createCompetitor to handle duplicates)
+  const createdCompetitors = [];
+  const errors = [];
+
+  for (const competitor of data.competitors) {
+    const result = await createCompetitor({
+      project_id: data.project_id,
+      name: competitor.name.trim(),
+      domain: competitor.domain.trim(),
+      region: regionCode,
+    });
+
+    if (result.error) {
+      errors.push({ competitor: competitor.name, error: result.error });
+    } else if (result.data) {
+      createdCompetitors.push(result.data);
+    }
+  }
+
+  if (errors.length > 0 && createdCompetitors.length === 0) {
+    return { error: errors[0].error, data: null };
+  }
+
+  return { error: null, data: createdCompetitors };
+}
+

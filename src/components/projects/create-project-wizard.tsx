@@ -14,12 +14,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProgressSteps } from "@/components/onboarding/progress-steps";
 import { CountrySelect } from "@/components/ui/country-select";
-import { createProject, getSuggestedPrompts, triggerBrandWebsiteAnalysis } from "@/lib/actions/workspace";
+import { createProject, getSuggestedPrompts, getSuggestedCompetitors, triggerBrandWebsiteAnalysis } from "@/lib/actions/workspace";
 import { getRegionIdByCode, createRegion } from "@/lib/actions/regions";
 import { batchCreatePrompts } from "@/lib/actions/prompt";
+import { batchCreateCompetitors } from "@/lib/actions/competitors";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, X, Plus, Trash2, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompetitorSelection } from "./competitor-selection";
 
 interface Workspace {
   id: string;
@@ -37,7 +39,8 @@ interface CreateProjectWizardProps {
 const STEPS = [
   { id: 1, name: "Basic Info", description: "Project details and website" },
   { id: 2, name: "Select Prompts", description: "Choose number of prompts" },
-  { id: 3, name: "Review & Edit", description: "Review and customize prompts" },
+  { id: 3, name: "Select Competitors", description: "Select or add competitors" },
+  { id: 4, name: "Review & Edit", description: "Review and customize prompts" },
 ];
 
 export function CreateProjectWizard({
@@ -65,7 +68,12 @@ export function CreateProjectWizard({
   const [totalPrompts, setTotalPrompts] = useState(10);
   const [promptDistribution, setPromptDistribution] = useState<Record<string, number>>({});
 
-  // Step 3: Review/Edit
+  // Step 3: Competitor selection
+  const [suggestedCompetitors, setSuggestedCompetitors] = useState<Array<{ name: string; domain: string }> | null>(null);
+  const [selectedCompetitors, setSelectedCompetitors] = useState<Array<{ name: string; domain: string }>>([]);
+  const [newCompetitors, setNewCompetitors] = useState<Array<{ name: string; domain: string }>>([]);
+
+  // Step 4: Review/Edit
   const [suggestedPrompts, setSuggestedPrompts] = useState<{
     categories: Array<{
       name: string;
@@ -94,6 +102,9 @@ export function CreateProjectWizard({
       setRegionId(null);
       setTotalPrompts(10);
       setPromptDistribution({});
+      setSuggestedCompetitors(null);
+      setSelectedCompetitors([]);
+      setNewCompetitors([]);
       setSuggestedPrompts(null);
       setEditablePrompts({ categories: [] });
       setError(null);
@@ -182,9 +193,65 @@ export function CreateProjectWizard({
   };
 
 
-  // Poll for suggested prompts (used in Step 3)
+  // Poll for suggested competitors (used in Step 3)
   useEffect(() => {
-    if (currentStep === 3 && createdProjectId && !suggestedPrompts && !isLoading) {
+    if (currentStep === 3 && createdProjectId && suggestedCompetitors === null && !isLoading) {
+      const maxAttempts = 60; // 5 minutes max (5 second intervals)
+      let attempts = 0;
+      let pollInterval: NodeJS.Timeout | null = null;
+
+      const poll = async () => {
+        attempts++;
+        
+        try {
+          console.log(`[CreateProjectWizard] Polling attempt ${attempts}/${maxAttempts} for competitors, project ${createdProjectId}`);
+          const result = await getSuggestedCompetitors(createdProjectId);
+          console.log('[CreateProjectWizard] Competitor poll result:', { 
+            hasData: !!result.data, 
+            competitorsCount: result.data?.competitors?.length || 0 
+          });
+          
+          // result.data is the suggested_competitors JSONB object with structure: { competitors: [...], generated_at: "..." }
+          if (result.data && result.data.competitors && Array.isArray(result.data.competitors)) {
+            console.log('[CreateProjectWizard] Got suggested competitors!', {
+              competitorsCount: result.data.competitors.length,
+            });
+            setSuggestedCompetitors(result.data.competitors.length > 0 ? result.data.competitors : []);
+            if (pollInterval) {
+              clearInterval(pollInterval);
+            }
+            return;
+          }
+        } catch (err) {
+          console.error("Error polling for suggested competitors:", err);
+        }
+
+        if (attempts < maxAttempts) {
+          pollInterval = setTimeout(poll, 5000); // Poll every 5 seconds
+        } else {
+          console.log('[CreateProjectWizard] Timeout waiting for suggested competitors after', attempts, 'attempts - setting to empty array');
+          // Set to empty array so UI shows (user can add manually)
+          setSuggestedCompetitors([]);
+          if (pollInterval) {
+            clearInterval(pollInterval);
+          }
+        }
+      };
+
+      poll();
+
+      // Cleanup function
+      return () => {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+        }
+      };
+    }
+  }, [currentStep, createdProjectId, suggestedCompetitors, isLoading]);
+
+  // Poll for suggested prompts (used in Step 4)
+  useEffect(() => {
+    if (currentStep === 4 && createdProjectId && !suggestedPrompts && !isLoading) {
       const maxAttempts = 60; // 5 minutes max (5 second intervals)
       let attempts = 0;
       let pollInterval: NodeJS.Timeout | null = null;
@@ -309,7 +376,7 @@ export function CreateProjectWizard({
         return;
       }
 
-      // Move to step 3 and start polling
+      // Move to step 3 (competitors) and start polling
       setIsLoading(false);
       setCurrentStep(3);
       // Polling will start via useEffect when step 3 is reached
@@ -319,8 +386,47 @@ export function CreateProjectWizard({
     }
   };
 
-  // Step 3: Handle final confirmation
-  const handleStep3Confirm = async () => {
+  // Step 3: Handle competitor selection and save
+  const handleStep3Next = async () => {
+    if (!createdProjectId || !regionId) {
+      setError("Missing project or region information");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Combine selected and new competitors
+      const allCompetitors = [...selectedCompetitors, ...newCompetitors];
+
+      // Save competitors if any are selected
+      if (allCompetitors.length > 0) {
+        const result = await batchCreateCompetitors({
+          project_id: createdProjectId,
+          region_id: regionId,
+          competitors: allCompetitors,
+        });
+
+        if (result.error) {
+          setError(result.error);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Move to step 4 (Review & Edit)
+      setIsLoading(false);
+      setCurrentStep(4);
+      // Polling for prompts will start via useEffect when step 4 is reached
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred");
+      setIsLoading(false);
+    }
+  };
+
+  // Step 4: Handle final confirmation
+  const handleStep4Confirm = async () => {
     if (!createdProjectId || !regionId) {
       setError("Missing project or region information");
       return;
@@ -564,8 +670,39 @@ export function CreateProjectWizard({
             </div>
           )}
 
-          {/* Step 3: Review/Edit Prompts */}
+          {/* Step 3: Select Competitors */}
           {currentStep === 3 && (
+            <div className="space-y-4">
+              {suggestedCompetitors === null ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Analyzing website and generating competitor suggestions...
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This may take a minute. You can also add competitors manually below.
+                  </p>
+                  {createdProjectId && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Project ID: {createdProjectId}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <CompetitorSelection
+                  suggestedCompetitors={suggestedCompetitors || []}
+                  selectedCompetitors={selectedCompetitors}
+                  newCompetitors={newCompetitors}
+                  onSelectedChange={setSelectedCompetitors}
+                  onNewCompetitorsChange={setNewCompetitors}
+                  isLoading={isLoading}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Review/Edit Prompts */}
+          {currentStep === 4 && (
             <div className="space-y-4">
               {!suggestedPrompts ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -629,7 +766,22 @@ export function CreateProjectWizard({
             </Button>
           )}
           {currentStep === 3 && (
-            <Button onClick={handleStep3Confirm} disabled={isLoading || !suggestedPrompts || editablePrompts.categories.length === 0}>
+            <Button
+              onClick={handleStep3Next}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving competitors...
+                </>
+              ) : (
+                "Next"
+              )}
+            </Button>
+          )}
+          {currentStep === 4 && (
+            <Button onClick={handleStep4Confirm} disabled={isLoading || !suggestedPrompts || editablePrompts.categories.length === 0}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

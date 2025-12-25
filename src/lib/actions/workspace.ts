@@ -213,6 +213,32 @@ export async function getSuggestedPrompts(projectId: string) {
 }
 
 /**
+ * Get suggested competitors from a project
+ */
+export async function getSuggestedCompetitors(projectId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Not authenticated", data: null };
+  }
+
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("suggested_competitors")
+    .eq("id", projectId)
+    .single();
+
+  if (error) {
+    return { error: error.message, data: null };
+  }
+
+  return { error: null, data: project?.suggested_competitors || null };
+}
+
+/**
  * Trigger brand website analysis for a project
  */
 export async function triggerBrandWebsiteAnalysis(data: {
