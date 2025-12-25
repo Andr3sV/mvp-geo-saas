@@ -208,7 +208,12 @@ export async function callGemini(
 
     // Extract text and grounding metadata
     const candidate = data.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text || '';
+    // Concatenate all text parts (Gemini can return multiple parts)
+    const textParts = candidate?.content?.parts || [];
+    const text = textParts
+      .filter((part: any) => part.text)
+      .map((part: any) => part.text)
+      .join('');
     const estimatedTokens = Math.ceil(text.length / 4);
 
     // Extract citations from grounding metadata
