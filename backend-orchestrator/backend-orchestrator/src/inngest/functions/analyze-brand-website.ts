@@ -32,8 +32,10 @@ Analyze the website and the Target Brand's position within the {COUNTRY} market.
    * **CRITICAL CONSTRAINT (Unbranded Queries):** Do **NOT** mention {BRAND_NAME} or any competitor names in these prompts.
    * **Reasoning:** We want to measure "Zero-Click" organic visibility. We need to see if the AI cites {BRAND_NAME} when the user asks a generic category question.
    * **Style:** Natural Language Queries that a real user in {COUNTRY} would type into ChatGPT, Gemini, or Perplexity.
-   * *Bad Example:* "Is {BRAND_NAME} good for email marketing?" (Do not use this).
-   * *Good Example:* "What are the most affordable email marketing tools for startups in 2025?" (Use this).
+   * **LANGUAGE REQUIREMENT:** All prompts MUST be written in the primary language of {COUNTRY}. For example, if {COUNTRY} is "Spain" or "ES", prompts should be in Spanish. If {COUNTRY} is "United States" or "US", prompts should be in English. Match the language to the country's primary language.
+   * *Bad Example:* "Is {BRAND_NAME} good for email marketing?" (Do not use this - mentions brand name).
+   * *Good Example (English/US):* "What are the most affordable email marketing tools for startups in 2025?" (Use this).
+   * *Good Example (Spanish/ES):* "¿Cuáles son las herramientas de marketing por email más asequibles para startups en 2025?" (Use this).
 
 **Output Format for Phase 1:**
 
@@ -60,7 +62,7 @@ JSON Structure (use code block with json):
 
 Requirements:
 - Provide 5 categories, each with 10 prompts (50 total prompts)
-- Infer 3-5 most likely direct competitors in {COUNTRY}
+- Infer 4-8 most likely direct competitors in {COUNTRY}
 - For each competitor, provide name and domain (website URL)
 - Ensure competitor domains are valid URLs (with or without protocol)
 
