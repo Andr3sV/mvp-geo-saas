@@ -693,15 +693,22 @@ export function CreateProjectWizard({
 
           {/* Step 2: Prompt Selection */}
           {currentStep === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="text-sm text-muted-foreground">
                 Select how many prompts you want to track. They will be distributed evenly across categories after we analyze your website.
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="total-prompts">Total Prompts to Track</Label>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="total-prompts" className="text-base font-medium">Total Prompts to Track</Label>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-foreground">{totalPrompts}</span>
+                    <span className="text-sm text-muted-foreground font-medium">prompts</span>
+                  </div>
+                </div>
+                
                 <div className="space-y-3">
-                  <div className="flex items-center gap-4">
+                  <div className="relative py-2">
                     <input
                       id="total-prompts"
                       type="range"
@@ -714,13 +721,10 @@ export function CreateProjectWizard({
                         setTotalPrompts(Math.max(10, Math.min(200, value)));
                       }}
                       disabled={isLoading}
-                      className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 accent-primary"
+                      className="w-full slider-custom cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     />
-                    <div className="w-20 text-center">
-                      <span className="text-lg font-semibold">{totalPrompts}</span>
-                    </div>
                   </div>
-                  <div className="flex justify-between text-xs text-muted-foreground px-1">
+                  <div className="flex justify-between text-xs text-muted-foreground font-medium px-1">
                     <span>10</span>
                     <span>200</span>
                   </div>
@@ -820,7 +824,7 @@ export function CreateProjectWizard({
                   Starting analysis...
                 </>
               ) : (
-                "Generar prompts"
+                "Select competitors"
               )}
             </Button>
           )}

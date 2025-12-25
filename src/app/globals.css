@@ -120,3 +120,64 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /* Custom slider styling */
+  input[type="range"].slider-custom {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+  
+  input[type="range"].slider-custom::-webkit-slider-track {
+    width: 100%;
+    height: 10px;
+    cursor: pointer;
+    background: hsl(var(--muted));
+    border-radius: 9999px;
+  }
+  
+  input[type="range"].slider-custom::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    border: 3px solid hsl(var(--background));
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 4px hsl(var(--primary) / 0.1);
+    cursor: pointer;
+    margin-top: -5px;
+    transition: all 0.2s ease;
+  }
+  
+  input[type="range"].slider-custom::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 6px hsl(var(--primary) / 0.15);
+  }
+  
+  input[type="range"].slider-custom::-moz-range-track {
+    width: 100%;
+    height: 10px;
+    cursor: pointer;
+    background: hsl(var(--muted));
+    border-radius: 9999px;
+    border: none;
+  }
+  
+  input[type="range"].slider-custom::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    border: 3px solid hsl(var(--background));
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 4px hsl(var(--primary) / 0.1);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  input[type="range"].slider-custom::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 6px hsl(var(--primary) / 0.15);
+  }
+}
