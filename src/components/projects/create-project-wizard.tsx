@@ -12,16 +12,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProgressSteps } from "@/components/onboarding/progress-steps";
 import { CountrySelect } from "@/components/ui/country-select";
 import { createProject, getSuggestedPrompts, getSuggestedCompetitors, triggerBrandWebsiteAnalysis } from "@/lib/actions/workspace";
 import { getRegionIdByCode, createRegion } from "@/lib/actions/regions";
 import { batchCreatePrompts } from "@/lib/actions/prompt";
 import { batchCreateCompetitors } from "@/lib/actions/competitors";
 import { useRouter } from "next/navigation";
-import { Loader2, Check, X, Plus, Trash2, Edit2 } from "lucide-react";
+import { Loader2, Check, X, Plus, Trash2, Edit2, FileText, Hash, Users, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CompetitorSelection } from "./competitor-selection";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Workspace {
   id: string;
@@ -37,10 +37,10 @@ interface CreateProjectWizardProps {
 }
 
 const STEPS = [
-  { id: 1, name: "Basic Info", description: "Project details and website" },
-  { id: 2, name: "Select Prompts", description: "Choose number of prompts" },
-  { id: 3, name: "Select Competitors", description: "Select or add competitors" },
-  { id: 4, name: "Review & Edit", description: "Review and customize prompts" },
+  { id: 1, name: "Basic Info", description: "Project details and website", icon: FileText },
+  { id: 2, name: "Prompt Quantity", description: "Choose number of prompts", icon: Hash },
+  { id: 3, name: "Select Competitors", description: "Select or add competitors", icon: Users },
+  { id: 4, name: "Review & Edit", description: "Review and customize prompts", icon: Sparkles },
 ];
 
 export function CreateProjectWizard({
@@ -516,17 +516,74 @@ export function CreateProjectWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto z-[100]">
-        <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-h-[90vh] overflow-y-auto z-[100] sm:!max-w-[700px] p-8">
+        <DialogHeader className="pb-8 border-b">
+          <DialogTitle className="text-2xl font-semibold">Create New Project</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-1.5">
             Set up your project to track AEO performance and brand mentions
           </DialogDescription>
         </DialogHeader>
 
-        <ProgressSteps steps={STEPS} currentStep={currentStep} />
+        {/* Modern Step Progress Bar */}
+        <div className="relative mt-6 mb-6">
+          {/* Progress line */}
+          <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted" />
+          <motion.div
+            className="absolute top-5 left-0 h-0.5 bg-primary transition-all duration-500"
+            initial={{ width: "0%" }}
+            animate={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
+          />
+          
+          {/* Steps */}
+          <div className="relative flex justify-between">
+            {STEPS.map((step, index) => {
+              const isCompleted = step.id < currentStep;
+              const isCurrent = step.id === currentStep;
+              
+              return (
+                <div key={step.id} className="flex flex-col items-center flex-1">
+                  <motion.div
+                    className={cn(
+                      "relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300",
+                      isCompleted
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : isCurrent
+                        ? "bg-primary/10 border-primary text-primary shadow-lg scale-110"
+                        : "bg-background border-muted-foreground/30 text-muted-foreground"
+                    )}
+                    initial={false}
+                    animate={{
+                      scale: isCurrent ? 1.1 : 1,
+                    }}
+                    transition={{
+                      duration: 0.2,
+                    }}
+                  >
+                    {isCompleted ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      <span className="text-sm font-semibold">{step.id}</span>
+                    )}
+                  </motion.div>
+                  <div className="mt-3 text-center max-w-[120px]">
+                    <p
+                      className={cn(
+                        "text-xs font-medium transition-colors",
+                        isCurrent || isCompleted
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {step.name}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-6">
           {error && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               {error}
@@ -535,7 +592,7 @@ export function CreateProjectWizard({
 
           {/* Step 1: Basic Info */}
           {currentStep === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {isLoading && (
                 <div className="flex flex-col items-center justify-center py-8 text-center bg-muted/30 rounded-lg">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
@@ -550,82 +607,83 @@ export function CreateProjectWizard({
               
               {!isLoading && (
                 <>
-              <div className="space-y-2">
-                <Label htmlFor="workspace">Workspace</Label>
-                <select
-                  id="workspace"
-                  value={selectedWorkspaceId}
-                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  disabled={isLoading}
-                >
-                  {workspaces.map((workspace) => (
-                    <option key={workspace.id} value={workspace.id}>
-                      {workspace.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="project-name">Project Name *</Label>
-                <Input
-                  id="project-name"
-                  placeholder="e.g., Acme Corp, Nike Campaign"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="client-url">Website URL *</Label>
-                <Input
-                  id="client-url"
-                  type="url"
-                  placeholder="https://example.com"
-                  value={clientUrl}
-                  onChange={(e) => setClientUrl(e.target.value)}
-                  disabled={isLoading}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  We'll analyze this website to generate prompt suggestions
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="region">Region *</Label>
-                <CountrySelect
-                  value={selectedRegion}
-                  onValueChange={setSelectedRegion}
-                  disabled={isLoading}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Select the primary region for tracking (default: US)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="project-color">Brand Color</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="project-color"
-                    type="color"
-                    value={projectColor}
-                    onChange={(e) => setProjectColor(e.target.value)}
-                    disabled={isLoading}
-                    className="h-10 w-20 cursor-pointer rounded border border-input bg-background disabled:cursor-not-allowed disabled:opacity-50"
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="project-name">Project Name *</Label>
                   <Input
-                    type="text"
-                    value={projectColor}
-                    onChange={(e) => setProjectColor(e.target.value)}
-                    placeholder="#3B82F6"
+                    id="project-name"
+                    placeholder="e.g., Acme Corp, Nike Campaign"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
                     disabled={isLoading}
-                    className="flex-1"
-                    pattern="^#[0-9A-Fa-f]{6}$"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="client-url">Website URL *</Label>
+                  <Input
+                    id="client-url"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={clientUrl}
+                    onChange={(e) => setClientUrl(e.target.value)}
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                We'll analyze this website to generate prompt suggestions
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="region">Region *</Label>
+                  <CountrySelect
+                    value={selectedRegion}
+                    onValueChange={setSelectedRegion}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Select the primary region for tracking (default: US)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="project-color">Brand Color</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div
+                        className="h-11 w-11 rounded-lg border-2 border-border shadow-sm"
+                        style={{ backgroundColor: projectColor }}
+                      />
+                      <input
+                        id="project-color"
+                        type="color"
+                        value={projectColor}
+                        onChange={(e) => setProjectColor(e.target.value)}
+                        disabled={isLoading}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                        title="Click to pick a color"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="text"
+                        value={projectColor.toUpperCase()}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                            setProjectColor(value);
+                          }
+                        }}
+                        placeholder="#3B82F6"
+                        disabled={isLoading}
+                        className="font-mono text-sm"
+                        pattern="^#[0-9A-Fa-f]{6}$"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
                 </>
