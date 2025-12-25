@@ -104,10 +104,11 @@ const app = new Elysia()
 
       console.log(`[DEBUG] Received body type: ${typeof body}, parsedBody:`, JSON.stringify(parsedBody));
 
-      const { project_id, client_url, force_refresh } = parsedBody as {
+      const { project_id, client_url, force_refresh, prompts_quantity } = parsedBody as {
         project_id: string;
         client_url: string;
         force_refresh?: boolean;
+        prompts_quantity?: number;
       };
 
       if (!project_id || !client_url) {
@@ -123,6 +124,7 @@ const app = new Elysia()
           project_id,
           client_url,
           force_refresh: force_refresh || false,
+          prompts_quantity: prompts_quantity || 50, // Default to 50 if not provided
         }
       });
 

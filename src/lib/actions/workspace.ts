@@ -245,6 +245,7 @@ export async function triggerBrandWebsiteAnalysis(data: {
   project_id: string;
   client_url: string;
   force_refresh?: boolean;
+  prompts_quantity?: number; // Number of prompts to generate (default: 50)
 }): Promise<{ error: string | null; success: boolean; eventId?: string }> {
   try {
     // Determine backend URL: use env vars if set, otherwise use localhost for development or production fallback
@@ -282,6 +283,7 @@ export async function triggerBrandWebsiteAnalysis(data: {
       project_id: data.project_id,
       client_url: data.client_url,
       force_refresh: data.force_refresh || false,
+      prompts_quantity: data.prompts_quantity || 50, // Default to 50 if not provided
     };
 
     const response = await fetch(endpointUrl, {

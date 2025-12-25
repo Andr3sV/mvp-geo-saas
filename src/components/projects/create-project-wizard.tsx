@@ -368,6 +368,7 @@ export function CreateProjectWizard({
         project_id: createdProjectId,
         client_url: clientUrl.trim(),
         force_refresh: false,
+        prompts_quantity: totalPrompts, // Pass the user-selected number of prompts
       });
       
       if (result.error || !result.success) {

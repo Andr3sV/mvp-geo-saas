@@ -12,7 +12,7 @@ import { callGemini, getAPIKey } from '../../lib/ai-clients';
 const BRAND_ANALYSIS_PROMPT = `Act as a Senior Prompt Engineer and expert in AEO (Answer Engine Optimization), Brand Analysis, and User Intent Modeling.
 
 Your objective is to analyze the provided brand data to generate two distinct strategic outputs:
-1. An "Unbranded" AEO Visibility Measurement Framework (5 categories & 50 user queries).
+1. An "Unbranded" AEO Visibility Measurement Framework (5 categories & {PROMPTS_QUANTITY} user queries).
 2. A Sentiment Evaluation Taxonomy (Industry & Topics).
 
 **INPUT DATA:**
@@ -23,12 +23,15 @@ Your objective is to analyze the provided brand data to generate two distinct st
 Follow these instructions step-by-step:
 
 ### PHASE 1: AEO VISIBILITY FRAMEWORK (Brand vs. Competition)
-Analyze the website and the Target Brand's position within the {COUNTRY} market. If competitors are not explicitly known, **infer the 3-5 most likely direct competitors** in {COUNTRY}.
+Analyze the website and the Target Brand's position within the {COUNTRY} market. If competitors are not explicitly known, **infer the 4-8 most likely direct competitors** in {COUNTRY}.
 
 1. **Define 5 Strategic Categories:** These must group the ways users search for solutions in this sector *before* they have decided on a specific brand.
    * Focus on problems to be solved, "best of" lists, and category comparisons.
+  * Think in terms of how users would naturally ask questions or seek evaluations.
+  * Topics should represent products, services, use cases, or decision-making criteria.
+  * Avoid internal features or marketing jargon unless they clearly map to user intent.
 
-2. **Generate 50 User Simulation Prompts (10 per Category):**
+2. **Generate {PROMPTS_QUANTITY} User Simulation Prompts (approximately {PROMPTS_PER_CATEGORY} per Category):**
    * **CRITICAL CONSTRAINT (Unbranded Queries):** Do **NOT** mention {BRAND_NAME} or any competitor names in these prompts.
    * **Reasoning:** We want to measure "Zero-Click" organic visibility. We need to see if the AI cites {BRAND_NAME} when the user asks a generic category question.
    * **Style:** Natural Language Queries that a real user in {COUNTRY} would type into ChatGPT, Gemini, or Perplexity.
@@ -61,7 +64,8 @@ JSON Structure (use code block with json):
 \`\`\`
 
 Requirements:
-- Provide 5 categories, each with 10 prompts (50 total prompts)
+- Provide 5 categories, distributing {PROMPTS_QUANTITY} prompts as evenly as possible across all categories (approximately {PROMPTS_PER_CATEGORY} prompts per category)
+- The total number of prompts across all categories must equal exactly {PROMPTS_QUANTITY}
 - Infer 4-8 most likely direct competitors in {COUNTRY}
 - For each competitor, provide name and domain (website URL)
 - Ensure competitor domains are valid URLs (with or without protocol)
@@ -353,7 +357,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
   },
   { event: 'brand/analyze-website' },
   async ({ event, step }) => {
-    const { project_id, client_url, force_refresh } = event.data;
+    const { project_id, client_url, force_refresh, prompts_quantity } = event.data;
     const supabase = createSupabaseClient();
 
     logInfo('analyze-brand-website', `Starting website analysis for project ${project_id}`, {
@@ -417,16 +421,24 @@ export const analyzeBrandWebsite = inngest.createFunction(
       // Region will be fetched from project's default region or regions table if needed
       const country = 'GLOBAL'; // TODO: Fetch from project regions or default region
       
+      // Calculate prompts per category (distribute evenly across 5 categories)
+      const totalPrompts = prompts_quantity || 50; // Default to 50 if not provided
+      const promptsPerCategory = Math.floor(totalPrompts / 5);
+      
       let prompt = BRAND_ANALYSIS_PROMPT
         .replace('{WEBSITE_URL}', client_url)
         .replace('{BRAND_NAME}', brandName)
-        .replace('{COUNTRY}', country);
+        .replace('{COUNTRY}', country)
+        .replace('{PROMPTS_QUANTITY}', totalPrompts.toString())
+        .replace('{PROMPTS_PER_CATEGORY}', promptsPerCategory.toString());
 
       logInfo('analyze-brand-website', 'Calling Gemini for website analysis', {
         project_id,
         client_url,
         brand_name: brandName,
         country,
+        prompts_quantity: totalPrompts,
+        prompts_per_category: promptsPerCategory,
       });
 
       try {
@@ -434,7 +446,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
           apiKey: geminiApiKey,
           model: 'gemini-2.5-flash-lite',
           temperature: 0.3,
-          maxTokens: 4000, // Increased for longer response with 50 prompts
+          maxTokens: Math.max(4000, totalPrompts * 80), // Scale tokens based on prompt quantity (approx 80 tokens per prompt)
         });
 
         logInfo('analyze-brand-website', 'Gemini response received', {
