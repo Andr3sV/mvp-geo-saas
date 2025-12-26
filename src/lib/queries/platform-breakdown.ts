@@ -239,6 +239,12 @@ export async function getPlatformOverview(
   const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
   const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Build query helper
   const buildQuery = (start: string, end: string) => {
     let query = supabase
@@ -249,8 +255,8 @@ export async function getPlatformOverview(
       .lte("stat_date", end)
       .in("platform", ["openai", "gemini"]);
 
-    if (regionFilter) {
-      query = query.eq("region", region);
+    if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
     }
     if (topicFilter) {
       query = query.eq("topic_id", topicId);
@@ -371,6 +377,12 @@ export async function getPlatformEvolution(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -382,8 +394,8 @@ export async function getPlatformEvolution(
     .lte("stat_date", endDateStr)
     .in("platform", ["openai", "gemini"]);
 
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
   if (topicFilter) {
     query = query.eq("topic_id", topicId);
@@ -516,6 +528,12 @@ export async function getPlatformEntityBreakdown(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -535,8 +553,8 @@ export async function getPlatformEntityBreakdown(
     .lte("stat_date", endDateStr)
     .in("platform", ["openai", "gemini"]);
 
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
   if (topicFilter) {
     query = query.eq("topic_id", topicId);
@@ -715,6 +733,12 @@ export async function getTopicPerformanceByPlatform(
 
   const regionFilter = region && region !== "GLOBAL";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -743,8 +767,8 @@ export async function getTopicPerformanceByPlatform(
     .lte("stat_date", endDateStr)
     .in("platform", ["openai", "gemini"]);
 
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
 
   const { data: stats, error } = await query;
@@ -1041,6 +1065,12 @@ export async function getPlatformMomentum(
     .eq("id", projectId)
     .single();
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Build query helper
   const buildQuery = (start: string, end: string) => {
     let query = supabase
@@ -1051,8 +1081,8 @@ export async function getPlatformMomentum(
       .lte("stat_date", end)
       .in("platform", ["openai", "gemini"]);
 
-    if (regionFilter) {
-      query = query.eq("region", region);
+    if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
     }
     if (topicFilter) {
       query = query.eq("topic_id", topicId);

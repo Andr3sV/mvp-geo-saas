@@ -233,6 +233,12 @@ export async function getQuickLookMetrics(
   const regionFilter = filters?.region && filters.region !== "GLOBAL"; // GLOBAL means sum all regions
   const topicFilter = filters?.topicId && filters.topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && filters.region) {
+    regionId = await getRegionIdByCode(projectId, filters.region);
+  }
+
   // Format dates for SQL
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
@@ -267,8 +273,8 @@ export async function getQuickLookMetrics(
       }
 
       // When region is GLOBAL, don't filter by region (sum all regions)
-      if (regionFilter) {
-        query = query.eq("region", filters.region);
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
       }
 
       if (topicFilter) {
@@ -299,8 +305,8 @@ export async function getQuickLookMetrics(
         query = query.eq("platform", mappedPlatform);
       }
 
-      if (regionFilter) {
-        query = query.eq("region", filters.region);
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
       }
 
       if (topicFilter) {
@@ -331,8 +337,8 @@ export async function getQuickLookMetrics(
         query = query.eq("platform", mappedPlatform);
       }
       
-      if (regionFilter) {
-        query = query.eq("region", filters.region);
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
       }
       
       if (topicFilter) {
@@ -767,9 +773,15 @@ export async function getCitationsRanking(
     brandQuery = brandQuery.eq("platform", mappedPlatform);
   }
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter) {
-    brandQuery = brandQuery.eq("region", region);
+  if (regionFilter && regionId) {
+    brandQuery = brandQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
@@ -801,8 +813,8 @@ export async function getCitationsRanking(
   }
 
   // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter) {
-    competitorQuery = competitorQuery.eq("region", region);
+  if (regionFilter && regionId) {
+    competitorQuery = competitorQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
@@ -1841,6 +1853,12 @@ export async function getCitationsTrends(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Format dates for SQL
   const currentStartStr = format(currentStartDate, "yyyy-MM-dd");
   const currentEndStr = format(currentEndDate, "yyyy-MM-dd");
@@ -1867,8 +1885,8 @@ export async function getCitationsTrends(
       query = query.eq("platform", mappedPlatform);
     }
 
-    if (regionFilter) {
-      query = query.eq("region", region);
+    if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
     }
 
     if (topicFilter) {
@@ -2059,6 +2077,12 @@ export async function getCitationsShareEvolution(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -2073,8 +2097,8 @@ export async function getCitationsShareEvolution(
   if (platformFilter) {
     query = query.eq("platform", mappedPlatform);
   }
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
   if (topicFilter) {
     query = query.eq("topic_id", topicId);

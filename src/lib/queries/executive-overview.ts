@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { SentimentFilterOptions } from "./sentiment-analysis";
+import { getRegionIdByCode } from "@/lib/actions/regions";
 
 // =============================================
 // EXECUTIVE OVERVIEW QUERIES
@@ -742,6 +743,12 @@ export async function getPlatformDominance(
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
 
+    // Get region_id if region filter is active
+    let regionId: string | null = null;
+    if (filters.region && filters.region !== "GLOBAL") {
+      regionId = await getRegionIdByCode(projectId, filters.region);
+    }
+
     // Build query with filters
     let query = supabase
       .from("daily_brand_stats")
@@ -751,8 +758,8 @@ export async function getPlatformDominance(
       .lte("stat_date", endDateStr);
 
     // Apply region filter
-    if (filters.region && filters.region !== "GLOBAL") {
-      query = query.eq("region", filters.region);
+    if (filters.region && filters.region !== "GLOBAL" && regionId) {
+      query = query.eq("region_id", regionId);
     }
 
     // Apply topic filter

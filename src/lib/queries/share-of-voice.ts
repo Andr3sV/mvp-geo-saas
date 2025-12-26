@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { format, subDays, eachDayOfInterval } from "date-fns";
+import { getRegionIdByCode } from "@/lib/actions/regions";
 
 /**
  * Get yesterday's date (end of day is yesterday, not today, since today's data won't be available until tomorrow)
@@ -79,6 +80,12 @@ export async function getShareOfVoice(
   const regionFilter = region && region !== "GLOBAL"; // GLOBAL means sum all regions
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Format dates for SQL
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
@@ -100,8 +107,8 @@ export async function getShareOfVoice(
   }
 
   // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter) {
-    brandQuery = brandQuery.eq("region", region);
+  if (regionFilter && regionId) {
+    brandQuery = brandQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
@@ -133,8 +140,8 @@ export async function getShareOfVoice(
   }
 
   // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter) {
-    competitorQuery = competitorQuery.eq("region", region);
+  if (regionFilter && regionId) {
+    competitorQuery = competitorQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
@@ -438,6 +445,12 @@ export async function getShareOfVoiceTrends(
   const regionFilter = region && region !== "GLOBAL"; // GLOBAL means sum all regions
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   // Format dates for SQL
   const currentStartStr = format(currentStartDate, "yyyy-MM-dd");
   const currentEndStr = format(currentEndDate, "yyyy-MM-dd");
@@ -465,8 +478,8 @@ export async function getShareOfVoiceTrends(
   }
 
     // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter) {
-      query = query.eq("region", region);
+  if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
   }
 
   if (topicFilter) {
@@ -1071,6 +1084,12 @@ export async function getShareEvolution(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -1085,8 +1104,8 @@ export async function getShareEvolution(
   if (platformFilter) {
     query = query.eq("platform", mappedPlatform);
   }
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
   if (topicFilter) {
     query = query.eq("topic_id", topicId);
@@ -1343,6 +1362,12 @@ export async function getPlatformPerformance(
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
 
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
@@ -1354,8 +1379,8 @@ export async function getPlatformPerformance(
     .gte("stat_date", startDateStr)
     .lte("stat_date", endDateStr);
 
-  if (regionFilter) {
-    query = query.eq("region", region);
+  if (regionFilter && regionId) {
+    query = query.eq("region_id", regionId);
   }
   if (topicFilter) {
     query = query.eq("topic_id", topicId);
