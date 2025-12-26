@@ -526,10 +526,10 @@ export function CreateProjectWizard({
 
         {/* Modern Step Progress Bar */}
         <div className="relative mt-6 mb-6">
-          {/* Progress line */}
-          <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted" />
+          {/* Progress line - behind circles */}
+          <div className="absolute top-5 left-0 right-0 h-0.5 bg-muted z-0" />
           <motion.div
-            className="absolute top-5 left-0 h-0.5 bg-primary transition-all duration-500"
+            className="absolute top-5 left-0 h-0.5 bg-primary transition-all duration-500 z-0"
             initial={{ width: "0%" }}
             animate={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
           />
@@ -548,7 +548,7 @@ export function CreateProjectWizard({
                       isCompleted
                         ? "bg-primary border-primary text-primary-foreground"
                         : isCurrent
-                        ? "bg-primary/10 border-primary text-primary shadow-lg scale-110"
+                        ? "bg-background border-primary text-primary shadow-lg scale-110"
                         : "bg-background border-muted-foreground/30 text-muted-foreground"
                     )}
                     initial={false}

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Edit2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Competitor {
@@ -30,8 +30,18 @@ export function CompetitorSelection({
   onNewCompetitorsChange,
   isLoading,
 }: CompetitorSelectionProps) {
+  // Maintain editable copy of suggested competitors
+  const [editableSuggestedCompetitors, setEditableSuggestedCompetitors] = useState<Array<Competitor>>(suggestedCompetitors);
+  const [editingCompetitor, setEditingCompetitor] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDomain, setEditDomain] = useState("");
   const [newCompetitorName, setNewCompetitorName] = useState("");
   const [newCompetitorDomain, setNewCompetitorDomain] = useState("");
+
+  // Sync editable competitors when suggestedCompetitors prop changes
+  useEffect(() => {
+    setEditableSuggestedCompetitors(suggestedCompetitors);
+  }, [suggestedCompetitors]);
 
   const handleToggleSuggested = (competitor: Competitor) => {
     const isSelected = selectedCompetitors.some(
@@ -47,6 +57,49 @@ export function CompetitorSelection({
     } else {
       onSelectedChange([...selectedCompetitors, competitor]);
     }
+  };
+
+  const handleEditCompetitor = (index: number) => {
+    const competitor = editableSuggestedCompetitors[index];
+    setEditName(competitor.name);
+    setEditDomain(competitor.domain);
+    setEditingCompetitor(index);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingCompetitor === null || !editName.trim() || !editDomain.trim()) {
+      return;
+    }
+
+    const updatedCompetitors = [...editableSuggestedCompetitors];
+    const oldCompetitor = updatedCompetitors[editingCompetitor];
+    const newCompetitor: Competitor = {
+      name: editName.trim(),
+      domain: editDomain.trim(),
+    };
+    updatedCompetitors[editingCompetitor] = newCompetitor;
+    setEditableSuggestedCompetitors(updatedCompetitors);
+
+    // If this competitor was selected, update the selected list
+    const wasSelected = selectedCompetitors.some(
+      (c) => c.name === oldCompetitor.name && c.domain === oldCompetitor.domain
+    );
+    if (wasSelected) {
+      const updatedSelected = selectedCompetitors.filter(
+        (c) => !(c.name === oldCompetitor.name && c.domain === oldCompetitor.domain)
+      );
+      onSelectedChange([...updatedSelected, newCompetitor]);
+    }
+
+    setEditingCompetitor(null);
+    setEditName("");
+    setEditDomain("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCompetitor(null);
+    setEditName("");
+    setEditDomain("");
   };
 
   const handleAddNewCompetitor = () => {
@@ -90,31 +143,84 @@ export function CompetitorSelection({
       </div>
 
       {/* Suggested Competitors */}
-      {suggestedCompetitors.length > 0 && (
+      {editableSuggestedCompetitors.length > 0 && (
         <div className="space-y-3">
           <Label>Suggested Competitors</Label>
+          <div className="text-xs text-muted-foreground mb-2">
+            You can edit the name and domain before selecting competitors
+          </div>
           <div className="space-y-2">
-            {suggestedCompetitors.map((competitor, index) => {
+            {editableSuggestedCompetitors.map((competitor, index) => {
               const isSelected = selectedCompetitors.some(
                 (c) => c.name === competitor.name && c.domain === competitor.domain
               );
+              const isEditing = editingCompetitor === index;
+              
               return (
                 <div
                   key={index}
                   className={cn(
-                    "flex items-center space-x-3 rounded-md border p-3",
-                    isSelected && "bg-muted"
+                    "flex items-start gap-3 rounded-md border p-3",
+                    isSelected && "bg-muted/50"
                   )}
                 >
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => handleToggleSuggested(competitor)}
-                    disabled={isLoading}
+                    disabled={isLoading || isEditing}
+                    className="mt-1"
                   />
-                  <div className="flex-1">
-                    <div className="font-medium">{competitor.name}</div>
-                    <div className="text-sm text-muted-foreground">{competitor.domain}</div>
-                  </div>
+                  {isEditing ? (
+                    <div className="flex-1 space-y-3">
+                      <div className="space-y-2">
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="Competitor name"
+                          disabled={isLoading}
+                        />
+                        <Input
+                          value={editDomain}
+                          onChange={(e) => setEditDomain(e.target.value)}
+                          placeholder="Domain (e.g., competitor.com)"
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveEdit}
+                          disabled={isLoading || !editName.trim() || !editDomain.trim()}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleCancelEdit}
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1">
+                        <div className="font-medium">{competitor.name}</div>
+                        <div className="text-sm text-muted-foreground">{competitor.domain}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditCompetitor(index)}
+                        disabled={isLoading}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               );
             })}

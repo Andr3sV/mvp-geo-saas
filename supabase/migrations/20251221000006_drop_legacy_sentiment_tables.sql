@@ -125,3 +125,4 @@ DROP TABLE IF EXISTS sentiment_analysis CASCADE;
 -- SELECT pg_size_pretty(pg_database_size(current_database())) AS database_size;
 
 
+
