@@ -131,7 +131,7 @@ export const analyzeSingleResponse = inngest.createFunction(
       return { message: 'AI response not found, skipped', skipped: true };
     }
 
-    if (responseData.notSuccessful) {
+    if ('notSuccessful' in responseData && responseData.notSuccessful) {
       const status = (responseData as any).status;
       logInfo('analyze-single-response', 'AI response not successful, skipping analysis', {
         aiResponseId: ai_response_id,
@@ -278,6 +278,143 @@ export const analyzeSingleResponse = inngest.createFunction(
           aiResponseId: ai_response_id,
         });
         throw error;
+      }
+    });
+
+    // 6. Incremental aggregation - update daily_brand_stats immediately for today (after 4:30 AM)
+    const incrementalAggregation = await step.run('incremental-aggregation', async () => {
+      try {
+        // Get current time and check if after 4:30 AM today (UTC)
+        const now = new Date();
+        const cutoffTime = new Date(now);
+        cutoffTime.setUTCHours(4, 30, 0, 0);
+        
+        if (now < cutoffTime) {
+          // Before 4:30 AM, skip incremental aggregation (daily aggregation handles this)
+          logInfo('analyze-single-response', 'Skipping incremental aggregation (before 4:30 AM cutoff)', {
+            aiResponseId: ai_response_id,
+            currentTime: now.toISOString(),
+            cutoffTime: cutoffTime.toISOString(),
+          });
+          return { skipped: true, reason: 'before_cutoff' };
+        }
+        
+        // Fetch ai_response with dimensions (platform, region_id, topic_id)
+        const { data: aiResponseWithDims, error: dimError } = await supabase
+          .from('ai_responses')
+          .select('platform, prompt_tracking(region_id, topic_id)')
+          .eq('id', ai_response_id)
+          .single();
+        
+        if (dimError || !aiResponseWithDims) {
+          logError('analyze-single-response', 'Failed to fetch ai_response dimensions for incremental aggregation', dimError);
+          return { skipped: true, reason: 'no_dimensions' };
+        }
+        
+        const platform = aiResponseWithDims.platform;
+        const promptTracking = aiResponseWithDims.prompt_tracking as any;
+        // Handle both array and object returns from Supabase join
+        let regionId: string | null = null;
+        let topicId: string | null = null;
+        
+        if (Array.isArray(promptTracking) && promptTracking.length > 0) {
+          regionId = promptTracking[0]?.region_id || null;
+          topicId = promptTracking[0]?.topic_id || null;
+        } else if (promptTracking && typeof promptTracking === 'object') {
+          regionId = promptTracking.region_id || null;
+          topicId = promptTracking.topic_id || null;
+        }
+        
+        // Get region code from region_id
+        let regionCode = 'GLOBAL';
+        if (regionId) {
+          const { data: region, error: regionError } = await supabase
+            .from('regions')
+            .select('code')
+            .eq('id', regionId)
+            .eq('project_id', project_id)
+            .eq('is_active', true)
+            .single();
+          
+          if (regionError) {
+            logError('analyze-single-response', 'Failed to fetch region code', regionError);
+          } else if (region) {
+            regionCode = region.code;
+          }
+        }
+        
+        const todayStr = now.toISOString().split('T')[0];
+        
+        // Aggregate brand stats incrementally if brand was mentioned
+        // Use incremental function that only counts mentions for this specific ai_response_id
+        if (saveResult.mentionsSaved > 0 && analysis.client_brand_mentioned) {
+          const { error: brandAggError } = await supabase.rpc('aggregate_brand_stats_incremental', {
+            p_project_id: project_id,
+            p_ai_response_id: ai_response_id,
+            p_stat_date: todayStr,
+            p_platform: platform,
+            p_region_id: regionId || null,
+            p_topic_id: topicId,
+          });
+          
+          if (brandAggError) {
+            logError('analyze-single-response', 'Failed to aggregate brand stats incrementally', brandAggError);
+          } else {
+            logInfo('analyze-single-response', 'Incremental brand stats aggregation completed', {
+              aiResponseId: ai_response_id,
+              platform,
+              regionId,
+              regionCode,
+              topicId,
+            });
+          }
+        }
+        
+        // Aggregate competitor stats incrementally for each mentioned competitor
+        // Use incremental function that only counts mentions for this specific ai_response_id
+        if (analysis.mentioned_competitors.length > 0) {
+          for (const competitorName of analysis.mentioned_competitors) {
+            const competitor = competitors.find((c: any) => c.name === competitorName);
+            if (competitor) {
+              const { error: compAggError } = await supabase.rpc('aggregate_competitor_stats_incremental', {
+                p_project_id: project_id,
+                p_competitor_id: competitor.id,
+                p_ai_response_id: ai_response_id,
+                p_stat_date: todayStr,
+                p_platform: platform,
+                p_region_id: regionId || null,
+                p_topic_id: topicId,
+              });
+              
+              if (compAggError) {
+                logError('analyze-single-response', 'Failed to aggregate competitor stats incrementally', {
+                  error: compAggError,
+                  competitorId: competitor.id,
+                  competitorName,
+                });
+              } else {
+                logInfo('analyze-single-response', 'Incremental competitor stats aggregation completed', {
+                  aiResponseId: ai_response_id,
+                  competitorId: competitor.id,
+                  competitorName,
+                  platform,
+                  regionId,
+                  regionCode,
+                  topicId,
+                });
+              }
+            }
+          }
+        }
+        
+        return { success: true };
+      } catch (error: any) {
+        // Don't throw - this is non-critical, data will still be aggregated at 4:30 AM
+        logError('analyze-single-response', 'Incremental aggregation failed (non-critical)', {
+          error: error.message,
+          aiResponseId: ai_response_id,
+        });
+        return { success: false, error: error.message };
       }
     });
 
