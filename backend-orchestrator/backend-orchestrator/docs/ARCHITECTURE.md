@@ -1194,31 +1194,55 @@ The Daily Brand Stats system pre-aggregates daily metrics for brands and competi
 │                                                               │
 │  Note: Sentiment data now comes from brand_evaluations       │
 │  (see Topic-Based Sentiment Evaluation section)              │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        │ Daily Aggregation (4:30 AM)
-                        │
-            ┌───────────▼───────────┐
-            │  aggregate-daily-stats │
-            │  (Inngest Function)    │
-            │                        │
-            │ - Processes each entity│
-            │   individually         │
-            │ - Uses optimized SQL   │
-            │   functions            │
-            └───────────┬───────────┘
-                        │
-                        │ Upserts
-                        │
-            ┌───────────▼───────────┐
-            │  daily_brand_stats    │
-            │  (Pre-aggregated)      │
-            │                        │
-            │ - One row per entity  │
-            │   per dimension combo │
-            │   (platform/region/topic)│
-            │ - Fast frontend queries│
-            └───────────────────────┘
+└───────┬───────────────────────┬─────────────────────────────┘
+        │                       │
+        │                       │ Incremental Aggregation
+        │                       │ (After 4:30 AM, real-time)
+        │                       │
+        │                       ┌───────────▼───────────┐
+        │                       │ analyze-single-response│
+        │                       │ (Inngest Function)     │
+        │                       │                        │
+        │                       │ - After brand analysis│
+        │                       │   completes           │
+        │                       │ - Calls incremental   │
+        │                       │   aggregation funcs   │
+        │                       └───────────┬───────────┘
+        │                                   │
+        │                                   │ Upserts (SUM)
+        │                                   │
+        │                       ┌───────────▼───────────┐
+        │                       │  daily_brand_stats    │
+        │                       │  (Pre-aggregated)      │
+        │ Daily Aggregation     │                        │
+        │ (4:30 AM, full day)   │ - One row per entity  │
+        │                       │   per dimension combo │
+        │        ┌──────────────┘   (platform/region_id/topic)│
+        │        │                  │ - Fast frontend queries│
+        │        │                  │ - Immediate updates    │
+        │        │                  └───────────────────────┘
+        │        │
+        │        │
+        │  ┌─────▼───────────┐
+        │  │ aggregate-daily-│
+        │  │ stats           │
+        │  │ (Inngest Func)  │
+        │  │                 │
+        │  │ - Processes each│
+        │  │   entity×dims   │
+        │  │ - Uses optimized│
+        │  │   SQL functions │
+        │  │ - Consolidates  │
+        │  │   with SUM      │
+        │  └─────┬───────────┘
+        │        │
+        │        │ Upserts (SUM)
+        │        │
+        │        └───────────────┐
+        │                        │
+                        ┌────────▼──────────┐
+                        │  daily_brand_stats│
+                        └───────────────────┘
 ```
 
 ### Database Schema
@@ -1240,7 +1264,7 @@ CREATE TABLE daily_brand_stats (
 
   -- Dimension fields (for granular analytics)
   platform TEXT CHECK (platform IN ('openai', 'gemini') OR platform IS NULL),
-  region TEXT DEFAULT 'GLOBAL',
+  region_id UUID REFERENCES regions(id) ON DELETE SET NULL, -- NULL = GLOBAL
   topic_id UUID REFERENCES topics(id) ON DELETE SET NULL,
 
   -- Aggregated metrics
@@ -1258,7 +1282,7 @@ CREATE TABLE daily_brand_stats (
   UNIQUE(project_id, stat_date,
     COALESCE(competitor_id, '00000000-0000-0000-0000-000000000000'::uuid),
     COALESCE(platform, 'ALL'),
-    COALESCE(region, 'GLOBAL'),
+    COALESCE(region_id, '00000000-0000-0000-0000-000000000000'::uuid),
     COALESCE(topic_id, '00000000-0000-0000-0000-000000000000'::uuid)
   )
 );
@@ -1267,7 +1291,7 @@ CREATE TABLE daily_brand_stats (
 **Dimensions**:
 
 - **platform**: AI platform that generated the response ('openai' or 'gemini')
-- **region**: Geographic region from prompt_tracking (ISO country code or 'GLOBAL')
+- **region_id**: UUID foreign key to `regions` table (NULL = GLOBAL, representing all regions). This replaced the TEXT `region` column in December 2024 for consistency with `prompt_tracking.region_id`.
 - **topic_id**: Topic ID from prompt_tracking (NULL if no topic assigned)
 
 **Query Pattern**: Frontend can filter by any combination of dimensions and sum results when dimensions are omitted.
@@ -1284,6 +1308,8 @@ Optimized SQL function to aggregate stats for a single client brand with dimensi
 - Joins with `ai_responses` and `prompt_tracking` to filter by platform, region, and topic
 - Consolidates 7 subqueries into 3 efficient queries
 - Processes brand mentions, citations, and sentiment in separate queries
+- **Uses SUM in ON CONFLICT**: When a row already exists for the dimension combination, values are summed rather than overwritten. This allows safe incremental aggregation.
+- Converts `region` code parameter to `region_id` (UUID) by joining with `regions` table before inserting into `daily_brand_stats`
 - Returns 1 on success, 0 on failure
 
 #### aggregate_competitor_stats_only
@@ -1295,6 +1321,8 @@ Optimized SQL function to aggregate stats for a single competitor with dimension
 - Same optimization approach as brand aggregation
 - Filters by `competitor_id`, platform, region, and topic for all queries
 - Validates competitor exists and is active before processing
+- **Uses SUM in ON CONFLICT**: When a row already exists for the dimension combination, values are summed rather than overwritten. This allows safe incremental aggregation.
+- Converts `region` code parameter to `region_id` (UUID) by joining with `regions` table before inserting into `daily_brand_stats`
 
 #### get_dimension_combinations
 
@@ -1302,16 +1330,42 @@ Helper function to discover unique dimension combinations for a project on a giv
 
 **Signature**: `get_dimension_combinations(project_id, date)`
 
-- Returns distinct `(platform, region, topic_id)` combinations
+- Returns distinct `(platform, region, topic_id)` combinations where `region` is the code from the `regions` table (joined via `prompt_tracking.region_id`)
 - Used by aggregation workflow to determine which dimension sets need processing
+- Joins `prompt_tracking` with `regions` table to convert `region_id` (UUID) to `region` code (TEXT) for compatibility with aggregation function signatures
+
+#### aggregate_brand_stats_incremental
+
+Incremental aggregation function for a single `ai_response_id` (used for real-time updates):
+
+**Signature**: `aggregate_brand_stats_incremental(project_id, ai_response_id, stat_date, platform, region_id, topic_id)`
+
+- Only counts brand_mentions and citations for the specified `ai_response_id` (not all data for the day)
+- Directly accepts `region_id` (UUID) as parameter (no conversion needed)
+- **Uses SUM in ON CONFLICT**: Safely consolidates with existing stats if called multiple times
+- Designed for incremental aggregation when brand analysis completes (after 4:30 AM cutoff)
+- Returns 1 on success, 0 if no mentions/citations found
+
+#### aggregate_competitor_stats_incremental
+
+Incremental aggregation function for a single `ai_response_id` and competitor:
+
+**Signature**: `aggregate_competitor_stats_incremental(project_id, competitor_id, ai_response_id, stat_date, platform, region_id, topic_id)`
+
+- Only counts brand_mentions and citations for the specified `ai_response_id` and `competitor_id`
+- Directly accepts `region_id` (UUID) as parameter
+- **Uses SUM in ON CONFLICT**: Safely consolidates with existing stats
+- Designed for incremental aggregation when brand analysis completes
+- Returns 1 on success, 0 if competitor not found or no mentions/citations
 
 ### Performance Optimizations
 
 1. **Timestamp Ranges**: Uses `created_at >= start AND created_at < end` instead of `DATE(created_at)` to allow PostgreSQL to use indexes
 2. **Query Consolidation**: Reduces 7 separate subqueries to 3 consolidated queries per entity×dimension combination
-3. **Composite Indexes**: Specialized indexes on `(project_id, brand_type, created_at)`, `(project_id, platform, region, topic_id)`, and similar patterns
+3. **Composite Indexes**: Specialized indexes on `(project_id, brand_type, created_at)`, `(project_id, platform, region_id, topic_id)`, and similar patterns
 4. **Per-Entity×Dimension Processing**: Each entity (brand or competitor) × dimension combination is processed in a separate, small SQL transaction to prevent timeouts
 5. **Dimension Discovery**: Uses `get_dimension_combinations` to only process combinations that actually exist in the data
+6. **Region ID Migration**: As of December 2024, `daily_brand_stats` uses `region_id` (UUID foreign key to `regions` table) instead of `region` (TEXT code) for consistency with `prompt_tracking.region_id`. Frontend queries use `getRegionIdByCode` helper to convert region codes to region_id before filtering.
 
 **Performance Improvement**:
 
@@ -1325,6 +1379,8 @@ Helper function to discover unique dimension combinations for a project on a giv
 
 ### Data Flow
 
+#### Daily Aggregation Flow (4:30 AM)
+
 ```
 1. Daily Cron (4:30 AM)
    ↓
@@ -1333,17 +1389,50 @@ Helper function to discover unique dimension combinations for a project on a giv
 3. Get all projects with data for today
    ↓
 4. For each project:
-   - Get unique dimension combinations (platform, region, topic_id) via get_dimension_combinations
+   - Get unique dimension combinations (platform, region code, topic_id) via get_dimension_combinations
    - Get client brand
    - Get all active competitors
    ↓
 5. For each entity (brand + competitors) × each dimension combination:
-   - Call aggregate_brand_stats_only(project, date, platform, region, topic_id)
-     OR aggregate_competitor_stats_only(project, competitor, date, platform, region, topic_id)
-   - Upsert into daily_brand_stats (one row per entity×dimension combination)
+   - Call aggregate_brand_stats_only(project, date, platform, region code, topic_id)
+     OR aggregate_competitor_stats_only(project, competitor, date, platform, region code, topic_id)
+   - Functions convert region code to region_id and upsert into daily_brand_stats
+   - Uses SUM in ON CONFLICT to safely consolidate with any incremental aggregations
    ↓
 6. Frontend queries daily_brand_stats with optional dimension filters (fast!)
 ```
+
+#### Incremental Aggregation Flow (Real-time, after 4:30 AM)
+
+```
+1. Brand analysis completes (analyze-single-response)
+   ↓
+2. Check if current time > 4:30 AM today (UTC)
+   ↓
+3. If yes, fetch dimensions from ai_response:
+   - platform
+   - region_id (from prompt_tracking)
+   - topic_id (from prompt_tracking)
+   ↓
+4. If brand was mentioned:
+   - Call aggregate_brand_stats_incremental(project, ai_response_id, today, platform, region_id, topic_id)
+   ↓
+5. For each mentioned competitor:
+   - Call aggregate_competitor_stats_incremental(project, competitor_id, ai_response_id, today, platform, region_id, topic_id)
+   ↓
+6. Functions count only mentions/citations for this specific ai_response_id
+   - Upsert into daily_brand_stats using SUM in ON CONFLICT
+   - Safely consolidates with existing stats or creates new row
+   ↓
+7. Data immediately available in daily_brand_stats (no wait for next day's aggregation)
+```
+
+**Key Benefits of Incremental Aggregation**:
+
+- **Immediate visibility**: Data appears in frontend as soon as analysis completes
+- **No duplication**: SUM in ON CONFLICT safely consolidates multiple incremental aggregations
+- **Compatible with daily aggregation**: Daily aggregation at 4:30 AM uses SUM to consolidate with any incremental aggregations that may have run
+- **Non-blocking**: Errors in incremental aggregation don't fail the brand analysis (data will still be aggregated at 4:30 AM)
 
 ### Integration with Frontend
 
@@ -1517,11 +1606,20 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
    - Save sentiment and attributes to `brand_sentiment_attributes` table
    - Save/update potential competitors in `potential_competitors` table
 
+5. **Incremental Aggregation** (after 4:30 AM cutoff)
+   - Check if current time is after 4:30 AM today (UTC)
+   - If yes, fetch dimensions (platform, region_id, topic_id) from ai_response
+   - Call `aggregate_brand_stats_incremental` if brand was mentioned
+   - Call `aggregate_competitor_stats_incremental` for each mentioned competitor
+   - This ensures data appears immediately in `daily_brand_stats` without waiting for next day's aggregation
+   - Errors are logged but don't fail the analysis (non-critical step)
+
 **Error Handling**:
 
 - If Groq API fails, returns empty/default result (graceful degradation)
 - Logs detailed error information for debugging
 - Does not throw errors to prevent blocking batch processing
+- Incremental aggregation errors are logged but don't fail the analysis (data will still be aggregated at 4:30 AM)
 
 ### Groq API Integration
 
@@ -1665,7 +1763,11 @@ Stores brands detected in responses that are not the client brand or known compe
    ↓
 3. analyze-single-response processes the event
    ↓
-4. Results saved to database
+4. Results saved to database (brand_mentions, brand_sentiment_attributes, potential_competitors)
+   ↓
+5. If after 4:30 AM: Incremental aggregation updates daily_brand_stats immediately
+   ↓
+6. Data immediately visible in frontend (no wait for next day's aggregation)
 ```
 
 ### Integration Points
