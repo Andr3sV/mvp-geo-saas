@@ -2,6 +2,7 @@ import { callGemini } from './ai-clients';
 import { waitForRateLimit } from './rate-limiter';
 import { logInfo } from './utils';
 import type { AICompletionResult, AIClientConfig } from './types';
+import { validateThemeName } from './theme-helpers';
 
 /**
  * Call Gemini with automatic retry for rate limits
@@ -129,17 +130,27 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
 3. CREATING NEW THEMES (ONLY IF TRULY NO MATCH EXISTS):
    - Only create a new theme if the concept is COMPLETELY DIFFERENT from all existing themes
    - New theme names must be:
-     * Maximum 4 words
+     * Maximum 4 words (e.g., "Brand Heritage", "Customer Support", "Product Quality")
      * Broad and categorical (not specific)
      * Use standard business/marketing terminology
      * ABSOLUTELY NO parentheses, NO brackets, NO additional details
      * NO location names, NO dates, NO specific details
+     * DO NOT repeat words in theme names (e.g., "Beer Beer Beer" is INVALID)
+     * DO NOT include brand names in theme names (e.g., "Heineken Brand Heritage" is INVALID - use "Brand Heritage" instead)
 
 4. THEME NAMING STANDARDS:
    - Group ALL similar concepts under the SAME theme name
    - Use broad, categorical names that cover all variations
    - If "Brand Heritage" exists, ALL heritage-related concepts must use "Brand Heritage"
    - Ignore location, origin, distribution, recipe details - these are all part of the same theme
+   - List each theme only once in strengths section and once in weaknesses section (no duplicates)
+
+5. INVALID THEME NAME EXAMPLES (NEVER CREATE THESE):
+   ❌ "Beer Beer Beer Beer Beer" (repeated words)
+   ❌ "Heineken Brand Heritage" (contains brand name - use "Brand Heritage" instead)
+   ❌ "Product Range Breadth Quality" (more than 2 words - use "Product Range" instead)
+   ❌ "Brand Heritage (associated with Germany)" (contains parentheses - use "Brand Heritage" only)
+   ❌ "Customer Support 24/7" (too specific - use "Customer Support" only)
 
 Format your structured analysis as:
 
@@ -147,14 +158,16 @@ SENTIMENT: [positive/neutral/negative/mixed]
 SENTIMENT_SCORE: [number from -1.0 to 1.0, where -1 is very negative, 0 is neutral, 1 is very positive]
 
 STRENGTHS:
-- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
-- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications, NO repeated words, NO brand names]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications, NO repeated words, NO brand names]
 ...
+(Each theme should appear only once - no duplicates)
 
 WEAKNESSES:
-- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
-- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications, NO repeated words, NO brand names]
+- [EXACT theme name from existing list - NO parentheses, NO brackets, NO additional details, NO modifications, NO repeated words, NO brand names]
 ...
+(Each theme should appear only once - no duplicates)
 
 REMEMBER: If "Brand Heritage" exists in the list, use ONLY "Brand Heritage" - never add location, origin, distribution, or any other details in parentheses or brackets.
 
@@ -177,37 +190,58 @@ Format your natural response as:
 /**
  * Clean theme name by removing parentheses, brackets, and additional details
  * This ensures we use only the base theme name even if Gemini adds extra details
+ * Returns null if the theme name is invalid and cannot be cleaned
  */
-function cleanThemeName(themeName: string): string {
+function cleanThemeName(themeName: string, entityName?: string): string | null {
   // Remove everything in parentheses or brackets (including nested)
   let cleaned = themeName
     .replace(/\([^()]*\)/g, '') // Remove simple parentheses
     .replace(/\[[^\]]*\]/g, '') // Remove brackets
     .trim();
-  
+
   // Remove nested parentheses recursively
   while (cleaned.includes('(') || cleaned.includes(')')) {
-    cleaned = cleaned
-      .replace(/\([^()]*\)/g, '')
-      .trim();
+    cleaned = cleaned.replace(/\([^()]*\)/g, '').trim();
   }
-  
+
   // Remove common prefixes that create variations
   cleaned = cleaned
     .replace(/^(Strong|Weak|Excellent|Poor|Great|Bad)\s+/i, '') // Remove intensity adjectives
     .replace(/^(Regional|Local|Global|International)\s+/i, '') // Remove location qualifiers
     .trim();
-  
-  // Remove extra whitespace
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  
-  return cleaned;
+
+  // Remove repeated consecutive words
+  const words = cleaned.split(/\s+/);
+  const deduplicatedWords: string[] = [];
+  let lastWord = '';
+
+  for (const word of words) {
+    if (word.toLowerCase() !== lastWord.toLowerCase()) {
+      deduplicatedWords.push(word);
+      lastWord = word;
+    }
+  }
+
+  cleaned = deduplicatedWords.join(' ').trim();
+
+  // Validate using validation function
+  const validation = validateThemeName(cleaned, entityName, 2);
+  if (!validation.valid) {
+    return null; // Invalid theme name, reject it
+  }
+
+  return validation.cleaned || cleaned;
 }
 
 /**
  * Parse the evaluation response to extract structured data and natural response
+ * Uses Sets for deduplication and limits themes to maxThemesPerCategory (default 20)
  */
-export function parseEvaluationResponse(responseText: string): {
+export function parseEvaluationResponse(
+  responseText: string,
+  entityName?: string,
+  maxThemesPerCategory: number = 20
+): {
   sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';
   sentimentScore: number;
   strengths: string[];
@@ -215,22 +249,23 @@ export function parseEvaluationResponse(responseText: string): {
   naturalResponse: string;
 } {
   const lines = responseText.split('\n').map(line => line.trim());
-  
+
   let sentiment: 'positive' | 'neutral' | 'negative' | 'mixed' = 'neutral';
   let sentimentScore = 0;
-  const strengths: string[] = [];
-  const weaknesses: string[] = [];
+  // Use Maps to preserve original case while deduplicating by lowercase
+  const strengthsMap = new Map<string, string>(); // lowercase -> original case
+  const weaknessesMap = new Map<string, string>(); // lowercase -> original case
   let naturalResponse = '';
-  
+
   let currentSection: 'none' | 'strengths' | 'weaknesses' | 'natural' = 'none';
-  
+
   // Check if natural response section exists
   const naturalResponseMarker = '=== NATURAL_RESPONSE ===';
   const naturalResponseIndex = responseText.indexOf(naturalResponseMarker);
-  
+
   for (const line of lines) {
     const lowerLine = line.toLowerCase();
-    
+
     // Parse sentiment
     if (lowerLine.startsWith('sentiment:') && !lowerLine.includes('score')) {
       const value = line.split(':')[1]?.trim().toLowerCase();
@@ -239,7 +274,7 @@ export function parseEvaluationResponse(responseText: string): {
       }
       continue;
     }
-    
+
     // Parse sentiment score
     if (lowerLine.includes('sentiment_score:') || lowerLine.includes('sentiment score:')) {
       const match = line.match(/[-]?\d+\.?\d*/);
@@ -248,7 +283,7 @@ export function parseEvaluationResponse(responseText: string): {
       }
       continue;
     }
-    
+
     // Detect section headers
     if (lowerLine.startsWith('strengths:') || lowerLine === 'strengths') {
       currentSection = 'strengths';
@@ -263,34 +298,50 @@ export function parseEvaluationResponse(responseText: string): {
       currentSection = 'natural';
       continue;
     }
-    
-           // Parse content based on section
-           if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
-             let content = line.replace(/^[-•*]\s*/, '').trim();
-             if (!content) continue;
-             
-             // Clean theme name: remove parentheses, brackets, and any additional details
-             // This is a safety measure in case Gemini doesn't follow instructions perfectly
-             content = cleanThemeName(content);
-             
-             switch (currentSection) {
-               case 'strengths':
-                 strengths.push(content);
-                 break;
-               case 'weaknesses':
-                 weaknesses.push(content);
-                 break;
-             }
-           } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
+
+    // Parse content based on section
+    if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
+      let content = line.replace(/^[-•*]\s*/, '').trim();
+      if (!content) continue;
+
+      // Clean theme name: remove parentheses, brackets, and validate
+      // This is a safety measure in case Gemini doesn't follow instructions perfectly
+      const cleaned = cleanThemeName(content, entityName);
+      if (!cleaned) {
+        // Invalid theme name, skip it
+        continue;
+      }
+
+      // Use lowercase for deduplication, but preserve original case
+      const cleanedLower = cleaned.toLowerCase();
+
+      // Only add if we haven't exceeded the limit and haven't seen this theme before
+      switch (currentSection) {
+        case 'strengths':
+          if (!strengthsMap.has(cleanedLower) && strengthsMap.size < maxThemesPerCategory) {
+            strengthsMap.set(cleanedLower, cleaned); // Store with preserved case
+          }
+          break;
+        case 'weaknesses':
+          if (!weaknessesMap.has(cleanedLower) && weaknessesMap.size < maxThemesPerCategory) {
+            weaknessesMap.set(cleanedLower, cleaned); // Store with preserved case
+          }
+          break;
+      }
+    } else if (currentSection === 'natural' && line && !line.includes('=== NATURAL_RESPONSE ===')) {
       naturalResponse += (naturalResponse ? ' ' : '') + line;
     }
   }
-  
+
   // If natural response wasn't found in structured parsing, extract it from the marker
   if (!naturalResponse && naturalResponseIndex >= 0) {
     naturalResponse = responseText.substring(naturalResponseIndex + naturalResponseMarker.length).trim();
   }
-  
+
+  // Convert Maps to arrays (preserving original case)
+  const strengths = Array.from(strengthsMap.values());
+  const weaknesses = Array.from(weaknessesMap.values());
+
   return {
     sentiment,
     sentimentScore,

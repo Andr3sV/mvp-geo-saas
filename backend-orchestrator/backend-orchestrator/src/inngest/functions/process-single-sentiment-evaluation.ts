@@ -116,7 +116,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
 
     // 7. Parse evaluation response (now contains theme names)
     const parsed = await step.run('parse-response', async () => {
-      return parseEvaluationResponse(result.text);
+      return parseEvaluationResponse(result.text, entity_name);
     });
 
     // 8. Match theme names to existing themes or create new ones
@@ -126,29 +126,31 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
 
       // Process positive themes (strengths)
       for (const themeName of parsed.strengths) {
-        const theme = await getOrCreateTheme(project_id, themeName, 'positive');
+        const theme = await getOrCreateTheme(project_id, themeName, 'positive', entity_name);
         if (theme) {
           positiveThemeIds.push(theme.id);
         } else {
           logError('process-single-sentiment-evaluation', `Failed to get or create positive theme: ${themeName}`, {
             project_id,
             themeName,
+            entity_name,
           });
-          // Still store the theme name even if ID creation failed
+          // Theme validation failed or creation failed - skip it
         }
       }
 
       // Process negative themes (weaknesses)
       for (const themeName of parsed.weaknesses) {
-        const theme = await getOrCreateTheme(project_id, themeName, 'negative');
+        const theme = await getOrCreateTheme(project_id, themeName, 'negative', entity_name);
         if (theme) {
           negativeThemeIds.push(theme.id);
         } else {
           logError('process-single-sentiment-evaluation', `Failed to get or create negative theme: ${themeName}`, {
             project_id,
             themeName,
+            entity_name,
           });
-          // Still store the theme name even if ID creation failed
+          // Theme validation failed or creation failed - skip it
         }
       }
 
