@@ -22,6 +22,7 @@ import { Loader2, Check, X, Plus, Trash2, Edit2, FileText, Hash, Users, Sparkles
 import { cn } from "@/lib/utils";
 import { CompetitorSelection } from "./competitor-selection";
 import { motion, AnimatePresence } from "framer-motion";
+import { useProject } from "@/contexts/project-context";
 
 interface Workspace {
   id: string;
@@ -51,6 +52,7 @@ export function CreateProjectWizard({
   onProjectCreated,
 }: CreateProjectWizardProps) {
   const router = useRouter();
+  const { setSelectedProjectId } = useProject();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -468,8 +470,8 @@ export function CreateProjectWizard({
       if (onProjectCreated) {
         onProjectCreated(createdProjectId);
       }
+      setSelectedProjectId(createdProjectId); // Explicitly set in context
       onOpenChange(false);
-      router.refresh();
       router.push(`/dashboard/reports/executive?project=${createdProjectId}`);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");

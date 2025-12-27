@@ -12,23 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useProject } from "@/contexts/project-context";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { createProject } from "@/lib/actions/workspace";
-import { toast } from "sonner";
+import { CreateProjectWizard } from "@/components/projects/create-project-wizard";
 
 interface BreadcrumbNavProps {
   workspaces: any[];
@@ -64,11 +53,7 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
   const { selectedProjectId, setSelectedProjectId } = useProject();
   const [currentWorkspace, setCurrentWorkspace] = useState<any>(null);
   const [currentProject, setCurrentProject] = useState<any>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [projectName, setProjectName] = useState("");
-  const [clientUrl, setClientUrl] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
 
   useEffect(() => {
     if (selectedProjectId && workspaces.length > 0) {
@@ -87,55 +72,6 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
   }, [selectedProjectId, workspaces]);
 
   const currentPageName = getPageName(pathname);
-
-  const handleCreateProject = async () => {
-    if (!projectName.trim()) {
-      setError("Project name is required");
-      return;
-    }
-
-    if (!clientUrl.trim()) {
-      setError("Website URL is required");
-      return;
-    }
-
-    if (!currentWorkspace?.id) {
-      setError("No workspace selected");
-      return;
-    }
-
-    setIsCreating(true);
-    setError(null);
-
-    try {
-      const result = await createProject({
-        name: projectName.trim(),
-        workspace_id: currentWorkspace.id,
-        client_url: clientUrl.trim(),
-      });
-
-      if (result.data && !result.error) {
-        toast.success("Project created successfully");
-        
-        // Save new project ID to localStorage before reload
-        localStorage.setItem("selectedProjectId", result.data.id);
-        
-        setShowCreateDialog(false);
-        setProjectName("");
-        setClientUrl("");
-        
-        // Force full page reload to refresh data
-        // router.refresh() doesn't update Client Component props reliably
-        window.location.href = window.location.pathname;
-      } else {
-        setError(result.error || "Failed to create project");
-      }
-    } catch (err) {
-      setError("An unexpected error occurred");
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   return (
     <div className="flex items-center gap-2 text-sm">
@@ -224,7 +160,7 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
               ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => setShowCreateDialog(true)}
+                onClick={() => setShowCreateWizard(true)}
                 className="text-primary"
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -240,77 +176,17 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
       {/* Current Page */}
       <span className="font-medium">{currentPageName}</span>
 
-      {/* Create Project Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Project</DialogTitle>
-            <DialogDescription>
-              Add a new project to track GEO performance for a client or brand.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="workspace-name">Workspace</Label>
-              <Input
-                id="workspace-name"
-                value={currentWorkspace?.name || ""}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Project will be created in this workspace
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="project-name">Project Name *</Label>
-              <Input
-                id="project-name"
-                placeholder="e.g., Acme Corp, Nike Campaign"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                disabled={isCreating}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="client-url">Client Website (Optional)</Label>
-              <Input
-                id="client-url"
-                type="url"
-                placeholder="https://example.com"
-                value={clientUrl}
-                onChange={(e) => setClientUrl(e.target.value)}
-                disabled={isCreating}
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowCreateDialog(false);
-                setProjectName("");
-                setClientUrl("");
-                setError(null);
-              }}
-              disabled={isCreating}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateProject} disabled={isCreating}>
-              {isCreating ? "Creating..." : "Create Project"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Create Project Wizard */}
+      <CreateProjectWizard
+        open={showCreateWizard}
+        onOpenChange={setShowCreateWizard}
+        workspaces={workspaces.map((w) => ({ id: w.id, name: w.name }))}
+        defaultWorkspaceId={currentWorkspace?.id || workspaces[0]?.id}
+        onProjectCreated={(projectId) => {
+          setSelectedProjectId(projectId);
+          // Wizard will handle redirect
+        }}
+      />
     </div>
   );
 }
