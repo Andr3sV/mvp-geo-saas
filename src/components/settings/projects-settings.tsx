@@ -50,8 +50,10 @@ export function ProjectsSettings() {
 
   const handleProjectCreated = (projectId: string) => {
     setIsCreateOpen(false);
+    // Update local data in case user navigates back to this page
     loadData();
-    router.refresh();
+    // NOTE: Do not call router.refresh() here - the wizard handles navigation explicitly
+    // This prevents race conditions where refresh could override the wizard's navigation
   };
 
   const handleEditProject = async () => {

@@ -466,13 +466,15 @@ export function CreateProjectWizard({
         return;
       }
 
-      // Success - close wizard, refresh, and redirect to Executive Overview
+      // Success - close wizard and redirect to Executive Overview
+      // Callback is for notification only, wizard handles navigation
       if (onProjectCreated) {
         onProjectCreated(createdProjectId);
       }
       setSelectedProjectId(createdProjectId); // Explicitly set in context
       onOpenChange(false);
-      router.push(`/dashboard/reports/executive?project=${createdProjectId}`);
+      // Use replace to avoid duplicate history entries and prevent back navigation issues
+      router.replace(`/dashboard/reports/executive?project=${createdProjectId}`);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsLoading(false);

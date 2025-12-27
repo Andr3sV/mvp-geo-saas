@@ -52,7 +52,8 @@ export function ProjectSelector({
 
   const handleProjectCreated = (projectId: string) => {
     onProjectChange(projectId);
-    router.refresh();
+    // NOTE: Do not call router.refresh() here - the wizard handles navigation explicitly
+    // This prevents race conditions and maintains consistent navigation behavior
   };
 
   return (
