@@ -172,7 +172,7 @@ WEAKNESSES:
 REMEMBER: If "Brand Heritage" exists in the list, use ONLY "Brand Heritage" - never add location, origin, distribution, or any other details in parentheses or brackets.
 
 PART 2 - NATURAL RESPONSE:
-After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. 
+After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. it is important show the aswer as you were responding toa common user"
 
 Format your natural response as:
 
