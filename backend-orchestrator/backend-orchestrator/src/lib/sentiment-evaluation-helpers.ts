@@ -188,6 +188,23 @@ Format your natural response as:
 }
 
 /**
+ * Build simplified prompt with interpolated values
+ * Returns only the first line: "Evaluate the {industry} company {brandName} on {topic}."
+ * 
+ * @param industry - Industry type (e.g., "supermarket", "B2B CRM")
+ * @param brandName - Brand/entity name (e.g., "carrefour", "Salesforce")
+ * @param topic - Topic being evaluated (e.g., "customer satisfaction", "pricing")
+ * @returns Simplified prompt string
+ */
+export function buildSimplePrompt(
+  industry: string,
+  brandName: string,
+  topic: string
+): string {
+  return `Evaluate the ${industry} company ${brandName} on ${topic}.`;
+}
+
+/**
  * Clean theme name by removing parentheses, brackets, and additional details
  * This ensures we use only the base theme name even if Gemini adds extra details
  * Returns null if the theme name is invalid and cannot be cleaned

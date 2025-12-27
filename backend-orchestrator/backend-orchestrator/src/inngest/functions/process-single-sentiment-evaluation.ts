@@ -10,7 +10,8 @@ import { getAPIKey } from '../../lib/ai-clients';
 import { 
   callGeminiWithRetry, 
   buildEvaluationPrompt, 
-  parseEvaluationResponse 
+  parseEvaluationResponse,
+  buildSimplePrompt
 } from '../../lib/sentiment-evaluation-helpers';
 import { getThemesByProject, getOrCreateTheme } from '../../lib/theme-helpers';
 
@@ -104,6 +105,9 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
       negativeThemes: themes.negativeThemes,
     });
 
+    // Generate simplified prompt for storage
+    const simplePrompt = buildSimplePrompt(project.industry, entity_name, topic);
+
     // 6. Call Gemini to get evaluation
     const result = await step.run('call-gemini', async () => {
       return await callGeminiWithRetry(prompt, {
@@ -174,6 +178,7 @@ export const processSingleSentimentEvaluation = inngest.createFunction(
           competitor_id: competitor_id || null,
           topic,
           evaluation_prompt: prompt,
+          prompt: simplePrompt,
           response_text: result.text,
           sentiment_score: parsed.sentimentScore,
           positive_theme_ids: themeIds.positiveThemeIds,

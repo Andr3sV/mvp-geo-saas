@@ -446,7 +446,7 @@ export const analyzeBrandWebsite = inngest.createFunction(
           apiKey: geminiApiKey,
           model: 'gemini-2.5-flash-lite',
           temperature: 0.3,
-          maxTokens: Math.max(4000, totalPrompts * 80), // Scale tokens based on prompt quantity (approx 80 tokens per prompt)
+          maxTokens: Math.max(100000, totalPrompts * 80), // Scale tokens based on prompt quantity (approx 80 tokens per prompt)
         });
 
         logInfo('analyze-brand-website', 'Gemini response received', {
