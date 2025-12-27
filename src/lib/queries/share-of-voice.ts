@@ -166,7 +166,7 @@ export async function getShareOfVoice(
     let realTimeBrandQuery = supabase
       .from("brand_mentions")
       .select("created_at, brand_type, competitor_id, ai_response_id")
-      .eq("project_id", projectId)
+    .eq("project_id", projectId)
       .eq("brand_type", "client")
       .gte("created_at", cutoffTime.toISOString())
       .lte("created_at", today.toISOString());
@@ -195,7 +195,7 @@ export async function getShareOfVoice(
 
       // Filter by region and topic_id after fetching
       let filteredAiResponses = aiResponses || [];
-      if (regionFilter) {
+  if (regionFilter) {
         filteredAiResponses = filteredAiResponses.filter((ar: any) => 
           ar.prompt_tracking?.region === region
         );
@@ -522,7 +522,7 @@ export async function getShareOfVoiceTrends(
     let realTimeBrandQuery = supabase
       .from("brand_mentions")
       .select("created_at, brand_type, competitor_id, ai_response_id")
-      .eq("project_id", projectId)
+    .eq("project_id", projectId)
       .eq("brand_type", "client")
       .gte("created_at", cutoffTime.toISOString())
       .lte("created_at", today.toISOString());
@@ -541,19 +541,19 @@ export async function getShareOfVoiceTrends(
         .select("id, platform, prompt_tracking(region, topic_id)")
         .in("id", Array.from(aiResponseIds));
 
-      if (platformFilter) {
+  if (platformFilter) {
         aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
-      }
+  }
 
       const { data: aiResponses } = await aiResponsesQuery;
 
       let filteredAiResponses = aiResponses || [];
-      if (regionFilter) {
+  if (regionFilter) {
         filteredAiResponses = filteredAiResponses.filter((ar: any) => 
           ar.prompt_tracking?.region === region
         );
-      }
-      if (topicFilter) {
+  }
+  if (topicFilter) {
         filteredAiResponses = filteredAiResponses.filter((ar: any) => 
           ar.prompt_tracking?.topic_id === topicId
         );
@@ -571,7 +571,7 @@ export async function getShareOfVoiceTrends(
     let realTimeCompQuery = supabase
       .from("brand_mentions")
       .select("created_at, brand_type, competitor_id, ai_response_id")
-      .eq("project_id", projectId)
+    .eq("project_id", projectId)
       .eq("brand_type", "competitor")
       .not("competitor_id", "is", null)
       .gte("created_at", cutoffTime.toISOString())
@@ -590,19 +590,19 @@ export async function getShareOfVoiceTrends(
         .select("id, platform, prompt_tracking(region, topic_id)")
         .in("id", Array.from(compAiResponseIds));
 
-      if (platformFilter) {
+  if (platformFilter) {
         compAiResponsesQuery = compAiResponsesQuery.eq("platform", mappedPlatform);
-      }
+  }
 
       const { data: compAiResponses } = await compAiResponsesQuery;
 
       let filteredCompAiResponses = compAiResponses || [];
-      if (regionFilter) {
+  if (regionFilter) {
         filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
           ar.prompt_tracking?.region === region
         );
-      }
-      if (topicFilter) {
+  }
+  if (topicFilter) {
         filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
           ar.prompt_tracking?.topic_id === topicId
         );

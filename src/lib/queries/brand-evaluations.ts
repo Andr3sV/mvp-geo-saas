@@ -17,6 +17,7 @@ export interface BrandEvaluation {
   competitor_id: string | null;
   topic: string;
   evaluation_prompt: string;
+  prompt?: string;
   response_text: string | null;
   sentiment_score: number | null;
   positive_theme_ids?: string[] | null;

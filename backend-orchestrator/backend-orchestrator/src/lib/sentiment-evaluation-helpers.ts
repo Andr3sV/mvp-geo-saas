@@ -172,7 +172,7 @@ WEAKNESSES:
 REMEMBER: If "Brand Heritage" exists in the list, use ONLY "Brand Heritage" - never add location, origin, distribution, or any other details in parentheses or brackets.
 
 PART 2 - NATURAL RESPONSE:
-After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. 
+After the structured analysis, write a natural evaluation as I were a gemini chat user, not an api user. it is important show the aswer as you were responding toa common user"
 
 Format your natural response as:
 
@@ -185,6 +185,23 @@ Format your natural response as:
   }
 
   return prompt;
+}
+
+/**
+ * Build simplified prompt with interpolated values
+ * Returns only the first line: "Evaluate the {industry} company {brandName} on {topic}."
+ * 
+ * @param industry - Industry type (e.g., "supermarket", "B2B CRM")
+ * @param brandName - Brand/entity name (e.g., "carrefour", "Salesforce")
+ * @param topic - Topic being evaluated (e.g., "customer satisfaction", "pricing")
+ * @returns Simplified prompt string
+ */
+export function buildSimplePrompt(
+  industry: string,
+  brandName: string,
+  topic: string
+): string {
+  return `Evaluate the ${industry} company ${brandName} on ${topic}.`;
 }
 
 /**
