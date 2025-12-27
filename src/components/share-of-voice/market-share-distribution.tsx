@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { TrendingUp, TrendingDown, Crown, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Crown, BarChart3, Info } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface Entity {
@@ -20,6 +21,7 @@ interface MarketShareDistributionProps {
   entities: Entity[];
   isLoading?: boolean;
   metricLabel?: string; // "mentions" or "citations"
+  infoTooltip?: string;
 }
 
 // Subtle color palette
@@ -34,7 +36,7 @@ const COLORS = [
   "bg-orange-500",
 ];
 
-export function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions" }: MarketShareDistributionProps) {
+export function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions", infoTooltip }: MarketShareDistributionProps) {
   if (isLoading) {
     return (
       <Card>
@@ -98,6 +100,18 @@ export function MarketShareDistribution({ entities, isLoading, metricLabel = "me
             <CardTitle className="text-lg flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-muted-foreground" />
               Market Share Distribution
+              {infoTooltip && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {infoTooltip}
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </CardTitle>
             <CardDescription>Percentage of {metricLabel} across all tracked brands</CardDescription>
           </div>

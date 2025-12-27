@@ -33,6 +33,7 @@ import { getProjectTopics, deleteTopic, updateTopic, type Topic } from "@/lib/ac
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 const COLORS = [
   "#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", 
@@ -110,6 +111,13 @@ export function TopicsManager() {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Tip */}
+      <WelcomeTip id="topics">
+        Organize your prompts into topics for better analytics segmentation. 
+        Topics help you categorize and filter data by subject area, making it easier to understand 
+        which themes drive the most mentions and citations for your brand.
+      </WelcomeTip>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

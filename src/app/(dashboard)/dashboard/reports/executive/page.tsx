@@ -12,6 +12,7 @@ import { CompetitiveHero } from "@/components/executive/competitive-hero";
 import { BattleKPIs } from "@/components/executive/battle-kpis";
 import { CompetitiveBattlefield } from "@/components/executive/competitive-battlefield";
 import { WeeklyBattleReport } from "@/components/executive/weekly-battle-report";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 // Types and queries
 import {
@@ -140,6 +141,19 @@ export default function ExecutiveOverviewPage() {
         topicId={topicId}
         onApply={handleFiltersChange}
       />
+
+      {/* Welcome Tip */}
+      <WelcomeTip id="executive-overview">
+        <span className="block mb-2">
+          Your executive view to understand at a glance how your brand performs in the AI ecosystem compared to competitors.
+        </span>
+        <ul className="space-y-1 text-xs">
+          <li><strong>🏆 Competitive Position</strong> — Quick snapshot of your market standing</li>
+          <li><strong>📊 4 Key KPIs</strong> — Share of Mentions, Citations, Momentum Score &amp; AI Visibility Index</li>
+          <li><strong>🏁 Competitive Battlefield</strong> — Race chart visualizing your position vs competitors</li>
+          <li><strong>📋 Weekly Battle Report</strong> — Insights and trends for the selected period</li>
+        </ul>
+      </WelcomeTip>
 
       {/* Hero Section - Main Competitive Position */}
       {battlefieldData && (

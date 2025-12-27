@@ -27,6 +27,7 @@ import {
   Database,
   Bot,
   Globe,
+  User,
 } from "lucide-react";
 import {
   Sidebar,
@@ -46,7 +47,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ChevronsUpDown } from "lucide-react";
+import Image from "next/image";
+import { useProject } from "@/contexts/project-context";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const visibilityItems = [
   {
@@ -55,7 +64,7 @@ const visibilityItems = [
     icon: TrendingUp,
   },
   {
-    title: "Citation & domains",
+    title: "Share of citations",
     href: "/dashboard/citations",
     icon: BarChart3,
   },
@@ -127,8 +136,39 @@ const opportunitiesItems = [
   },
 ];
 
-export function AppSidebar() {
+interface Workspace {
+  id: string;
+  name: string;
+  slug: string;
+  projects: {
+    id: string;
+    name: string;
+    slug: string;
+  }[];
+}
+
+interface AppSidebarProps {
+  user: {
+    id: string;
+    email?: string | null;
+    user_metadata?: {
+      full_name?: string;
+      name?: string;
+    };
+  };
+  workspaces: Workspace[];
+}
+
+export function AppSidebar({ user, workspaces }: AppSidebarProps) {
+  // Get user display name
+  const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Profile';
   const pathname = usePathname();
+  const { selectedProjectId, setSelectedProjectId } = useProject();
+
+  // Get current project name
+  const currentProject = workspaces
+    .flatMap((w) => w.projects)
+    .find((p) => p.id === selectedProjectId);
   const isOverviewOpen = pathname.startsWith("/dashboard/reports");
   const isVisibilityOpen = pathname.startsWith("/dashboard/share-of-voice") ||
     pathname.startsWith("/dashboard/citations") ||
@@ -143,34 +183,26 @@ export function AppSidebar() {
     pathname.startsWith("/dashboard/topics") ||
     pathname.startsWith("/dashboard/regions");
   const isOpportunitiesOpen = pathname.startsWith("/dashboard/opportunities");
-  const [isOverviewExpanded, setIsOverviewExpanded] = useState(isOverviewOpen);
-  const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(isVisibilityOpen);
-  const [isBrandPerceptionExpanded, setIsBrandPerceptionExpanded] = useState(isBrandPerceptionOpen);
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(true);
+  const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(true);
+  const [isBrandPerceptionExpanded, setIsBrandPerceptionExpanded] = useState(true);
   const [isDataManagementExpanded, setIsDataManagementExpanded] = useState(isDataManagementOpen);
   const [isOpportunitiesExpanded, setIsOpportunitiesExpanded] = useState(isOpportunitiesOpen);
 
-  // Update expanded state when pathname changes
+  // Update expanded state when pathname changes (only for Data Management and Opportunities)
   useEffect(() => {
-    setIsOverviewExpanded(pathname.startsWith("/dashboard/reports"));
-    setIsVisibilityExpanded(
-      pathname.startsWith("/dashboard/share-of-voice") ||
-      pathname.startsWith("/dashboard/citations") ||
-      pathname.startsWith("/dashboard/platforms") ||
-      pathname.startsWith("/dashboard/queries")
-      // Temporarily hidden: || pathname.startsWith("/dashboard/trending")
-    );
-    setIsBrandPerceptionExpanded(
-      pathname.startsWith("/dashboard/sentiment")
-      // Temporarily hidden: || pathname.startsWith("/dashboard/attributes")
-    );
-    setIsDataManagementExpanded(
-      pathname.startsWith("/dashboard/responses") ||
-      pathname.startsWith("/dashboard/competitors") ||
-      pathname.startsWith("/dashboard/prompts") ||
-      pathname.startsWith("/dashboard/topics") ||
-      pathname.startsWith("/dashboard/regions")
-    );
-    setIsOpportunitiesExpanded(pathname.startsWith("/dashboard/opportunities"));
+    // Overview, Visibility & Presence, and Brand Perception stay always expanded
+    // Only auto-expand Data Management and Opportunities when navigating to them
+    if (pathname.startsWith("/dashboard/responses") ||
+        pathname.startsWith("/dashboard/competitors") ||
+        pathname.startsWith("/dashboard/prompts") ||
+        pathname.startsWith("/dashboard/topics") ||
+        pathname.startsWith("/dashboard/regions")) {
+      setIsDataManagementExpanded(true);
+    }
+    if (pathname.startsWith("/dashboard/opportunities")) {
+      setIsOpportunitiesExpanded(true);
+    }
   }, [pathname]);
 
   return (
@@ -198,9 +230,58 @@ export function AppSidebar() {
         collapsible="icon" 
         className="top-14 [&_[data-sidebar=sidebar]]:bg-gradient-to-b [&_[data-sidebar=sidebar]]:from-[#C2C2E1]/10 [&_[data-sidebar=sidebar]]:via-background [&_[data-sidebar=sidebar]]:to-background [&_[data-sidebar=sidebar]]:relative [&_[data-sidebar=sidebar]]:overflow-hidden"
       >
+        {/* Toggle button on the edge - Hidden for now
+        <SidebarTrigger className="absolute -right-5 top-4 z-20" />
+        */}
+        
         {/* Background gradients similar to hero */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(194,194,225,0.15),transparent_50%)] pointer-events-none z-0" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
+        
+        {/* Logo and Brand - Hidden for now
+        <SidebarHeader className="relative z-10 p-4 pb-4">
+          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+            <Image 
+              src="/ateneai-logo-circle.svg" 
+              alt="AteneAI" 
+              width={32} 
+              height={32}
+              className="flex-shrink-0 rounded-full"
+            />
+            <span className="font-bold text-lg group-data-[collapsible=icon]:hidden">AteneAI</span>
+          </div>
+        </SidebarHeader>
+        */}
+
+        {/* Project Selector - Hidden for now
+        <div className="relative z-10 px-3 pb-2 group-data-[collapsible=icon]:px-2">
+          <span className="text-xs text-muted-foreground mb-1 block group-data-[collapsible=icon]:hidden">Marca</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="w-full flex items-center justify-between px-3 py-2 text-xs border rounded-md hover:bg-accent/50 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
+              <span className="truncate group-data-[collapsible=icon]:hidden">
+                {currentProject?.name || "Select project"}
+              </span>
+              <ChevronsUpDown className="h-4 w-4 opacity-50 flex-shrink-0 group-data-[collapsible=icon]:ml-0" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[200px] text-xs">
+              {workspaces.flatMap((workspace) =>
+                workspace.projects.map((project) => (
+                  <DropdownMenuItem
+                    key={project.id}
+                    onClick={() => setSelectedProjectId(project.id)}
+                    className={cn(
+                      selectedProjectId === project.id && "bg-accent"
+                    )}
+                  >
+                    <span className="truncate">{project.name}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        */}
+
         <SidebarContent className="relative z-10">
         <SidebarGroup className="mt-4">
           <SidebarGroupContent>
@@ -380,6 +461,14 @@ export function AppSidebar() {
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings" && pathname.includes("profile")}>
+                <Link href="/dashboard/settings?tab=profile">
+                  <User className="h-4 w-4" />
+                  <span>{userName}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
                 <Link href="/dashboard/settings">
                   <Settings className="h-4 w-4" />
@@ -387,6 +476,7 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {/* Hidden for now
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={pathname === "/dashboard/whats-new"}>
                 <Link href="/dashboard/whats-new">
@@ -395,12 +485,13 @@ export function AppSidebar() {
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            */}
             <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === "/dashboard/support"}>
-                <Link href="/dashboard/support">
+              <SidebarMenuButton asChild>
+                <a href="mailto:help@ateneai.com">
                   <HelpCircle className="h-4 w-4" />
                   <span>Support</span>
-                </Link>
+                </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

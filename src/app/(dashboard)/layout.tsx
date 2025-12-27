@@ -32,14 +32,13 @@ export default async function DashboardLayout({
         <div className="flex min-h-screen w-full flex-col">
           {/* Header - Always full width, sticky at top */}
           <DashboardHeader
-            user={user}
             workspaces={workspaces}
             defaultProjectId={defaultProject?.id}
           />
 
           {/* Sidebar + Main Content below header */}
           <div className="flex flex-1 overflow-hidden">
-            <AppSidebar />
+            <AppSidebar user={user} workspaces={workspaces} />
             <main className="flex-1 overflow-auto p-6">
               {children}
             </main>

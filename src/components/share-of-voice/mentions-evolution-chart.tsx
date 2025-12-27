@@ -29,6 +29,7 @@ interface MentionsEvolutionChartProps {
   selectedCompetitorId: string | null;
   onCompetitorChange: (competitorId: string) => void;
   isLoading: boolean;
+  infoTooltip?: string;
 }
 
 export function MentionsEvolutionChart({
@@ -43,6 +44,7 @@ export function MentionsEvolutionChart({
   selectedCompetitorId,
   onCompetitorChange,
   isLoading,
+  infoTooltip,
 }: MentionsEvolutionChartProps) {
   useEffect(() => {
     console.log('🔍 [MentionsEvolutionChart] Received competitors:', {
@@ -72,6 +74,7 @@ export function MentionsEvolutionChart({
       primaryColor={brandColor ? hexToRgb(brandColor) : "rgb(59, 130, 246)"}
       secondaryColor={competitorColor ? hexToRgb(competitorColor) : "rgb(239, 68, 68)"}
       emptyStateMessage="Run analyses with different prompts to see mention trends"
+      infoTooltip={infoTooltip}
     />
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageSquare, Link2, Zap, Eye, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { MessageSquare, Link2, Zap, Eye, TrendingUp, TrendingDown, Minus, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CompetitiveBattlefieldData, MomentumScoreData } from "@/lib/queries/executive-overview";
 
@@ -41,6 +42,7 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
       icon: MessageSquare,
       trend: brand.trend,
       color: brand.color || "#3B82F6",
+      tooltip: "The model names a brand, person, or concept, but doesn't say where the information comes from.",
     },
     {
       title: "Share of Citations",
@@ -49,6 +51,7 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
       icon: Link2,
       trend: null, // We don't have citation trend in this structure
       color: "#10B981",
+      tooltip: "The model names it and also states the source of that information.",
     },
     {
       title: "Momentum Score",
@@ -60,6 +63,7 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
       trend: momentumData.velocity,
       color: momentumData.score >= 0 ? "#10B981" : "#EF4444",
       isMomentum: true,
+      tooltip: "Measures how your brand's visibility is accelerating or decelerating compared to the market average.",
     },
     {
       title: "AI Visibility Index",
@@ -69,6 +73,7 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
       trend: null,
       color: "#8B5CF6",
       isScore: true,
+      tooltip: "A composite score (0-100) measuring your brand's overall presence and discoverability across AI platforms.",
     },
   ];
 
@@ -88,9 +93,21 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
 
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-muted-foreground">
-                {kpi.title}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-muted-foreground">
+                  {kpi.title}
+                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {kpi.tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div 
                 className="p-2 rounded-lg"
                 style={{ backgroundColor: `${kpi.color}15` }}

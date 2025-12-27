@@ -21,6 +21,7 @@ interface CitationsEvolutionChartProps {
   selectedCompetitorId: string | null;
   onCompetitorChange: (competitorId: string) => void;
   isLoading: boolean;
+  infoTooltip?: string;
 }
 
 // Helper function to convert hex to rgb
@@ -42,6 +43,7 @@ export function CitationsEvolutionChart({
   selectedCompetitorId,
   onCompetitorChange,
   isLoading,
+  infoTooltip,
 }: CitationsEvolutionChartProps) {
   return (
     <EvolutionChart
@@ -64,6 +66,7 @@ export function CitationsEvolutionChart({
       primaryColor={brandColor ? hexToRgb(brandColor) : "rgb(34, 197, 94)"}
       secondaryColor={competitorColor ? hexToRgb(competitorColor) : "rgb(249, 115, 22)"}
       emptyStateMessage="Run analysis with Perplexity or Gemini to track citations over time"
+      infoTooltip={infoTooltip}
     />
   );
 }

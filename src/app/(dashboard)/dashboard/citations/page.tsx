@@ -25,6 +25,7 @@ import {
 import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 
 export default function CitationsPage() {
@@ -241,7 +242,7 @@ export default function CitationsPage() {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Citation & domains"
+          title="Share of citations"
           description="Monitor how AI platforms cite and reference your brand"
         />
         <div className="flex items-center justify-center h-96">
@@ -257,7 +258,7 @@ export default function CitationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Citation & domains"
+        title="Share of citations"
         description="Comprehensive analysis of your brand citations across AI platforms"
       />
 
@@ -269,6 +270,11 @@ export default function CitationsPage() {
         topicId={topicId}
         onApply={handleFiltersChange}
       />
+
+      {/* Definition Tip */}
+      <WelcomeTip id="what-are-citations">
+        <strong>🔗 What is a Citation?</strong> — When an AI model references your brand AND explicitly states the source of that information (e.g., &quot;According to example.com...&quot;). Citations are more valuable than mentions because they include a direct reference to your content.
+      </WelcomeTip>
 
       {/* Stats Cards - Matching Share of Mentions UI */}
       {(() => {
@@ -289,6 +295,7 @@ export default function CitationsPage() {
               value={`${brandPercentage}%`}
               description="Share vs competitors"
               icon={Trophy}
+              tooltip="The percentage of all AI citations that reference your brand compared to your tracked competitors."
               trend={
                 trendsData.brandTrend !== 0
                   ? {
@@ -297,13 +304,14 @@ export default function CitationsPage() {
                     }
                   : undefined
               }
-        />
+            />
             <StatCard
               title="Total Citations"
               value={totalCitations.toLocaleString()}
               description="Total citations across all brands"
               icon={FileText}
-        />
+              tooltip="The total number of times AI platforms have cited any brand (yours + competitors) with source attribution in the selected period."
+            />
             <StatCard
               title="Market Position"
               value={`#${quickMetrics.ranking?.position || 1}`}
@@ -313,14 +321,16 @@ export default function CitationsPage() {
                   : `${citationsRanking?.competitors?.[0]?.name || "Competitor"} is leading`
               }
               icon={TrendingUp}
+              tooltip="Your ranking among all tracked brands based on citation count. #1 means you have the most citations."
             />
             <StatCard
               title="Competitors Tracked"
               value={citationsRanking?.competitors?.length || 0}
               description="Active competitors"
               icon={Users}
-        />
-      </div>
+              tooltip="The number of competitor brands you're currently monitoring and comparing against."
+            />
+          </div>
         );
       })()}
 
@@ -337,6 +347,7 @@ export default function CitationsPage() {
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
         isLoading={isLoadingEvolution}
+        infoTooltip="Daily citation count over time. Compare your trend against a competitor to see who's gaining authority in AI responses."
       />
 
       {/* Strategic Charts - Matching Share of Mentions UI */}
@@ -392,13 +403,19 @@ export default function CitationsPage() {
         return (
           <>
             {/* Market Share Distribution */}
-            <MarketShareDistribution entities={allEntities} isLoading={isLoading} metricLabel="citations" />
+            <MarketShareDistribution 
+              entities={allEntities} 
+              isLoading={isLoading} 
+              metricLabel="citations"
+              infoTooltip="Visual breakdown showing what percentage of all AI citations each brand captures. Larger bars indicate higher citation authority."
+            />
 
             {/* Share Evolution Chart */}
             <ShareEvolutionChart
               data={shareEvolutionData.data}
               entities={shareEvolutionData.entities}
               isLoading={isLoadingCharts}
+              infoTooltip="Line chart tracking how each brand's citation market share has changed over the selected time period."
             />
 
             {/* Competitive Momentum Matrix */}
@@ -411,7 +428,10 @@ export default function CitationsPage() {
       })()}
 
       {/* Most Cited Domains */}
-        <MostCitedDomainsTable data={mostCitedDomains} />
+      <MostCitedDomainsTable 
+        data={mostCitedDomains}
+        infoTooltip="Ranking of which domains AI platforms cite most frequently. These are the websites that AI models trust as authoritative sources."
+      />
 
       {/* Citation Sources - Individual URLs */}
       <CitationSourcesTable
@@ -421,6 +441,7 @@ export default function CitationsPage() {
         pageSize={citationSourcesPageSize}
         totalPages={citationSourcesTotalPages}
         onPageChange={setCitationSourcesPage}
+        infoTooltip="Specific URLs that AI platforms are referencing in their responses. Click to visit the original source."
       />
     </div>
   );

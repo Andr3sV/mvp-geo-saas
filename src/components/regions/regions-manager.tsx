@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { getCountryByCode } from "@/lib/countries";
 import { Switch } from "@/components/ui/switch";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 export function RegionsManager() {
   const { selectedProjectId } = useProject();
@@ -102,6 +103,13 @@ export function RegionsManager() {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Tip */}
+      <WelcomeTip id="regions">
+        Configure the geographic regions where you want to track your brand&apos;s AI visibility. 
+        Each region can have its own set of prompts and competitors, allowing you to understand 
+        how your brand performs in different markets.
+      </WelcomeTip>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

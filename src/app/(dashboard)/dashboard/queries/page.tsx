@@ -23,6 +23,7 @@ import {
   getQueryDomainCorrelation,
 } from "@/lib/queries/query-analytics";
 import { type EntityFilterValue } from "@/components/dashboard/entity-filter-select";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 type DateRangeValue = {
   from: Date | undefined;
@@ -285,6 +286,25 @@ export default function QueriesPage() {
         selectedEntities={selectedEntities}
         onApply={handleFilterChange}
       />
+
+      {/* Definition Tip */}
+      <WelcomeTip id="what-are-queries">
+        <strong>🔍 What are Query Patterns?</strong> — The actual questions and prompts users ask AI platforms that result in your brand being mentioned or cited.
+      </WelcomeTip>
+
+      {/* Welcome Tip */}
+      <WelcomeTip id="queries">
+        <span className="block mb-2">
+          Discover what questions trigger AI platforms to mention your brand. Understanding query patterns helps you optimize content for AI visibility.
+        </span>
+        <ul className="space-y-1 text-xs">
+          <li><strong>📊 4 Key Metrics</strong> — Total queries tracked, unique query patterns, most active platform, and average query length</li>
+          <li><strong>☁️ Word Cloud</strong> — Visual representation of the most common words in queries that mention your brand</li>
+          <li><strong>📱 Platform Distribution</strong> — See which queries are most popular on each AI platform</li>
+          <li><strong>📋 Top Queries Table</strong> — Ranked list of the most frequent queries that generate mentions for your brand</li>
+          <li><strong>🔥 Query-Domain Heatmap</strong> — Correlation between specific queries and the domains being cited</li>
+        </ul>
+      </WelcomeTip>
 
       {/* Section 1: Metrics Overview */}
       <div className="grid gap-4 md:grid-cols-4">

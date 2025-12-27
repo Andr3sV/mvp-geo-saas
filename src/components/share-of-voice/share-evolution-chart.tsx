@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { Layers } from "lucide-react";
+import { Layers, Info } from "lucide-react";
+import { Tooltip as TooltipUI, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   AreaChart,
   Area,
@@ -25,6 +26,7 @@ interface ShareEvolutionChartProps {
   data: any[];
   entities: Entity[];
   isLoading?: boolean;
+  infoTooltip?: string;
 }
 
 // Color palette for entities
@@ -39,7 +41,7 @@ const COLORS = [
   "#f97316", // orange
 ];
 
-export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutionChartProps) {
+export function ShareEvolutionChart({ data, entities, isLoading, infoTooltip }: ShareEvolutionChartProps) {
   // Helper function to get color for entity
   const getEntityColor = (entity: Entity, index: number): string => {
     if (entity.color) return entity.color;
@@ -121,6 +123,18 @@ export function ShareEvolutionChart({ data, entities, isLoading }: ShareEvolutio
             <CardTitle className="text-lg flex items-center gap-2">
               <Layers className="h-5 w-5 text-muted-foreground" />
               Share Evolution Over Time
+              {infoTooltip && (
+                <TooltipUI>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {infoTooltip}
+                  </TooltipContent>
+                </TooltipUI>
+              )}
             </CardTitle>
             <CardDescription>How market share changes daily</CardDescription>
           </div>

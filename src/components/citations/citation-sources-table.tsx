@@ -10,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { ExternalLink, Sparkles, Info } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
   Pagination,
@@ -37,6 +38,7 @@ interface CitationSourcesTableProps {
   pageSize: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  infoTooltip?: string;
 }
 
 const getPlatformBadge = (platform: string) => {
@@ -65,6 +67,7 @@ export function CitationSourcesTable({
   pageSize,
   totalPages,
   onPageChange,
+  infoTooltip,
 }: CitationSourcesTableProps) {
   const startIndex = (page - 1) * pageSize + 1;
   const endIndex = Math.min(page * pageSize, total);
@@ -141,6 +144,18 @@ export function CitationSourcesTable({
         <CardTitle className="flex items-center gap-2">
           <ExternalLink className="h-5 w-5" />
           Citation Sources
+          {infoTooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                {infoTooltip}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </CardTitle>
         <CardDescription>
           Individual sources citing your brand with URLs from web search

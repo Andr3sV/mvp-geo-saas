@@ -64,20 +64,24 @@ export function CountrySelect({
   // Use project regions if projectId is provided and regions are loaded, otherwise use full countries list
   const availableCountries = (projectId && projectRegions) ? projectRegions : countries;
 
-  // Debug: Log when countries list changes
+  // If there's only one country, auto-select it
   React.useEffect(() => {
-    console.log('[CountrySelect] State:', {
-      projectId,
-      projectRegionsCount: projectRegions?.length || 0,
-      availableCountriesCount: availableCountries.length,
-      value,
-      open
-    });
-  }, [projectId, projectRegions, availableCountries.length, value, open]);
+    if (availableCountries.length === 1 && value !== availableCountries[0].code) {
+      onValueChange?.(availableCountries[0].code);
+    }
+  }, [availableCountries, value, onValueChange]);
 
-  const selectedCountry = availableCountries.find(
-    (country) => country.code.toLowerCase() === value?.toLowerCase()
-  );
+  // Determine if we should show "All countries" option (only if more than 1 country)
+  const showAllCountriesOption = availableCountries.length > 1;
+  
+  // Show search only if more than 10 countries
+  const showSearch = availableCountries.length > 10;
+
+  const selectedCountry = value === "GLOBAL" 
+    ? null 
+    : availableCountries.find(
+        (country) => country.code.toLowerCase() === value?.toLowerCase()
+      );
 
   const filteredCountries = searchQuery
     ? availableCountries.filter(
@@ -87,6 +91,20 @@ export function CountrySelect({
       )
     : availableCountries;
 
+  // Display text for the button
+  const getDisplayText = () => {
+    if (value === "GLOBAL" && showAllCountriesOption) {
+      return "All countries";
+    }
+    if (selectedCountry) {
+      return selectedCountry.name;
+    }
+    if (availableCountries.length === 1) {
+      return availableCountries[0].name;
+    }
+    return placeholder;
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -95,16 +113,9 @@ export function CountrySelect({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
-          disabled={disabled}
+          disabled={disabled || availableCountries.length === 1}
         >
-          {selectedCountry ? (
-            <span className="flex items-center gap-2">
-              <span className="text-lg">{selectedCountry.flag}</span>
-              <span>{selectedCountry.name}</span>
-            </span>
-          ) : (
-            placeholder
-          )}
+          <span>{getDisplayText()}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -114,40 +125,55 @@ export function CountrySelect({
         sideOffset={4}
       >
         <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="Search country..."
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-          />
+          {showSearch && (
+            <CommandInput
+              placeholder="Search country..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+            />
+          )}
           <CommandList className="max-h-[300px]">
             <CommandEmpty>No country found.</CommandEmpty>
             <CommandGroup>
+              {showAllCountriesOption && (
+                <CommandItem
+                  value="global"
+                  onSelect={() => {
+                    onValueChange?.("GLOBAL");
+                    setOpen(false);
+                    setSearchQuery("");
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === "GLOBAL" ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span>All countries</span>
+                </CommandItem>
+              )}
               {filteredCountries.length > 0 ? (
                 filteredCountries.map((country) => (
                   <CommandItem
                     key={country.code}
                     value={country.code.toLowerCase()}
                     onSelect={(currentValue) => {
-                      console.log('[CountrySelect] Item selected:', currentValue, 'country:', country);
                       onValueChange?.(country.code.toUpperCase());
                       setOpen(false);
                       setSearchQuery("");
                     }}
                   >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value?.toLowerCase() === country.code.toLowerCase()
-                        ? "opacity-100"
-                        : "opacity-0"
-                    )}
-                  />
-                  <span className="mr-2 text-lg">{country.flag}</span>
-                  <span>{country.name}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {country.code}
-                  </span>
-                </CommandItem>
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value?.toLowerCase() === country.code.toLowerCase()
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                    <span>{country.name}</span>
+                  </CommandItem>
                 ))
               ) : (
                 <div className="py-6 text-center text-sm text-muted-foreground">
@@ -161,4 +187,3 @@ export function CountrySelect({
     </Popover>
   );
 }
-

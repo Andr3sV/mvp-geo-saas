@@ -31,6 +31,7 @@ import {
   getEntitySentimentsFromEvaluations,
   getThemeFrequencyMatrix,
 } from "@/lib/queries/brand-evaluations";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 export default function SentimentPage() {
   const { selectedProjectId } = useProject();
@@ -298,6 +299,24 @@ export default function SentimentPage() {
         showSentimentThemeFilter={true}
         onApply={handleFiltersChange}
       />
+
+      {/* Definition Tip */}
+      <WelcomeTip id="what-is-sentiment">
+        <strong>💭 What is Sentiment Pulse?</strong> — Analysis of the emotional tone (positive, neutral, negative) when AI platforms talk about your brand.
+      </WelcomeTip>
+
+      {/* Welcome Tip */}
+      <WelcomeTip id="sentiment">
+        <span className="block mb-2">
+          Understand not just how often AI mentions your brand, but <strong>how</strong> it talks about you. Sentiment analysis reveals the quality of your AI visibility.
+        </span>
+        <ul className="space-y-1 text-xs">
+          <li><strong>📊 Sentiment Comparison</strong> — Side-by-side view of positive/neutral/negative distribution for your brand vs competitors</li>
+          <li><strong>📈 Sentiment Trends</strong> — Track how sentiment scores change over time. Spot reputation improvements or emerging issues</li>
+          <li><strong>🎯 Theme Frequency Radar</strong> — Discover which topics and themes are most associated with your brand in AI responses</li>
+          <li><strong>📋 Themes Table</strong> — Detailed breakdown of sentiment by theme, with trend indicators and comparison to previous periods</li>
+        </ul>
+      </WelcomeTip>
 
       {/* Sentiment Analysis Section */}
       <div className="space-y-6">

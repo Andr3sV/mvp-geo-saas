@@ -100,7 +100,7 @@ export function CompetitorsList({
                 <span>•</span>
                 <span className="flex items-center gap-1 text-sm">
                   <span>{getCountryByCode(competitor.region)?.flag || "🌍"}</span>
-                  <span>{getCountryByCode(competitor.region)?.name || "Global"}</span>
+                  <span>{getCountryByCode(competitor.region)?.name || "All countries"}</span>
                 </span>
               </div>
             </div>

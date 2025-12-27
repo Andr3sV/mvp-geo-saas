@@ -17,7 +17,6 @@ function getFlagEmoji(countryCode: string): string {
 }
 
 export const countries: Country[] = [
-  { code: 'GLOBAL', name: 'Global', flag: '🌍' },
   { code: 'US', name: 'United States', flag: getFlagEmoji('US') },
   { code: 'GB', name: 'United Kingdom', flag: getFlagEmoji('GB') },
   { code: 'CA', name: 'Canada', flag: getFlagEmoji('CA') },

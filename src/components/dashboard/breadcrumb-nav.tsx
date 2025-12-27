@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Building2, FolderKanban, Plus } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -34,32 +34,7 @@ interface BreadcrumbNavProps {
   workspaces: any[];
 }
 
-const PAGE_NAMES: Record<string, string> = {
-  "/dashboard/citations": "Citation & domains",
-  "/dashboard/share-of-voice": "Share of mentions",
-  "/dashboard/platforms": "Platform Breakdown",
-  "/dashboard/sentiment": "Sentiment Analysis",
-  "/dashboard/attributes": "Attributes",
-  "/dashboard/queries": "Query Patterns",
-  "/dashboard/trending": "Trending Queries",
-  "/dashboard/competitors": "Competitor Management",
-  "/dashboard/reports/executive": "Executive Overview",
-  "/dashboard/prompts": "Prompt Management",
-  "/dashboard/settings": "Settings",
-  "/dashboard": "Dashboard",
-};
-
-function getPageName(pathname: string): string {
-  // Check for exact match first
-  if (PAGE_NAMES[pathname]) {
-    return PAGE_NAMES[pathname];
-  }
-  
-  return "Dashboard";
-}
-
 export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
-  const pathname = usePathname();
   const router = useRouter();
   const { selectedProjectId, setSelectedProjectId } = useProject();
   const [currentWorkspace, setCurrentWorkspace] = useState<any>(null);
@@ -85,8 +60,6 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
       setCurrentWorkspace(workspaces[0]);
     }
   }, [selectedProjectId, workspaces]);
-
-  const currentPageName = getPageName(pathname);
 
   const handleCreateProject = async () => {
     if (!projectName.trim()) {
@@ -137,6 +110,9 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
     }
   };
 
+  // Only show workspace selector if there are multiple workspaces
+  const showWorkspaceSelector = workspaces.length > 1;
+
   return (
     <div className="flex items-center gap-2 text-sm">
       {/* Logo */}
@@ -149,47 +125,50 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
           className="object-contain"
         />
       </Link>
-      <Separator orientation="vertical" className="h-6" />
+      <Separator orientation="vertical" className="h-6 bg-zinc-600" />
 
-      {/* Workspace Selector */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 font-medium hover:bg-muted/50"
-          >
-            <Building2 className="h-3.5 w-3.5" />
-            <span>{currentWorkspace?.name || "Workspace"}</span>
-            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">
-            Switch Workspace
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {workspaces.map((workspace) => (
-            <DropdownMenuItem
-              key={workspace.id}
-              onClick={() => {
-                // A futuro: cambiar de workspace
-                // Por ahora, solo selecciona el primer proyecto del workspace
-                if (workspace.projects.length > 0) {
-                  setSelectedProjectId(workspace.projects[0].id);
-                }
-              }}
-              className={cn(
-                currentWorkspace?.id === workspace.id && "bg-muted"
-              )}
-            >
-              {workspace.name}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <span className="text-muted-foreground">/</span>
+      {/* Workspace Selector - Only show if multiple workspaces */}
+      {showWorkspaceSelector && (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 font-medium text-white hover:bg-zinc-700 hover:text-white"
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                <span>{currentWorkspace?.name || "Workspace"}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Switch Workspace
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {workspaces.map((workspace) => (
+                <DropdownMenuItem
+                  key={workspace.id}
+                  onClick={() => {
+                    // A futuro: cambiar de workspace
+                    // Por ahora, solo selecciona el primer proyecto del workspace
+                    if (workspace.projects.length > 0) {
+                      setSelectedProjectId(workspace.projects[0].id);
+                    }
+                  }}
+                  className={cn(
+                    currentWorkspace?.id === workspace.id && "bg-muted"
+                  )}
+                >
+                  {workspace.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span className="text-zinc-400">/</span>
+        </>
+      )}
 
       {/* Project Selector */}
       <DropdownMenu>
@@ -197,11 +176,11 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1 px-2 font-medium hover:bg-muted/50"
+            className="h-7 gap-1 px-2 font-medium text-white hover:bg-zinc-700 hover:text-white"
           >
             <FolderKanban className="h-3.5 w-3.5" />
             <span>{currentProject?.name || "Project"}</span>
-            <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+            <ChevronDown className="h-3.5 w-3.5 opacity-70" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -234,11 +213,6 @@ export function BreadcrumbNav({ workspaces }: BreadcrumbNavProps) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <span className="text-muted-foreground">/</span>
-
-      {/* Current Page */}
-      <span className="font-medium">{currentPageName}</span>
 
       {/* Create Project Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

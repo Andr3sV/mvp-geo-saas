@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getProjectRegionsForSelect } from "@/lib/queries/regions";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 export function PromptsManager() {
   const { selectedProjectId } = useProject();
@@ -97,6 +98,13 @@ export function PromptsManager() {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Tip */}
+      <WelcomeTip id="prompts">
+        Create and manage the prompts that AI platforms will answer about your brand. 
+        Each prompt generates responses that are analyzed for mentions, citations, and sentiment. 
+        Organize prompts by region and topic to get targeted insights.
+      </WelcomeTip>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

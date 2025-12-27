@@ -11,7 +11,7 @@ export interface RegionForSelect {
 
 /**
  * Get project regions formatted for CountrySelect component
- * Always includes "GLOBAL" as first option (virtual, not from database)
+ * Does NOT include GLOBAL - the CountrySelect component handles "All countries" option
  */
 export async function getProjectRegionsForSelect(projectId: string): Promise<RegionForSelect[]> {
   const supabase = await createClient();
@@ -38,14 +38,6 @@ export async function getProjectRegionsForSelect(projectId: string): Promise<Reg
     };
   });
 
-  // Always include GLOBAL as first option (virtual option)
-  return [
-    {
-      code: "GLOBAL",
-      name: "Global",
-      flag: "🌍",
-    },
-    ...regionsForSelect,
-  ];
+  return regionsForSelect;
 }
 

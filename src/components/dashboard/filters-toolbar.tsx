@@ -204,7 +204,7 @@ export function FiltersToolbar({
 		!isDefaultEntityFilter;
 
 	return (
-		<div className={`rounded-lg bg-card p-3 ${className ?? ""}`}>
+		<div className={`rounded-lg bg-card py-3 ${className ?? ""}`}>
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				<div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center">
 					<div className="w-full md:w-52">

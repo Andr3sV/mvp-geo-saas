@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { Check, LucideIcon, MoreHorizontal } from "lucide-react";
+import { Check, LucideIcon, MoreHorizontal, Info } from "lucide-react";
+import { Tooltip as TooltipUI, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -60,6 +61,9 @@ interface EvolutionChartProps {
   primaryColor?: string; // defaults to blue
   secondaryColor?: string; // defaults to red
   emptyStateMessage?: string;
+  
+  // Info tooltip (optional)
+  infoTooltip?: string;
 }
 
 export function EvolutionChart({
@@ -82,6 +86,7 @@ export function EvolutionChart({
   primaryColor = "rgb(59, 130, 246)", // blue-500
   secondaryColor = "rgb(239, 68, 68)", // red-500
   emptyStateMessage = "Run analyses with different prompts to see trends",
+  infoTooltip,
 }: EvolutionChartProps) {
   const [showAllCompetitors, setShowAllCompetitors] = useState(false);
   const MAX_VISIBLE_COMPETITORS = 6;
@@ -129,6 +134,18 @@ export function EvolutionChart({
             <CardTitle className="flex items-center gap-2 text-xl">
               {Icon && <Icon className="h-5 w-5 text-primary" />}
               {title}
+              {infoTooltip && (
+                <TooltipUI>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    {infoTooltip}
+                  </TooltipContent>
+                </TooltipUI>
+              )}
             </CardTitle>
             <CardDescription className="text-sm">
               {description}

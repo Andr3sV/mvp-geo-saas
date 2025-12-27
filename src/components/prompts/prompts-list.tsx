@@ -171,7 +171,7 @@ export function PromptsList({ prompts, projectId, onUpdate }: PromptsListProps) 
                             />
                             <Badge variant="outline" className="text-[10px] flex items-center gap-1 font-normal bg-background/50 px-1.5 h-5">
                               <span>{getCountryByCode(prompt.region)?.flag || "🌍"}</span>
-                              <span className="hidden sm:inline">{getCountryByCode(prompt.region)?.name || "Global"}</span>
+                              <span className="hidden sm:inline">{getCountryByCode(prompt.region)?.name || "All countries"}</span>
                             </Badge>
                           </div>
                         </div>

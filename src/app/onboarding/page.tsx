@@ -1223,7 +1223,7 @@ export default function OnboardingPage() {
                                         <PopoverTrigger asChild>
                                           <Badge variant="outline" className="text-xs flex items-center gap-1 cursor-pointer hover:bg-muted shrink-0">
                                             <span>{country?.flag || "🌍"}</span>
-                                            <span>{country?.name || "Global"}</span>
+                                            <span>{country?.name || "All countries"}</span>
                                           </Badge>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-[300px] p-0" align="end">

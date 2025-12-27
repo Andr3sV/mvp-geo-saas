@@ -9,6 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 interface DomainData {
   domain: string;
   type: string;
@@ -19,14 +21,29 @@ interface DomainData {
 
 interface MostCitedDomainsTableProps {
   data: DomainData[];
+  infoTooltip?: string;
 }
 
 
-export function MostCitedDomainsTable({ data }: MostCitedDomainsTableProps) {
+export function MostCitedDomainsTable({ data, infoTooltip }: MostCitedDomainsTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Most Cited Domains in AI Answers</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Most Cited Domains in AI Answers
+          {infoTooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                {infoTooltip}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </CardTitle>
         <p className="text-sm text-muted-foreground">
           Top websites used as sources in AI model responses
         </p>

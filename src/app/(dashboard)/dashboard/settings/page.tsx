@@ -3,7 +3,11 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { getUser, getUserProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
-export default async function SettingsPage() {
+interface SettingsPageProps {
+  searchParams: Promise<{ tab?: string }>;
+}
+
+export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const user = await getUser();
   
   if (!user) {
@@ -11,6 +15,8 @@ export default async function SettingsPage() {
   }
 
   const profile = await getUserProfile();
+  const params = await searchParams;
+  const defaultTab = params.tab || "projects";
 
   return (
     <div className="space-y-6">
@@ -24,6 +30,7 @@ export default async function SettingsPage() {
           email: user.email,
           name: profile?.name,
         }}
+        defaultTab={defaultTab}
       />
     </div>
   );

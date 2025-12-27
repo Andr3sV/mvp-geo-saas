@@ -9,6 +9,7 @@ import { UnmentionedSourcesTable } from "@/components/citations/unmentioned-sour
 import { getHighValueOpportunities, getUnmentionedSources } from "@/lib/queries/citations-real";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 export default function OpportunitiesPage() {
   const { selectedProjectId } = useProject();
@@ -125,6 +126,13 @@ export default function OpportunitiesPage() {
         region={region}
         onApply={handleFiltersChange}
       />
+
+      {/* Welcome Tip */}
+      <WelcomeTip id="opportunities">
+        Discover untapped opportunities to improve your AI visibility. 
+        Find high-value topics where competitors are being cited but you&apos;re not, 
+        and identify sources that could mention your brand but haven&apos;t yet.
+      </WelcomeTip>
 
       {/* High Value Opportunities Table */}
       <HighValueOpportunitiesTable data={opportunities} />

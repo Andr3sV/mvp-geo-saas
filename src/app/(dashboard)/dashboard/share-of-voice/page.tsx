@@ -19,6 +19,7 @@ import { getCompetitorsByRegion } from "@/lib/actions/competitors";
 import { MentionsEvolutionChart } from "@/components/share-of-voice/mentions-evolution-chart";
 import { MarketShareDistribution } from "@/components/share-of-voice/market-share-distribution";
 import { ShareEvolutionChart } from "@/components/share-of-voice/share-evolution-chart";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 // import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
 // import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
@@ -229,6 +230,11 @@ export default function ShareOfVoicePage() {
         onApply={handleFiltersChange} 
       />
 
+      {/* Definition Tip */}
+      <WelcomeTip id="what-are-mentions">
+        <strong>💬 What is a Mention?</strong> — When an AI model names your brand, person, or concept in its response, but doesn&apos;t specify where that information comes from.
+      </WelcomeTip>
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
@@ -236,6 +242,7 @@ export default function ShareOfVoicePage() {
           value={`${sovData.brand.percentage}%`}
           description="Share vs competitors"
           icon={Trophy}
+          tooltip="The percentage of all AI mentions that reference your brand compared to your tracked competitors."
           trend={
             trendsData.brandTrend !== 0
               ? {
@@ -250,6 +257,7 @@ export default function ShareOfVoicePage() {
           value={sovData.totalMentions.toLocaleString()}
           description="Total mentions across all brands"
           icon={MessageSquare}
+          tooltip="The total number of times AI platforms have mentioned any brand (yours + competitors) in the selected period."
         />
         <StatCard
           title="Market Position"
@@ -260,12 +268,14 @@ export default function ShareOfVoicePage() {
               : `${sovData.competitors[0]?.name || "Competitor"} is leading`
           }
           icon={TrendingUp}
+          tooltip="Your ranking among all tracked brands based on mention count. #1 means you have the most mentions."
         />
         <StatCard
           title="Competitors Tracked"
           value={sovData.competitors.length}
           description="Active competitors"
           icon={Users}
+          tooltip="The number of competitor brands you're currently monitoring and comparing against."
         />
       </div>
 

@@ -15,6 +15,7 @@ import { PlatformPerformanceHeatmap } from "@/components/platforms/platform-perf
 import { PlatformGapAnalysis } from "@/components/platforms/platform-gap-analysis";
 import { PlatformMomentum } from "@/components/platforms/platform-momentum";
 import { PlatformInsights } from "@/components/platforms/platform-insights";
+import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 // Queries
 import {
@@ -106,6 +107,26 @@ export default function PlatformsPage() {
         hidePlatformFilter={true}
         onApply={handleFilterChange}
       />
+
+      {/* Definition Tip */}
+      <WelcomeTip id="what-are-platforms">
+        <strong>🤖 What is Platform Breakdown?</strong> — Analysis of how your brand performs on each AI platform separately (ChatGPT/OpenAI, Gemini, Perplexity, etc.).
+      </WelcomeTip>
+
+      {/* Welcome Tip */}
+      <WelcomeTip id="platforms">
+        <span className="block mb-2">
+          Compare your brand&apos;s visibility across different AI platforms. Each platform has unique algorithms and data sources, so performance can vary significantly.
+        </span>
+        <ul className="space-y-1 text-xs">
+          <li><strong>🎯 Platform Cards</strong> — Key metrics for each AI platform: mentions, citations, and sentiment breakdown</li>
+          <li><strong>📊 Platform Share</strong> — Visual bar showing how your visibility is distributed across platforms</li>
+          <li><strong>📈 Performance Evolution</strong> — Track how each platform&apos;s mention count changes over time</li>
+          <li><strong>⚔️ Daily Platform Battle</strong> — Day-by-day comparison of which platform gives you more visibility</li>
+          <li><strong>🔥 Performance Heatmap</strong> — See which entities (brand/competitors) perform best on each platform</li>
+          <li><strong>🚀 Platform Momentum</strong> — Which platforms are accelerating or slowing down for your brand</li>
+        </ul>
+      </WelcomeTip>
 
       {/* Section 1: Platform Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2">
