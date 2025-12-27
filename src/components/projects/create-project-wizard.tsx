@@ -464,13 +464,13 @@ export function CreateProjectWizard({
         return;
       }
 
-      // Success - close wizard, refresh, and redirect to project dashboard
+      // Success - close wizard, refresh, and redirect to Executive Overview
       if (onProjectCreated) {
         onProjectCreated(createdProjectId);
       }
       onOpenChange(false);
       router.refresh();
-      router.push(`/dashboard?project=${createdProjectId}`);
+      router.push(`/dashboard/reports/executive?project=${createdProjectId}`);
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");
       setIsLoading(false);
