@@ -62,6 +62,11 @@ export default function ShareOfVoicePage() {
 
   // Cache competitors by region to avoid redundant queries (useRef to persist across renders)
   const competitorsCache = useRef(new Map<string, any[]>());
+  
+  // Refs to prevent duplicate loads
+  const isLoadingRef = useRef(false);
+  const hasLoadedInitialData = useRef(false);
+  const isResettingCompetitorRef = useRef(false);
 
   // Define functions before useEffect hooks that use them
   const loadRegionFilteredCompetitors = useCallback(async () => {
@@ -99,6 +104,10 @@ export default function ShareOfVoicePage() {
   const loadData = useCallback(async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
+    // Evitar cargas duplicadas
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+
     setIsLoading(true);
     setIsLoadingCharts(true);
 
@@ -130,11 +139,18 @@ export default function ShareOfVoicePage() {
       setIsLoadingCharts(false);
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
+      hasLoadedInitialData.current = true;
     }
   }, [selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId]);
 
   const loadEvolutionData = useCallback(async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
+
+    // No cargar si es un reset de región (evita carga innecesaria cuando region cambia)
+    if (isResettingCompetitorRef.current && selectedCompetitorId === null) {
+      return;
+    }
 
     setIsLoadingEvolution(true);
 
@@ -166,27 +182,82 @@ export default function ShareOfVoicePage() {
   // Memoize competitors array to prevent unnecessary re-renders
   const memoizedCompetitors = useMemo(() => regionFilteredCompetitors, [regionFilteredCompetitors]);
 
+  // Memoize filtered entities calculation to avoid recalculating on every render
+  const filteredEntities = useMemo(() => {
+    if (!sovData) return { allEntities: [], filteredCompetitors: [] };
+    
+    const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+    const filteredCompetitors = sovData.competitors.filter((comp: any) =>
+      regionCompetitorIds.has(comp.id)
+    );
+
+    const filteredCompetitorMentions = filteredCompetitors.reduce(
+      (sum: number, comp: any) => sum + comp.mentions,
+      0
+    );
+    const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+
+    const allEntities = [
+      {
+        id: "brand",
+        name: sovData.brand.name,
+        domain: sovData.brand.domain,
+        color: sovData.brand.color,
+        mentions: sovData.brand.mentions,
+        percentage: filteredTotalMentions > 0
+          ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
+          : 0,
+        isBrand: true,
+        trend: trendsData?.brandTrend || 0,
+      },
+      ...filteredCompetitors.map((comp: any) => ({
+        id: comp.id,
+        name: comp.name,
+        domain: comp.domain,
+        color: comp.color,
+        mentions: comp.mentions,
+        percentage: filteredTotalMentions > 0
+          ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
+          : 0,
+        isBrand: false,
+        trend: trendsData?.competitorTrends?.find((t: any) => t.name === comp.name)?.trend || 0,
+      })),
+    ];
+
+    allEntities.sort((a, b) => b.percentage - a.percentage);
+    
+    return { allEntities, filteredCompetitors };
+  }, [sovData, regionFilteredCompetitors, trendsData]);
+
   // useEffect hooks that use the functions defined above
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadData();
     }
-  }, [loadData, dateRange.from, dateRange.to]);
+  }, [loadData]); // Solo la función memoizada, ya incluye todas las dependencias necesarias
 
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadEvolutionData();
     }
-  }, [loadEvolutionData, dateRange.from, dateRange.to]);
+  }, [loadEvolutionData]); // Solo la función memoizada, ya incluye todas las dependencias necesarias
 
   // Load competitors filtered by region for the selector
   useEffect(() => {
     if (selectedProjectId) {
       loadRegionFilteredCompetitors();
-      // Reset selected competitor when region changes
-      setSelectedCompetitorId(null);
     }
   }, [selectedProjectId, loadRegionFilteredCompetitors]);
+
+  // Reset selected competitor when region changes
+  useEffect(() => {
+    isResettingCompetitorRef.current = true;
+    setSelectedCompetitorId(null);
+    // Reset flag after a short delay to allow loadEvolutionData to check it
+    setTimeout(() => {
+      isResettingCompetitorRef.current = false;
+    }, 100);
+  }, [region]);
 
   const handleFiltersChange = (filters: {
     region: string;
@@ -205,22 +276,7 @@ export default function ShareOfVoicePage() {
     }
   };
 
-  if (isLoading || !sovData) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Share of mentions"
-          description="Compare your brand mentions against competitors in AI responses"
-        />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-            <p className="mt-4 text-muted-foreground">Loading share of voice data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Eliminado early return - ahora mostramos skeleton loaders en cada sección
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -243,46 +299,57 @@ export default function ShareOfVoicePage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
-          title="Your Share"
-          value={`${sovData.brand.percentage}%`}
-          description="Share vs competitors"
-          icon={Trophy}
-          tooltip="The percentage of all AI mentions that reference your brand compared to your tracked competitors."
-          trend={
-            trendsData.brandTrend !== 0
-              ? {
-                  value: Math.abs(trendsData.brandTrend),
-                  isPositive: trendsData.brandTrend > 0,
-                }
-              : undefined
-          }
-        />
-        <StatCard
-          title="Total Mentions"
-          value={sovData.totalMentions.toLocaleString()}
-          description="Total mentions across all brands"
-          icon={MessageSquare}
-          tooltip="The total number of times AI platforms have mentioned any brand (yours + competitors) in the selected period."
-        />
-        <StatCard
-          title="Market Position"
-          value={`#${sovData.marketPosition}`}
-          description={
-            sovData.marketPosition === 1
-              ? "Leading in your category"
-              : `${sovData.competitors[0]?.name || "Competitor"} is leading`
-          }
-          icon={TrendingUp}
-          tooltip="Your ranking among all tracked brands based on mention count. #1 means you have the most mentions."
-        />
-        <StatCard
-          title="Competitors Tracked"
-          value={sovData.competitors.length}
-          description="Active competitors"
-          icon={Users}
-          tooltip="The number of competitor brands you're currently monitoring and comparing against."
-        />
+        {isLoading || !sovData ? (
+          <>
+            <StatCard title="" value="" description="" icon={Trophy} isLoading={true} />
+            <StatCard title="" value="" description="" icon={MessageSquare} isLoading={true} />
+            <StatCard title="" value="" description="" icon={TrendingUp} isLoading={true} />
+            <StatCard title="" value="" description="" icon={Users} isLoading={true} />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Your Share"
+              value={`${sovData.brand.percentage}%`}
+              description="Share vs competitors"
+              icon={Trophy}
+              tooltip="The percentage of all AI mentions that reference your brand compared to your tracked competitors."
+              trend={
+                trendsData?.brandTrend !== 0
+                  ? {
+                      value: Math.abs(trendsData.brandTrend),
+                      isPositive: trendsData.brandTrend > 0,
+                    }
+                  : undefined
+              }
+            />
+            <StatCard
+              title="Total Mentions"
+              value={sovData.totalMentions.toLocaleString()}
+              description="Total mentions across all brands"
+              icon={MessageSquare}
+              tooltip="The total number of times AI platforms have mentioned any brand (yours + competitors) in the selected period."
+            />
+            <StatCard
+              title="Market Position"
+              value={`#${sovData.marketPosition}`}
+              description={
+                sovData.marketPosition === 1
+                  ? "Leading in your category"
+                  : `${sovData.competitors[0]?.name || "Competitor"} is leading`
+              }
+              icon={TrendingUp}
+              tooltip="Your ranking among all tracked brands based on mention count. #1 means you have the most mentions."
+            />
+            <StatCard
+              title="Competitors Tracked"
+              value={sovData.competitors.length}
+              description="Active competitors"
+              icon={Users}
+              tooltip="The number of competitor brands you're currently monitoring and comparing against."
+            />
+          </>
+        )}
       </div>
 
       {/* Mentions Evolution Chart */}
@@ -290,85 +357,33 @@ export default function ShareOfVoicePage() {
         data={evolutionData}
         brandName={evolutionBrandName}
         brandDomain={evolutionBrandDomain}
-        brandColor={evolutionBrandColor || sovData.brand.color}
+        brandColor={evolutionBrandColor || sovData?.brand?.color}
         competitorName={evolutionCompetitorName}
         competitorDomain={evolutionCompetitorDomain}
         competitorColor={evolutionCompetitorColor || (selectedCompetitorId ? regionFilteredCompetitors.find(c => c.id === selectedCompetitorId)?.color : undefined)}
         competitors={memoizedCompetitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
-        isLoading={isLoadingEvolution}
+        isLoading={isLoadingEvolution || isLoading}
       />
 
       {/* Share of Voice Chart */}
-            {(() => {
-              // Filter competitors to only show those assigned to the selected region
-              const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-              const filteredCompetitors = sovData.competitors.filter((comp: any) =>
-                regionCompetitorIds.has(comp.id)
-              );
+      <>
+        <MarketShareDistribution entities={filteredEntities.allEntities} isLoading={isLoading || isLoadingCharts} />
 
-              // Recalculate total mentions and percentages based on filtered competitors
-              const filteredCompetitorMentions = filteredCompetitors.reduce(
-                (sum: number, comp: any) => sum + comp.mentions,
-                0
-              );
-              const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+        {/* Share Evolution Chart - Right after Market Share Distribution */}
+        <ShareEvolutionChart
+          data={shareEvolutionData.data}
+          entities={shareEvolutionData.entities}
+          isLoading={isLoadingCharts || isLoading}
+        />
 
-              // Combine brand and filtered competitors with recalculated percentages
-              const allEntities = [
-                {
-                  id: "brand",
-                  name: sovData.brand.name,
-                  domain: sovData.brand.domain,
-                  color: sovData.brand.color,
-                  mentions: sovData.brand.mentions,
-                  percentage:
-                    filteredTotalMentions > 0
-                      ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
-                      : 0,
-                  isBrand: true,
-                  trend: trendsData.brandTrend,
-                },
-                ...filteredCompetitors.map((comp: any) => ({
-                  id: comp.id,
-                  name: comp.name,
-                  domain: comp.domain,
-                  color: comp.color,
-                  mentions: comp.mentions,
-                  percentage:
-                    filteredTotalMentions > 0
-                      ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
-                      : 0,
-                  isBrand: false,
-                  trend:
-                    trendsData.competitorTrends.find((t: any) => t.name === comp.name)
-                      ?.trend || 0,
-                })),
-              ];
+        {/* Competitive Momentum Matrix - Full row */}
+        {/* <MomentumMatrix entities={filteredEntities.allEntities} isLoading={isLoadingCharts} /> */}
 
-              // Sort by percentage descending
-              allEntities.sort((a, b) => b.percentage - a.percentage);
-
-                return (
-          <>
-            <MarketShareDistribution entities={allEntities} isLoading={isLoading} />
-
-            {/* Share Evolution Chart - Right after Market Share Distribution */}
-            <ShareEvolutionChart
-              data={shareEvolutionData.data}
-              entities={shareEvolutionData.entities}
-              isLoading={isLoadingCharts}
-            />
-
-            {/* Competitive Momentum Matrix - Full row */}
-            {/* <MomentumMatrix entities={allEntities} isLoading={isLoadingCharts} /> */}
-
-            {/* Competitive Gap Tracker - Full row, top 4 competitors */}
-            {/* <CompetitiveGapTracker entities={allEntities} isLoading={isLoadingCharts} /> */}
-          </>
-        );
-            })()}
+        {/* Competitive Gap Tracker - Full row, top 4 competitors */}
+        {/* <CompetitiveGapTracker entities={filteredEntities.allEntities} isLoading={isLoadingCharts} /> */}
+      </>
 
       {/* Insights */}
       {insights.length > 0 && (

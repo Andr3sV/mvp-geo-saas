@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { Check, LucideIcon, MoreHorizontal, Info } from "lucide-react";
@@ -89,32 +89,6 @@ export function EvolutionChart({
   infoTooltip,
 }: EvolutionChartProps) {
   const [showAllCompetitors, setShowAllCompetitors] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  // Verify container has dimensions before rendering chart
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const checkDimensions = () => {
-      if (!containerRef.current) return;
-      const { width, height } = containerRef.current.getBoundingClientRect();
-      if (width > 0 && height > 0) {
-        setIsReady(true);
-      } else {
-        setIsReady(false);
-      }
-    };
-
-    // Check immediately
-    checkDimensions();
-
-    // Use ResizeObserver to detect when container is ready
-    const observer = new ResizeObserver(checkDimensions);
-    observer.observe(containerRef.current);
-
-    return () => observer.disconnect();
-  }, []);
   const MAX_VISIBLE_COMPETITORS = 6;
   const visibleCompetitors = entities.slice(0, MAX_VISIBLE_COMPETITORS);
   const hiddenCompetitors = entities.slice(MAX_VISIBLE_COMPETITORS);
@@ -297,9 +271,8 @@ export function EvolutionChart({
             </div>
           </div>
         ) : (
-          <div ref={containerRef} className="h-[320px] w-full" style={{ minHeight: 320, minWidth: 0 }}>
-            {isReady ? (
-              <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[320px] w-full" style={{ minHeight: 320, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart
                 data={data}
                 margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
@@ -381,11 +354,6 @@ export function EvolutionChart({
                 )}
               </AreaChart>
             </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-              </div>
-            )}
           </div>
         )}
       </CardContent>

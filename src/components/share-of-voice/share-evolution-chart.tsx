@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { Layers, Info } from "lucide-react";
@@ -51,32 +51,6 @@ export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({
   isLoading, 
   infoTooltip 
 }: ShareEvolutionChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isReady, setIsReady] = useState(false);
-
-  // Verify container has dimensions before rendering chart
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const checkDimensions = () => {
-      if (!containerRef.current) return;
-      const { width, height } = containerRef.current.getBoundingClientRect();
-      if (width > 0 && height > 0) {
-        setIsReady(true);
-      } else {
-        setIsReady(false);
-      }
-    };
-
-    // Check immediately
-    checkDimensions();
-
-    // Use ResizeObserver to detect when container is ready
-    const observer = new ResizeObserver(checkDimensions);
-    observer.observe(containerRef.current);
-
-    return () => observer.disconnect();
-  }, []);
 
   // Helper function to get color for entity
   const getEntityColor = (entity: Entity, index: number): string => {
@@ -192,10 +166,9 @@ export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({
       </CardHeader>
 
       <CardContent>
-        <div ref={containerRef} className="h-[300px] w-full" style={{ minHeight: 300, minWidth: 0 }}>
+        <div className="h-[300px] w-full" style={{ minHeight: 300, minWidth: 0 }}>
           {!isLoading && data && data.length > 0 ? (
-            isReady ? (
-              <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 {entities.map((entity, index) => {
@@ -254,14 +227,13 @@ export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({
               ))}
               </AreaChart>
             </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-              </div>
-            )
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
-              No data available
+              {isLoading ? (
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+              ) : (
+                <span>No data available</span>
+              )}
             </div>
           )}
         </div>
