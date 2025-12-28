@@ -35,7 +35,8 @@ import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 export default function SentimentPage() {
   const { selectedProjectId } = useProject();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For metrics and comparison
+  const [isLoadingCharts, setIsLoadingCharts] = useState(true); // For charts (trends, theme frequency)
   
   // Filter states
   const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
@@ -69,40 +70,59 @@ export default function SentimentPage() {
   const loadSentimentData = async () => {
     if (!selectedProjectId) return;
 
-    setIsLoading(true);
+    setIsLoading(true); // For metrics and comparison
+    setIsLoadingCharts(true); // For charts
+
     try {
-      // Get total AI responses count and analyzed count
       const supabase = (await import('@/lib/supabase/client')).createClient();
       
-      // Get project details (brand name, client_url as domain, and color)
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .select('brand_name, client_url, color')
-        .eq('id', selectedProjectId)
-        .single();
-      
-      console.log('🏢 Project Data:', projectData, 'Error:', projectError);
-      
+      // Phase 1: Load Critical Data (Metrics + Comparison)
+      // Load project data, metrics, and entities in parallel
+      const [
+        projectDataResult,
+        metricsData,
+        entitiesFromEvaluations,
+        totalCountResult,
+        analyzedResponsesResult,
+      ] = await Promise.all([
+        // Project data query
+        supabase
+          .from('projects')
+          .select('brand_name, client_url, color')
+          .eq('id', selectedProjectId)
+          .single(),
+        // Metrics
+        getSentimentMetrics(selectedProjectId, filtersPayload),
+        // Entity sentiments from brand_evaluations (preferred source)
+        getEntitySentimentsFromEvaluations(
+          selectedProjectId,
+          dateRange.from,
+          dateRange.to
+        ),
+        // Total successful AI responses
+        supabase
+          .from('ai_responses')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', selectedProjectId)
+          .eq('status', 'success'),
+        // Analyzed responses
+        supabase
+          .from('brand_sentiment_attributes')
+          .select('ai_response_id')
+          .eq('project_id', selectedProjectId),
+      ]);
+
+      const projectData = projectDataResult.data;
+      const totalCount = totalCountResult.count;
+      const analyzedResponses = analyzedResponsesResult.data;
+
+      // Set project data
       if (projectData) {
         setBrandName(projectData.brand_name || '');
         setBrandDomain(projectData.client_url || '');
         setBrandColor(projectData.color || '#3b82f6');
-        console.log('✅ Brand set:', projectData.brand_name, projectData.client_url, projectData.color);
       }
-      
-      // Total successful AI responses
-      const { count: totalCount } = await supabase
-        .from('ai_responses')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', selectedProjectId)
-        .eq('status', 'success');
-      
-      // Count unique ai_response_ids that have been analyzed (using brand_sentiment_attributes)
-      const { data: analyzedResponses } = await supabase
-        .from('brand_sentiment_attributes')
-        .select('ai_response_id')
-        .eq('project_id', selectedProjectId);
-      
+
       // Get unique response IDs (a response can have multiple sentiment analyses)
       const uniqueAnalyzedIds = new Set(
         (analyzedResponses || []).map((r: any) => r.ai_response_id)
@@ -112,22 +132,18 @@ export default function SentimentPage() {
       
       // Update metrics to show correct analyzed count
       const actualAnalyzedCount = uniqueAnalyzedIds.size;
+      if (metricsData) {
+        metricsData.totalAnalyses = actualAnalyzedCount;
+        metricsData.totalUniqueAnalyzedResponses = actualAnalyzedCount;
+      }
 
-      const [
-        metricsData,
-        trendsData,
-        entitiesData,
-        // Get trends from brand_evaluations instead of brand_sentiment_attributes
-        trendsFromEvaluations,
-        // Get entity sentiments from brand_evaluations
-        entitiesFromEvaluations,
-        // Get theme frequency matrix
-        themeFrequency,
-      ] = await Promise.all([
-        getSentimentMetrics(selectedProjectId, filtersPayload),
-        getSentimentTrends(selectedProjectId, { ...filtersPayload, analysisType: 'brand' }),
-        getEntitySentiments(selectedProjectId, filtersPayload),
-        // Get sentiment trends from brand_evaluations
+      // Set Phase 1 data
+      setMetrics(metricsData);
+      setEntities(entitiesFromEvaluations || []);
+      setIsLoading(false); // Comparison is ready
+
+      // Phase 2: Load Important Data (Charts) - asynchronously
+      Promise.all([
         getSentimentTrendsFromEvaluations(
           selectedProjectId,
           "brand",
@@ -135,55 +151,42 @@ export default function SentimentPage() {
           dateRange.from,
           dateRange.to
         ),
-        // Get entity sentiments from brand_evaluations
-        getEntitySentimentsFromEvaluations(
-          selectedProjectId,
-          dateRange.from,
-          dateRange.to
-        ),
-        // Get theme frequency matrix
         getThemeFrequencyMatrix(
           selectedProjectId,
           dateRange.from,
           dateRange.to
         ),
-      ]);
+      ])
+        .then(([trendsFromEvaluations, themeFrequency]) => {
+          setTrends(trendsFromEvaluations || []);
+          
+          // Validate and log theme frequency data
+          console.log('[SentimentPage] Theme frequency data:', {
+            count: themeFrequency?.length || 0,
+            sample: themeFrequency?.slice(0, 3),
+            hasData: (themeFrequency || []).length > 0
+          });
+          
+          if (!themeFrequency || themeFrequency.length === 0) {
+            console.warn('[SentimentPage] No theme frequency data returned. Possible reasons:');
+            console.warn('  - No themes in sentiment_themes table for this project');
+            console.warn('  - No evaluations with positive_theme_ids or negative_theme_ids');
+            console.warn('  - Theme IDs in evaluations do not match IDs in sentiment_themes');
+          }
+          
+          setThemeFrequencyData(themeFrequency || []);
+          setIsLoadingCharts(false);
+        })
+        .catch((error) => {
+          console.error("Error loading chart data:", error);
+          setIsLoadingCharts(false);
+        });
 
-      // Override with correct unique response count
-      if (metricsData) {
-        metricsData.totalAnalyses = actualAnalyzedCount;
-        metricsData.totalUniqueAnalyzedResponses = actualAnalyzedCount;
-      }
-
-      console.log('📊 Sentiment Metrics:', metricsData);
-      console.log('📈 Category-Based Data Loaded');
-
-      setMetrics(metricsData);
-      // Use trends from brand_evaluations instead of brand_sentiment_attributes
-      setTrends(trendsFromEvaluations || trendsData);
-      // Use entity sentiments from brand_evaluations
-      setEntities(entitiesFromEvaluations || entitiesData);
-      
-      // Validate and log theme frequency data
-      console.log('[SentimentPage] Theme frequency data:', {
-        count: themeFrequency?.length || 0,
-        sample: themeFrequency?.slice(0, 3),
-        hasData: (themeFrequency || []).length > 0
-      });
-      
-      if (!themeFrequency || themeFrequency.length === 0) {
-        console.warn('[SentimentPage] No theme frequency data returned. Possible reasons:');
-        console.warn('  - No themes in sentiment_themes table for this project');
-        console.warn('  - No evaluations with positive_theme_ids or negative_theme_ids');
-        console.warn('  - Theme IDs in evaluations do not match IDs in sentiment_themes');
-      }
-      
-      setThemeFrequencyData(themeFrequency || []);
     } catch (error: any) {
       console.error("Failed to load sentiment data:", error);
       toast.error("Failed to load sentiment data");
-    } finally {
       setIsLoading(false);
+      setIsLoadingCharts(false);
     }
   };
 
@@ -265,23 +268,6 @@ export default function SentimentPage() {
     loadCompetitorTrends(competitorId);
   };
 
-  if (isLoading || !metrics) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Sentiment Pulse"
-          description="Analysis of positive and negative mentions about the brand and competitors"
-        />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-            <p className="mt-4 text-muted-foreground">Loading sentiment data...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -338,7 +324,7 @@ export default function SentimentPage() {
           onCompetitorChange={handleCompetitorChange}
           brandName={brandName}
           brandDomain={brandDomain}
-          isLoading={isLoading}
+          isLoading={isLoadingCharts}
         />
 
         {/* Theme Frequency Radar - Full Width */}
@@ -348,7 +334,7 @@ export default function SentimentPage() {
           brandName={brandName}
           brandDomain={brandDomain}
           brandColor={brandColor}
-          isLoading={isLoading}
+          isLoading={isLoadingCharts}
         />
 
         {/* Themes Table */}
@@ -365,7 +351,7 @@ export default function SentimentPage() {
                 };
               })()
             }
-            isLoading={isLoading}
+            isLoading={false}
             brandName={brandName}
             brandDomain={brandDomain}
             competitors={competitors}
