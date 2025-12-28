@@ -39,7 +39,7 @@ export async function getProjectCompetitors(projectId: string) {
  */
 export async function getCompetitorsByRegion(projectId: string, region: string = "GLOBAL") {
   const supabase = await createClient();
-
+  
   // Build query with SQL filtering (more efficient than JavaScript filtering)
   let query = supabase
     .from("competitors")

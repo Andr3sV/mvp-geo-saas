@@ -45,7 +45,9 @@ export default function QueriesPage() {
   ]);
 
   // Data state
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For metrics (StatCards)
+  const [isLoadingCharts, setIsLoadingCharts] = useState(true); // For visualizations (Word Cloud, Platform Distribution, Top Queries)
+  const [isLoadingHeatmap, setIsLoadingHeatmap] = useState(true); // For heatmap
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getQueryOverview>> | null>(null);
   const [wordCloudData, setWordCloudData] = useState<Awaited<ReturnType<typeof getQueryWordCloudData>>>([]);
   const [platformDistribution, setPlatformDistribution] = useState<Awaited<ReturnType<typeof getQueryPlatformDistribution>> | null>(null);
@@ -189,7 +191,9 @@ export default function QueriesPage() {
   const loadData = useCallback(async () => {
     if (!selectedProjectId) return;
 
-    setIsLoading(true);
+    setIsLoading(true); // For metrics
+    setIsLoadingCharts(true); // For visualizations
+    setIsLoadingHeatmap(true); // For heatmap
 
     try {
       // Determine entity filters
@@ -201,51 +205,95 @@ export default function QueriesPage() {
         const entityId = isAllSelected ? null : entitiesList[0]?.id || null;
         const entityType = isAllSelected ? null : entitiesList[0]?.type || null;
 
-        const [overviewData, wordCloud, distribution, queries, correlation] = await Promise.all([
-          getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entityId, entityType),
+        // Phase 1: Load Critical Data (Metrics)
+        const overviewData = await getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entityId, entityType);
+        setOverview(overviewData);
+        setIsLoading(false); // Metrics are ready
+
+        // Phase 2: Load Important Data (Visualizations) - asynchronously
+        Promise.all([
           getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region, 50, entityId, entityType),
           getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region, entityId, entityType),
           getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region, entityId, entityType),
-          getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entityId, entityType),
-        ]);
+        ])
+          .then(([wordCloud, distribution, queries]) => {
+            setWordCloudData(wordCloud);
+            setPlatformDistribution(distribution);
+            setTopQueries(queries);
+            setIsLoadingCharts(false);
+          })
+          .catch((error) => {
+            console.error("Error loading visualization data:", error);
+            setIsLoadingCharts(false);
+          });
 
-        setOverview(overviewData);
-        setWordCloudData(wordCloud);
-        setPlatformDistribution(distribution);
-        setTopQueries(queries);
-        setDomainCorrelation(correlation);
+        // Phase 3: Load Secondary Data (Heatmap) - asynchronously
+        getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entityId, entityType)
+          .then((correlation) => {
+            setDomainCorrelation(correlation);
+            setIsLoadingHeatmap(false);
+          })
+          .catch((error) => {
+            console.error("Error loading heatmap data:", error);
+            setIsLoadingHeatmap(false);
+          });
       } else {
         // Multiple entities selected - make separate calls and merge
-        const resultsPromises = entitiesList.map(async (entity) => {
-          const [overview, wordCloud, distribution, queries, correlation] = await Promise.all([
-            getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
-            getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region, 50, entity.id, entity.type),
-            getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region, entity.id, entity.type),
-            getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
-            getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entity.id, entity.type),
-          ]);
-          return { overview, wordCloud, distribution, queries, correlation };
-        });
-
-        const results = await Promise.all(resultsPromises);
-
-        // Merge results
-        const mergedOverview = mergeQueryOverview(results.map((r) => r.overview));
-        const mergedWordCloud = mergeWordCloudData(results.map((r) => r.wordCloud));
-        const mergedDistribution = mergePlatformDistribution(results.map((r) => r.distribution));
-        const mergedQueries = mergeTopQueries(results.map((r) => r.queries));
-        const mergedCorrelation = mergeQueryDomainCorrelation(results.map((r) => r.correlation));
-
+        // Phase 1: Load Critical Data (Metrics) for all entities
+        const overviewPromises = entitiesList.map((entity) =>
+          getQueryOverview(selectedProjectId, dateRange.from, dateRange.to, platform, region, entity.id, entity.type)
+        );
+        const overviewResults = await Promise.all(overviewPromises);
+        const mergedOverview = mergeQueryOverview(overviewResults);
         setOverview(mergedOverview);
-        setWordCloudData(mergedWordCloud);
-        setPlatformDistribution(mergedDistribution);
-        setTopQueries(mergedQueries);
-        setDomainCorrelation(mergedCorrelation);
+        setIsLoading(false); // Metrics are ready
+
+        // Phase 2: Load Important Data (Visualizations) for all entities - asynchronously
+        Promise.all(
+          entitiesList.map(async (entity) => {
+            const [wordCloud, distribution, queries] = await Promise.all([
+              getQueryWordCloudData(selectedProjectId, dateRange.from, dateRange.to, platform, region, 50, entity.id, entity.type),
+              getQueryPlatformDistribution(selectedProjectId, dateRange.from, dateRange.to, region, entity.id, entity.type),
+              getTopQueries(selectedProjectId, 20, dateRange.from, dateRange.to, platform, region, entity.id, entity.type),
+            ]);
+            return { wordCloud, distribution, queries };
+          })
+        )
+          .then((results) => {
+            const mergedWordCloud = mergeWordCloudData(results.map((r) => r.wordCloud));
+            const mergedDistribution = mergePlatformDistribution(results.map((r) => r.distribution));
+            const mergedQueries = mergeTopQueries(results.map((r) => r.queries));
+            setWordCloudData(mergedWordCloud);
+            setPlatformDistribution(mergedDistribution);
+            setTopQueries(mergedQueries);
+            setIsLoadingCharts(false);
+          })
+          .catch((error) => {
+            console.error("Error loading visualization data:", error);
+            setIsLoadingCharts(false);
+          });
+
+        // Phase 3: Load Secondary Data (Heatmap) for all entities - asynchronously
+        Promise.all(
+          entitiesList.map((entity) =>
+            getQueryDomainCorrelation(selectedProjectId, dateRange.from, dateRange.to, platform, region, 10, 10, entity.id, entity.type)
+          )
+        )
+          .then((correlationResults) => {
+            const mergedCorrelation = mergeQueryDomainCorrelation(correlationResults);
+            setDomainCorrelation(mergedCorrelation);
+            setIsLoadingHeatmap(false);
+          })
+          .catch((error) => {
+            console.error("Error loading heatmap data:", error);
+            setIsLoadingHeatmap(false);
+          });
       }
     } catch (error) {
       console.error("Error loading query data:", error);
-    } finally {
       setIsLoading(false);
+      setIsLoadingCharts(false);
+      setIsLoadingHeatmap(false);
     }
   }, [selectedProjectId, dateRange, platform, region, selectedEntities]);
 
@@ -313,46 +361,46 @@ export default function QueriesPage() {
           value={overview?.totalQueries || 0}
           description="Search queries tracked"
           icon={Search}
+          isLoading={isLoading}
         />
         <StatCard
           title="Unique Queries"
           value={overview?.uniqueQueries || 0}
           description="Distinct search patterns"
           icon={Hash}
+          isLoading={isLoading}
         />
         <StatCard
           title="Top Platform"
           value={overview?.topPlatform || "N/A"}
           description="Most active platform"
           icon={Globe}
+          isLoading={isLoading}
         />
         <StatCard
           title="Avg Query Length"
           value={`${overview?.avgQueryLength || 0} chars`}
           description="Average query size"
           icon={Ruler}
+          isLoading={isLoading}
         />
       </div>
 
       {/* Section 2: Word Cloud */}
-      <QueryWordCloud data={wordCloudData} isLoading={isLoading} />
+      <QueryWordCloud data={wordCloudData} isLoading={isLoadingCharts} />
 
       {/* Section 3: Platform Distribution */}
-      {platformDistribution && (
-        <QueryPlatformDistribution
-          openaiData={platformDistribution.openai}
-          geminiData={platformDistribution.gemini}
-          isLoading={isLoading}
-        />
-      )}
+      <QueryPlatformDistribution
+        openaiData={platformDistribution?.openai || []}
+        geminiData={platformDistribution?.gemini || []}
+        isLoading={isLoadingCharts}
+      />
 
       {/* Section 4: Top Queries Table */}
-      <TopQueriesTable data={topQueries} isLoading={isLoading} />
+      <TopQueriesTable data={topQueries} isLoading={isLoadingCharts} />
 
       {/* Section 6: Query-Domain Correlation */}
-      {domainCorrelation && (
-        <QueryDomainHeatmap data={domainCorrelation} isLoading={isLoading} />
-      )}
+      <QueryDomainHeatmap data={domainCorrelation || { queries: [], domains: [], matrix: [] }} isLoading={isLoadingHeatmap} />
     </div>
   );
 }

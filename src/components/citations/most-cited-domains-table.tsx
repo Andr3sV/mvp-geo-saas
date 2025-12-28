@@ -65,9 +65,6 @@ export function MostCitedDomainsTable({ data, infoTooltip }: MostCitedDomainsTab
                   <TableCell colSpan={4} className="text-center py-8 px-6 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <p>No citation domains available yet</p>
-                      <p className="text-xs">
-                        Run analysis with Perplexity or Gemini to see source domains
-                      </p>
                     </div>
                   </TableCell>
                 </TableRow>

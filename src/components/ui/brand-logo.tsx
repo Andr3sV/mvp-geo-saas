@@ -74,17 +74,17 @@ export function BrandLogo({ domain, name, size = 20, className = "" }: BrandLogo
       {isLoading && (
         <div className="absolute inset-0 bg-muted rounded animate-pulse" />
       )}
-      <Image
-        src={faviconUrl}
-        alt={`${name} logo`}
-        width={size}
-        height={size}
-        className={`rounded ${className}`}
+    <Image
+      src={faviconUrl}
+      alt={`${name} logo`}
+      width={size}
+      height={size}
+      className={`rounded ${className}`}
         loading="lazy" // Lazy load favicons to avoid blocking render
         onError={handleError}
         onLoad={handleLoad}
-        unoptimized // Necessary for external images
-      />
+      unoptimized // Necessary for external images
+    />
     </div>
   );
 }

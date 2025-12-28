@@ -126,7 +126,7 @@ export async function getShareOfVoice(
   if (statsError) {
     console.error('Error fetching stats from daily_brand_stats:', statsError);
   }
-
+  
   // Separate brand and competitor stats in JavaScript (faster than 2 round-trips)
   const brandStats = allStats?.filter(s => 
     s.entity_type === "brand" && !s.competitor_id
@@ -164,45 +164,45 @@ export async function getShareOfVoice(
       // Process competitor mentions from JSONB
       if (result.competitor_mentions && typeof result.competitor_mentions === 'object') {
         const compMentionsObj = result.competitor_mentions as Record<string, number>;
-        
+
         // Get competitor IDs that need info
-        const competitorIdsNeeded = new Set<string>();
+      const competitorIdsNeeded = new Set<string>();
         Object.entries(compMentionsObj).forEach(([compId, count]) => {
           const existingStat = competitorStats?.find((s: any) => s.competitor_id === compId);
-          if (existingStat) {
+        if (existingStat) {
             existingStat.mentions_count = (existingStat.mentions_count || 0) + count;
-          } else {
+        } else {
             competitorIdsNeeded.add(compId);
-          }
-        });
+        }
+      });
 
         // Fetch competitor info for new competitors
-        if (competitorIdsNeeded.size > 0) {
-          const { data: compInfos } = await supabase
-            .from("competitors")
-            .select("id, name, domain, is_active, color")
-            .in("id", Array.from(competitorIdsNeeded));
+      if (competitorIdsNeeded.size > 0) {
+        const { data: compInfos } = await supabase
+          .from("competitors")
+          .select("id, name, domain, is_active, color")
+          .in("id", Array.from(competitorIdsNeeded));
 
-          const compInfoMap = new Map<string, any>();
-          compInfos?.forEach((comp: any) => {
-            compInfoMap.set(comp.id, comp);
-          });
+        const compInfoMap = new Map<string, any>();
+        compInfos?.forEach((comp: any) => {
+          compInfoMap.set(comp.id, comp);
+        });
 
-          // Add competitor stats
+        // Add competitor stats
           Object.entries(compMentionsObj).forEach(([compId, count]) => {
             if (competitorIdsNeeded.has(compId)) {
               const compInfo = compInfoMap.get(compId);
-              if (compInfo && compInfo.is_active) {
-                competitorStats?.push({
+            if (compInfo && compInfo.is_active) {
+              competitorStats?.push({
                   entity_type: "competitor",
                   competitor_id: compId,
-                  entity_name: compInfo.name,
+                entity_name: compInfo.name,
                   mentions_count: count,
-                  competitors: compInfo,
-                });
-              }
+                competitors: compInfo,
+              });
             }
-          });
+          }
+        });
         }
       }
     }
@@ -363,22 +363,22 @@ export async function getShareOfVoiceTrends(
     let query = supabase
       .from("daily_brand_stats")
       .select("mentions_count, competitor_id, entity_name, entity_type, competitors!inner(name, is_active, color)")
-      .eq("project_id", projectId)
+    .eq("project_id", projectId)
       .gte("stat_date", startDate)
       .lte("stat_date", endDate);
 
-    if (platformFilter) {
+  if (platformFilter) {
       query = query.eq("platform", mappedPlatform);
-    }
+  }
 
     // When region is GLOBAL, don't filter by region (sum all regions)
-    if (regionFilter && regionId) {
+  if (regionFilter && regionId) {
       query = query.eq("region_id", regionId);
-    }
+  }
 
-    if (topicFilter) {
+  if (topicFilter) {
       query = query.eq("topic_id", topicId);
-    }
+  }
 
     return query;
   };
@@ -439,7 +439,7 @@ export async function getShareOfVoiceTrends(
         Object.entries(compMentionsObj).forEach(([compId, count]) => {
           const currentCount = currentCompMentionsMap.get(compId) || 0;
           currentCompMentionsMap.set(compId, currentCount + count);
-        });
+      });
       }
     }
   }

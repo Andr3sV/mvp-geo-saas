@@ -165,22 +165,22 @@ export default function ExecutiveOverviewPage() {
       <CompetitiveHero data={battlefieldData} isLoading={!battlefieldData} />
 
       {/* Battle KPIs - 4 Key Metrics */}
-      <BattleKPIs
-        battlefieldData={battlefieldData}
-        momentumData={momentumData}
-        visibilityScore={visibilityScore}
+        <BattleKPIs
+          battlefieldData={battlefieldData}
+          momentumData={momentumData}
+          visibilityScore={visibilityScore}
         isLoading={!battlefieldData || !momentumData}
-      />
+        />
 
       {/* Competitive Battlefield - Race Chart */}
       <CompetitiveBattlefield data={battlefieldData} isLoading={!battlefieldData} />
 
       {/* Battle Report */}
-      <WeeklyBattleReport
-        data={weeklyReportData}
-        brandName={brandName}
+        <WeeklyBattleReport
+          data={weeklyReportData}
+          brandName={brandName}
         isLoading={!weeklyReportData || isLoadingReport}
-      />
+        />
     </div>
   );
 }

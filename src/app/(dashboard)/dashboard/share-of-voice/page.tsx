@@ -62,7 +62,7 @@ export default function ShareOfVoicePage() {
 
   // Cache competitors by region to avoid redundant queries (useRef to persist across renders)
   const competitorsCache = useRef(new Map<string, any[]>());
-  
+
   // Refs to prevent duplicate loads
   const isLoadingRef = useRef(false);
   const hasLoadedInitialData = useRef(false);
@@ -320,46 +320,46 @@ export default function ShareOfVoicePage() {
           </>
         ) : (
           <>
-            <StatCard
-              title="Your Share"
-              value={`${sovData.brand.percentage}%`}
-              description="Share vs competitors"
-              icon={Trophy}
+        <StatCard
+          title="Your Share"
+          value={`${sovData.brand.percentage}%`}
+          description="Share vs competitors"
+          icon={Trophy}
               tooltip="The percentage of all AI mentions that reference your brand compared to your tracked competitors."
-              trend={
+          trend={
                 trendsData?.brandTrend !== 0
-                  ? {
-                      value: Math.abs(trendsData.brandTrend),
-                      isPositive: trendsData.brandTrend > 0,
-                    }
-                  : undefined
-              }
-            />
-            <StatCard
-              title="Total Mentions"
-              value={sovData.totalMentions.toLocaleString()}
-              description="Total mentions across all brands"
-              icon={MessageSquare}
+              ? {
+                  value: Math.abs(trendsData.brandTrend),
+                  isPositive: trendsData.brandTrend > 0,
+                }
+              : undefined
+          }
+        />
+        <StatCard
+          title="Total Mentions"
+          value={sovData.totalMentions.toLocaleString()}
+          description="Total mentions across all brands"
+          icon={MessageSquare}
               tooltip="The total number of times AI platforms have mentioned any brand (yours + competitors) in the selected period."
-            />
-            <StatCard
-              title="Market Position"
-              value={`#${sovData.marketPosition}`}
-              description={
-                sovData.marketPosition === 1
-                  ? "Leading in your category"
-                  : `${sovData.competitors[0]?.name || "Competitor"} is leading`
-              }
-              icon={TrendingUp}
+        />
+        <StatCard
+          title="Market Position"
+          value={`#${sovData.marketPosition}`}
+          description={
+            sovData.marketPosition === 1
+              ? "Leading in your category"
+              : `${sovData.competitors[0]?.name || "Competitor"} is leading`
+          }
+          icon={TrendingUp}
               tooltip="Your ranking among all tracked brands based on mention count. #1 means you have the most mentions."
-            />
-            <StatCard
-              title="Competitors Tracked"
-              value={sovData.competitors.length}
-              description="Active competitors"
-              icon={Users}
+        />
+        <StatCard
+          title="Competitors Tracked"
+          value={sovData.competitors.length}
+          description="Active competitors"
+          icon={Users}
               tooltip="The number of competitor brands you're currently monitoring and comparing against."
-            />
+        />
           </>
         )}
       </div>
@@ -383,19 +383,19 @@ export default function ShareOfVoicePage() {
       <>
         <MarketShareDistribution entities={filteredEntities.allEntities} isLoading={isLoading || isLoadingCharts} />
 
-        {/* Share Evolution Chart - Right after Market Share Distribution */}
-        <ShareEvolutionChart
-          data={shareEvolutionData.data}
-          entities={shareEvolutionData.entities}
+            {/* Share Evolution Chart - Right after Market Share Distribution */}
+            <ShareEvolutionChart
+              data={shareEvolutionData.data}
+              entities={shareEvolutionData.entities}
           isLoading={isLoadingCharts || isLoading}
-        />
+            />
 
-        {/* Competitive Momentum Matrix - Full row */}
+            {/* Competitive Momentum Matrix - Full row */}
         {/* <MomentumMatrix entities={filteredEntities.allEntities} isLoading={isLoadingCharts} /> */}
 
-        {/* Competitive Gap Tracker - Full row, top 4 competitors */}
+            {/* Competitive Gap Tracker - Full row, top 4 competitors */}
         {/* <CompetitiveGapTracker entities={filteredEntities.allEntities} isLoading={isLoadingCharts} /> */}
-      </>
+          </>
 
       {/* Insights */}
       {insights.length > 0 && (

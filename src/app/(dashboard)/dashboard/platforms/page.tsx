@@ -23,6 +23,7 @@ import {
   getPlatformEvolution,
   getPlatformEntityBreakdown,
   getPlatformMomentum,
+  getPlatformBaseData,
 } from "@/lib/queries/platform-breakdown";
 
 type DateRangeValue = {
@@ -43,33 +44,64 @@ export default function PlatformsPage() {
 
   // Data state
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCharts, setIsLoadingCharts] = useState(false);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [overviewData, setOverviewData] = useState<Awaited<ReturnType<typeof getPlatformOverview>> | null>(null);
   const [evolutionData, setEvolutionData] = useState<Awaited<ReturnType<typeof getPlatformEvolution>>>([]);
   const [entityBreakdown, setEntityBreakdown] = useState<Awaited<ReturnType<typeof getPlatformEntityBreakdown>> | null>(null);
   const [momentumData, setMomentumData] = useState<Awaited<ReturnType<typeof getPlatformMomentum>> | null>(null);
 
-  // Load data
+  // Load data with phased loading
   const loadData = useCallback(async () => {
     if (!selectedProjectId) return;
 
     setIsLoading(true);
+    setIsLoadingCharts(false);
+    setIsLoadingAnalysis(false);
 
     try {
-      const [overview, evolution, breakdown, momentum] = await Promise.all([
-        getPlatformOverview(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
-        getPlatformEvolution(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
-        getPlatformEntityBreakdown(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
-        getPlatformMomentum(selectedProjectId, dateRange.from, dateRange.to, region, topicId),
-      ]);
+      // PHASE 1: Load Critical Data (Platform Cards + Share Bar)
+      // Load base data once to avoid redundant queries
+      const baseData = await getPlatformBaseData(selectedProjectId, dateRange.from, dateRange.to, region, topicId);
+      
+      // Load overview data using base data
+      const overview = await getPlatformOverview(selectedProjectId, dateRange.from, dateRange.to, region, topicId, baseData);
 
       setOverviewData(overview);
-      setEvolutionData(evolution);
-      setEntityBreakdown(breakdown);
-      setMomentumData(momentum);
+      setIsLoading(false); // Cards and Share Bar are ready
+
+      // PHASE 2: Load Important Data (Charts) - asynchronously
+      setIsLoadingCharts(true);
+      getPlatformEvolution(selectedProjectId, dateRange.from, dateRange.to, region, topicId, baseData)
+        .then((evolution) => {
+          setEvolutionData(evolution);
+          setIsLoadingCharts(false);
+        })
+        .catch((error) => {
+          console.error("Error loading evolution data:", error);
+          setIsLoadingCharts(false);
+        });
+
+      // PHASE 3: Load Secondary Data (Analysis) - asynchronously
+      setIsLoadingAnalysis(true);
+      Promise.all([
+        getPlatformEntityBreakdown(selectedProjectId, dateRange.from, dateRange.to, region, topicId, baseData),
+        getPlatformMomentum(selectedProjectId, dateRange.from, dateRange.to, region, topicId, baseData),
+      ])
+        .then(([breakdown, momentum]) => {
+          setEntityBreakdown(breakdown);
+          setMomentumData(momentum);
+          setIsLoadingAnalysis(false);
+        })
+        .catch((error) => {
+          console.error("Error loading analysis data:", error);
+          setIsLoadingAnalysis(false);
+        });
     } catch (error) {
       console.error("Error loading platform data:", error);
-    } finally {
       setIsLoading(false);
+      setIsLoadingCharts(false);
+      setIsLoadingAnalysis(false);
     }
   }, [selectedProjectId, dateRange, region, topicId]);
 
@@ -142,46 +174,68 @@ export default function PlatformsPage() {
       </div>
 
       {/* Section 2: Platform Share Distribution */}
-      {overviewData && (
-        <PlatformShareBar platforms={overviewData.platforms} isLoading={isLoading} />
+      {overviewData ? (
+        <PlatformShareBar platforms={overviewData.platforms} isLoading={false} />
+      ) : (
+        <PlatformShareBar platforms={[]} isLoading={true} />
       )}
 
       {/* Section 3: Performance Evolution */}
-      <PlatformEvolutionChart data={evolutionData} isLoading={isLoading} />
+      <PlatformEvolutionChart data={evolutionData} isLoading={isLoadingCharts || !evolutionData.length} />
 
       {/* Section 4: Daily Platform Battle */}
-      <DailyPlatformBattle data={evolutionData} isLoading={isLoading} />
+      <DailyPlatformBattle data={evolutionData} isLoading={isLoadingCharts || !evolutionData.length} />
 
       {/* Section 5: Platform Performance Heatmap */}
-      {entityBreakdown && (
+      {entityBreakdown ? (
         <PlatformPerformanceHeatmap
           openaiData={entityBreakdown.openai}
           geminiData={entityBreakdown.gemini}
-          isLoading={isLoading}
+          isLoading={isLoadingAnalysis}
+        />
+      ) : (
+        <PlatformPerformanceHeatmap
+          openaiData={{ entities: [], totalMentions: 0 }}
+          geminiData={{ entities: [], totalMentions: 0 }}
+          isLoading={isLoadingAnalysis}
         />
       )}
 
       {/* Section 6: Platform Momentum Comparison */}
-      {momentumData && (
+      {momentumData ? (
         <PlatformMomentum
           openaiData={momentumData.openai}
           geminiData={momentumData.gemini}
-          isLoading={isLoading}
+          isLoading={isLoadingAnalysis}
+        />
+      ) : (
+        <PlatformMomentum
+          openaiData={[]}
+          geminiData={[]}
+          isLoading={isLoadingAnalysis}
         />
       )}
 
       {/* Section 7: Platform Gap Analysis */}
-      {entityBreakdown && (
+      {entityBreakdown ? (
         <PlatformGapAnalysis
           openaiData={entityBreakdown.openai}
           geminiData={entityBreakdown.gemini}
-          isLoading={isLoading}
+          isLoading={isLoadingAnalysis}
+        />
+      ) : (
+        <PlatformGapAnalysis
+          openaiData={{ entities: [], totalMentions: 0 }}
+          geminiData={{ entities: [], totalMentions: 0 }}
+          isLoading={isLoadingAnalysis}
         />
       )}
 
       {/* Section 8: Platform Insights */}
-      {overviewData && (
-        <PlatformInsights platforms={overviewData.platforms} isLoading={isLoading} />
+      {overviewData ? (
+        <PlatformInsights platforms={overviewData.platforms} isLoading={false} />
+      ) : (
+        <PlatformInsights platforms={[]} isLoading={true} />
       )}
     </div>
   );

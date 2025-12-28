@@ -321,15 +321,15 @@ export default function CitationsPage() {
       };
     }
 
-    const brandCitations = citationsRanking?.brand?.citations || 0;
-    const competitorCitations = citationsRanking?.competitors?.reduce(
-      (sum: number, comp: any) => sum + (comp.citations || 0), 0
-    ) || 0;
-    const totalCitations = brandCitations + competitorCitations;
-    const brandPercentage = totalCitations > 0 
-      ? Number(((brandCitations / totalCitations) * 100).toFixed(1)) 
-      : 0;
-    
+        const brandCitations = citationsRanking?.brand?.citations || 0;
+        const competitorCitations = citationsRanking?.competitors?.reduce(
+          (sum: number, comp: any) => sum + (comp.citations || 0), 0
+        ) || 0;
+        const totalCitations = brandCitations + competitorCitations;
+        const brandPercentage = totalCitations > 0 
+          ? Number(((brandCitations / totalCitations) * 100).toFixed(1)) 
+          : 0;
+        
     return { brandPercentage, totalCitations, brandCitations, competitorCitations };
   }, [citationsRanking]);
 
@@ -339,58 +339,58 @@ export default function CitationsPage() {
       return { allEntities: [] };
     }
 
-    // Filter competitors to only show those assigned to the selected region
-    const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-    const filteredCompetitors = citationsRanking?.competitors?.filter((comp: any) =>
-      regionCompetitorIds.has(comp.id)
-    ) || [];
+        // Filter competitors to only show those assigned to the selected region
+        const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
+        const filteredCompetitors = citationsRanking?.competitors?.filter((comp: any) =>
+          regionCompetitorIds.has(comp.id)
+        ) || [];
 
-    // Recalculate total citations and percentages based on filtered competitors
-    const filteredCompetitorCitations = filteredCompetitors.reduce(
-      (sum: number, comp: any) => sum + (comp.citations || 0),
-      0
-    );
-    const filteredTotalCitations = (citationsRanking?.brand?.citations || 0) + filteredCompetitorCitations;
+        // Recalculate total citations and percentages based on filtered competitors
+        const filteredCompetitorCitations = filteredCompetitors.reduce(
+          (sum: number, comp: any) => sum + (comp.citations || 0),
+          0
+        );
+        const filteredTotalCitations = (citationsRanking?.brand?.citations || 0) + filteredCompetitorCitations;
 
-    // Combine brand and filtered competitors with recalculated percentages
-    // Use "mentions" key for component compatibility
-    const allEntities = [
-      {
-        id: "brand",
-        name: citationsRanking?.brand?.name || "Your Brand",
-        domain: citationsRanking?.brand?.domain || "",
-        color: citationsRanking?.brand?.color,
-        mentions: citationsRanking?.brand?.citations || 0,
-        percentage:
-          filteredTotalCitations > 0
-            ? Number(((citationsRanking?.brand?.citations || 0) / filteredTotalCitations * 100).toFixed(1))
-            : 0,
-        isBrand: true,
-        trend: trendsData.brandTrend || 0,
-      },
-      ...filteredCompetitors.map((comp: any) => ({
-        id: comp.id,
-        name: comp.name,
-        domain: comp.domain,
-        color: comp.color,
-        mentions: comp.citations || 0,
-        percentage:
-          filteredTotalCitations > 0
-            ? Number(((comp.citations || 0) / filteredTotalCitations * 100).toFixed(1))
-            : 0,
-        isBrand: false,
-        trend:
-          trendsData.competitorTrends?.find((t: any) => t.name === comp.name)?.trend || 0,
-      })),
-    ];
+        // Combine brand and filtered competitors with recalculated percentages
+        // Use "mentions" key for component compatibility
+        const allEntities = [
+          {
+            id: "brand",
+            name: citationsRanking?.brand?.name || "Your Brand",
+            domain: citationsRanking?.brand?.domain || "",
+            color: citationsRanking?.brand?.color,
+            mentions: citationsRanking?.brand?.citations || 0,
+            percentage:
+              filteredTotalCitations > 0
+                ? Number(((citationsRanking?.brand?.citations || 0) / filteredTotalCitations * 100).toFixed(1))
+                : 0,
+            isBrand: true,
+            trend: trendsData.brandTrend || 0,
+          },
+          ...filteredCompetitors.map((comp: any) => ({
+            id: comp.id,
+            name: comp.name,
+            domain: comp.domain,
+            color: comp.color,
+            mentions: comp.citations || 0,
+            percentage:
+              filteredTotalCitations > 0
+                ? Number(((comp.citations || 0) / filteredTotalCitations * 100).toFixed(1))
+                : 0,
+            isBrand: false,
+            trend:
+              trendsData.competitorTrends?.find((t: any) => t.name === comp.name)?.trend || 0,
+          })),
+        ];
 
-    // Sort by percentage descending
-    allEntities.sort((a, b) => b.percentage - a.percentage);
+        // Sort by percentage descending
+        allEntities.sort((a, b) => b.percentage - a.percentage);
 
     return { allEntities };
   }, [citationsRanking, regionFilteredCompetitors, trendsData]);
 
-  return (
+        return (
     <div className="space-y-6">
       <PageHeader
         title="Share of citations"
@@ -481,29 +481,29 @@ export default function CitationsPage() {
       />
 
       {/* Strategic Charts - Matching Share of Mentions UI */}
-      <>
-        {/* Market Share Distribution */}
-        <MarketShareDistribution 
+          <>
+            {/* Market Share Distribution */}
+            <MarketShareDistribution 
           entities={filteredEntities.allEntities} 
-          isLoading={isLoading} 
-          metricLabel="citations"
-          infoTooltip="Visual breakdown showing what percentage of all AI citations each brand captures. Larger bars indicate higher citation authority."
-        />
+              isLoading={isLoading} 
+              metricLabel="citations"
+              infoTooltip="Visual breakdown showing what percentage of all AI citations each brand captures. Larger bars indicate higher citation authority."
+            />
 
-        {/* Share Evolution Chart */}
-        <ShareEvolutionChart
-          data={shareEvolutionData.data}
-          entities={shareEvolutionData.entities}
-          isLoading={isLoadingCharts}
-          infoTooltip="Line chart tracking how each brand's citation market share has changed over the selected time period."
-        />
+            {/* Share Evolution Chart */}
+            <ShareEvolutionChart
+              data={shareEvolutionData.data}
+              entities={shareEvolutionData.entities}
+              isLoading={isLoadingCharts}
+              infoTooltip="Line chart tracking how each brand's citation market share has changed over the selected time period."
+            />
 
-        {/* Competitive Momentum Matrix */}
+            {/* Competitive Momentum Matrix */}
         {/* <MomentumMatrix entities={filteredEntities.allEntities} isLoading={isLoadingCharts} metricLabel="citations" /> */}
 
-        {/* Competitive Gap Tracker */}
+            {/* Competitive Gap Tracker */}
         {/* <CompetitiveGapTracker entities={filteredEntities.allEntities} isLoading={isLoadingCharts} metricLabel="citations" /> */}
-      </>
+          </>
 
       {/* Most Cited Domains */}
       <MostCitedDomainsTable 

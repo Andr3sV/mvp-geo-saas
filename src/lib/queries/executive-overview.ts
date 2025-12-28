@@ -49,19 +49,19 @@ export async function getVisibilityScore(
       sovData = baseData.currentSov;
     } else {
       // Fallback: load if not provided
-      const { getShareOfVoice } = await import("./share-of-voice");
-      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
-      
+    const { getShareOfVoice } = await import("./share-of-voice");
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    
       sovData = await getShareOfVoice(
-        projectId,
-        filters.dateRange?.from,
-        filters.dateRange?.to,
-        platformFilter,
-        regionFilter,
-        topicFilter
-      );
+      projectId,
+      filters.dateRange?.from,
+      filters.dateRange?.to,
+      platformFilter,
+      regionFilter,
+      topicFilter
+    );
     }
 
     // Use daily_brand_stats for mentions and citations if date range is available
@@ -520,24 +520,24 @@ export async function getCompetitiveBattlefield(
       currentCitations = baseData.currentCitations;
     } else {
       // Fallback: load data if not provided (backward compatibility)
-      const { getShareOfVoice } = await import("./share-of-voice");
-      const { getCitationsRanking } = await import("./citations-real");
+    const { getShareOfVoice } = await import("./share-of-voice");
+    const { getCitationsRanking } = await import("./citations-real");
       const { subDays } = await import("date-fns");
 
-      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-      const periodDays = filters.dateRange?.from && filters.dateRange?.to
-        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-        : 7;
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
 
-      const previousFrom = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, periodDays)
-        : subDays(new Date(), periodDays * 2);
-      const previousTo = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, 1)
-        : subDays(new Date(), periodDays);
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
 
       [currentSov, previousSov, currentCitations] = await Promise.all([
         getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
@@ -678,24 +678,24 @@ export async function getWeeklyBattleReport(
       previousCitations = baseData.previousCitations;
     } else {
       // Fallback: load data if not provided (backward compatibility)
-      const { subDays } = await import("date-fns");
-      const { getShareOfVoice } = await import("./share-of-voice");
-      const { getCitationsRanking } = await import("./citations-real");
+  const { subDays } = await import("date-fns");
+    const { getShareOfVoice } = await import("./share-of-voice");
+    const { getCitationsRanking } = await import("./citations-real");
 
-      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-      const periodDays = filters.dateRange?.from && filters.dateRange?.to
-        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-        : 7;
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
 
-      const previousFrom = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, periodDays)
-        : subDays(new Date(), periodDays * 2);
-      const previousTo = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, 1)
-        : subDays(new Date(), periodDays);
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
 
       [currentSov, previousSov, currentCitations, previousCitations] = await Promise.all([
         getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
@@ -981,23 +981,23 @@ export async function getMomentumScore(
       previousSov = baseData.previousSov;
     } else {
       // Fallback: load data if not provided (backward compatibility)
-      const { subDays } = await import("date-fns");
-      const { getShareOfVoice } = await import("./share-of-voice");
+  const { subDays } = await import("date-fns");
+    const { getShareOfVoice } = await import("./share-of-voice");
 
-      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-      const periodDays = filters.dateRange?.from && filters.dateRange?.to
-        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-        : 7;
+    const periodDays = filters.dateRange?.from && filters.dateRange?.to
+      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+      : 7;
 
-      const previousFrom = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, periodDays)
-        : subDays(new Date(), periodDays * 2);
-      const previousTo = filters.dateRange?.from 
-        ? subDays(filters.dateRange.from, 1)
-        : subDays(new Date(), periodDays);
+    const previousFrom = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, periodDays)
+      : subDays(new Date(), periodDays * 2);
+    const previousTo = filters.dateRange?.from 
+      ? subDays(filters.dateRange.from, 1)
+      : subDays(new Date(), periodDays);
 
       [currentSov, previousSov] = await Promise.all([
         getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),

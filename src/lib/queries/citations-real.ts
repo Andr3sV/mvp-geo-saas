@@ -116,7 +116,7 @@ async function getTodayRealTimeCitationsStats(
 
   const result = todayData[0];
   const brandCitations = Number(result.brand_citations) || 0;
-  
+
   // Convert JSONB competitor_citations to array format
   const competitorCitations: Array<{ competitor_id: string; citations_count: number }> = [];
   if (result.competitor_citations && typeof result.competitor_citations === 'object') {
@@ -1117,7 +1117,7 @@ export async function getMostCitedDomains(
     p_topic_id: topicIdValue,
     p_limit: limit,
   };
-  
+
   console.log("🔍 [getMostCitedDomains] Calling SQL function with params:", {
     projectId,
     startDate: startDate.toISOString(),
@@ -1146,7 +1146,7 @@ export async function getMostCitedDomains(
       sampleData: domainsData?.slice(0, 2),
     });
 
-    if (error) {
+      if (error) {
       console.error("❌ [getMostCitedDomains] Error fetching most cited domains:", {
         message: error.message,
         details: error.details,
@@ -1159,7 +1159,7 @@ export async function getMostCitedDomains(
       if (error.code === "42883" || error.message?.includes("does not exist") || (error.message?.includes("function") && error.message?.includes("not exist"))) {
         console.warn("⚠️ [getMostCitedDomains] SQL function does not exist. Falling back to direct query method.");
         console.warn("⚠️ Please run migration: 20251228140000_add_most_cited_domains_function.sql");
-        
+      
         // Try a simple direct query to verify if there's data at all
         const { data: testData } = await supabase
           .from("citations")
@@ -1171,11 +1171,11 @@ export async function getMostCitedDomains(
         console.log("🔍 [getMostCitedDomains] Fallback test query result:", { hasData: !!testData?.length });
         
         // Return empty for now - user needs to run migration
-        return [];
-      }
-      
       return [];
-    }
+  }
+
+    return [];
+  }
 
     if (!domainsData || domainsData.length === 0) {
       console.warn("⚠️ [getMostCitedDomains] No data returned from SQL function. This could indicate:");
@@ -1212,8 +1212,8 @@ export async function getMostCitedDomains(
         })),
         testError: testError?.message,
         testErrorDetails: testError,
-      });
-      
+  });
+
       // Also check total citations count for this project (without date filter)
       const { count: totalCount } = await supabase
         .from("citations")
@@ -1233,13 +1233,13 @@ export async function getMostCitedDomains(
     const domains = domainsData.map((row: any) => ({
       domain: row.domain,
       citations: Number(row.citations_count) || 0,
-      type: "Web Source",
+        type: "Web Source",
       platforms: Array.isArray(row.platforms) ? row.platforms : [],
-      changePercent: 0, // TODO: Calculate trend comparing with previous period
+        changePercent: 0, // TODO: Calculate trend comparing with previous period
     }));
 
     console.log("✅ [getMostCitedDomains] Successfully mapped", domains.length, "domains");
-    return domains;
+  return domains;
   } catch (err) {
     console.error("❌ [getMostCitedDomains] Unexpected error:", {
       error: err,

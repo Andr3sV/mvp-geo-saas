@@ -194,23 +194,65 @@ async function getTodayRealTimeStatsByPlatform(
 }
 
 // =============================================
-// PLATFORM OVERVIEW
+// UNIFIED BASE DATA
 // =============================================
 
 /**
- * Get total mentions/citations per platform with percentages and trends
+ * Unified base data for platform breakdown queries
+ * Loads daily_brand_stats once to avoid redundant queries
+ * This data is shared across multiple platform functions
  */
-export async function getPlatformOverview(
+export interface PlatformBaseData {
+  currentStats: Array<{
+    platform: string;
+    entity_type: string;
+    competitor_id: string | null;
+    entity_name?: string;
+    mentions_count: number;
+    citations_count: number;
+    stat_date: string;
+    competitors?: any;
+  }>;
+  previousStats: Array<{
+    platform: string;
+    entity_type: string;
+    competitor_id: string | null;
+    entity_name?: string;
+    mentions_count: number;
+    citations_count: number;
+    stat_date: string;
+    competitors?: any;
+  }>;
+  realTimeStats: Array<{
+    platform: string;
+    entity_type: "brand" | "competitor";
+    competitor_id: string | null;
+    mentions_count: number;
+    citations_count: number;
+  }>;
+  startDate: Date;
+  endDate: Date;
+  previousStartDate: Date;
+  previousEndDate: Date;
+  isQueryingToday: boolean;
+  regionId: string | null;
+  startDateStr: string;
+  endDateStr: string;
+  previousStartStr: string;
+  previousEndStr: string;
+}
+
+export async function getPlatformBaseData(
   projectId: string,
   fromDate?: Date,
   toDate?: Date,
   region?: string,
   topicId?: string
-) {
+): Promise<PlatformBaseData> {
   const supabase = await createClient();
   const { format } = await import("date-fns");
 
-  // Calculate date range
+  // Calculate date range (shared logic)
   const endDate = toDate || getYesterday();
   const startDate = fromDate || (() => {
     const date = getYesterday();
@@ -219,14 +261,14 @@ export async function getPlatformOverview(
     return date;
   })();
 
-  // Check if we're querying today
+  // Check if we're querying today (shared logic)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const endDateOnly = new Date(endDate);
   endDateOnly.setHours(0, 0, 0, 0);
   const isQueryingToday = endDateOnly.getTime() === today.getTime();
 
-  // Calculate previous period for trends
+  // Calculate previous period (shared logic)
   const periodDuration = endDate.getTime() - startDate.getTime();
   const previousEndDate = new Date(startDate);
   const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
@@ -239,17 +281,21 @@ export async function getPlatformOverview(
   const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
   const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
 
-  // Get region_id if region filter is active
+  // Get region_id if region filter is active (shared logic)
   let regionId: string | null = null;
   if (regionFilter && region) {
     regionId = await getRegionIdByCode(projectId, region);
   }
 
   // Build query helper
-  const buildQuery = (start: string, end: string) => {
+  const buildQuery = (start: string, end: string, includeCompetitors: boolean = false) => {
     let query = supabase
       .from("daily_brand_stats")
-      .select("platform, mentions_count, citations_count")
+      .select(
+        includeCompetitors
+          ? "platform, entity_type, competitor_id, entity_name, mentions_count, citations_count, stat_date, competitors(id, name, domain, is_active)"
+          : "platform, entity_type, competitor_id, mentions_count, citations_count, stat_date"
+      )
       .eq("project_id", projectId)
       .gte("stat_date", start)
       .lte("stat_date", end)
@@ -265,14 +311,138 @@ export async function getPlatformOverview(
     return query;
   };
 
+  // Load base data in parallel (no redundancy)
   const [currentResult, previousResult] = await Promise.all([
-    buildQuery(startDateStr, endDateStr),
-    buildQuery(previousStartStr, previousEndStr),
+    buildQuery(startDateStr, endDateStr, true), // Include competitors for entity breakdown
+    buildQuery(previousStartStr, previousEndStr, false), // Previous period doesn't need competitors
   ]);
 
-  if (currentResult.error) {
-    console.error("Error fetching platform overview:", currentResult.error);
-    return { platforms: [], totalMentions: 0, totalCitations: 0 };
+  // Load real-time data if querying today (once)
+  let realTimeStats: Array<{
+    platform: string;
+    entity_type: "brand" | "competitor";
+    competitor_id: string | null;
+    mentions_count: number;
+    citations_count: number;
+  }> = [];
+  if (isQueryingToday) {
+    realTimeStats = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+  }
+
+  return {
+    currentStats: currentResult.data || [],
+    previousStats: previousResult.data || [],
+    realTimeStats,
+    startDate,
+    endDate,
+    previousStartDate,
+    previousEndDate,
+    isQueryingToday,
+    regionId,
+    startDateStr,
+    endDateStr,
+    previousStartStr,
+    previousEndStr,
+  };
+}
+
+// =============================================
+// PLATFORM OVERVIEW
+// =============================================
+
+/**
+ * Get total mentions/citations per platform with percentages and trends
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
+ */
+export async function getPlatformOverview(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  region?: string,
+  topicId?: string,
+  baseData?: PlatformBaseData
+) {
+  // Use provided base data or load it
+  let currentStats, previousStats, realTimeStats, isQueryingToday;
+  
+  if (baseData) {
+    currentStats = baseData.currentStats;
+    previousStats = baseData.previousStats;
+    realTimeStats = baseData.realTimeStats;
+    isQueryingToday = baseData.isQueryingToday;
+  } else {
+    // Fallback: load data if not provided (backward compatibility)
+    const supabase = await createClient();
+    const { format } = await import("date-fns");
+
+    const endDate = toDate || getYesterday();
+    const startDate = fromDate || (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(endDate);
+    endDateOnly.setHours(0, 0, 0, 0);
+    isQueryingToday = endDateOnly.getTime() === today.getTime();
+
+    const periodDuration = endDate.getTime() - startDate.getTime();
+    const previousEndDate = new Date(startDate);
+    const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
+
+    const regionFilter = region && region !== "GLOBAL";
+    const topicFilter = topicId && topicId !== "all";
+
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+    const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
+    const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
+
+    let regionId: string | null = null;
+    if (regionFilter && region) {
+      regionId = await getRegionIdByCode(projectId, region);
+    }
+
+    const buildQuery = (start: string, end: string) => {
+      let query = supabase
+        .from("daily_brand_stats")
+        .select("platform, mentions_count, citations_count")
+        .eq("project_id", projectId)
+        .gte("stat_date", start)
+        .lte("stat_date", end)
+        .in("platform", ["openai", "gemini"]);
+
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
+      }
+      if (topicFilter) {
+        query = query.eq("topic_id", topicId);
+      }
+
+      return query;
+    };
+
+    const [currentResult, previousResult] = await Promise.all([
+      buildQuery(startDateStr, endDateStr),
+      buildQuery(previousStartStr, previousEndStr),
+    ]);
+
+    if (currentResult.error) {
+      console.error("Error fetching platform overview:", currentResult.error);
+      return { platforms: [], totalMentions: 0, totalCitations: 0 };
+    }
+
+    currentStats = currentResult.data || [];
+    previousStats = previousResult.data || [];
+    realTimeStats = [];
+
+    if (isQueryingToday) {
+      realTimeStats = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+    }
   }
 
   // Aggregate by platform - current period
@@ -281,7 +451,7 @@ export async function getPlatformOverview(
     gemini: { mentions: 0, citations: 0 },
   };
 
-  currentResult.data?.forEach((stat: any) => {
+  currentStats.forEach((stat: any) => {
     if (stat.platform && currentByPlatform[stat.platform]) {
       currentByPlatform[stat.platform].mentions += stat.mentions_count || 0;
       currentByPlatform[stat.platform].citations += stat.citations_count || 0;
@@ -289,9 +459,7 @@ export async function getPlatformOverview(
   });
 
   // Supplement with real-time data for today if querying today
-  if (isQueryingToday) {
-    const realTimeStats = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
-    
+  if (isQueryingToday && realTimeStats) {
     realTimeStats.forEach((stat) => {
       if (stat.platform && currentByPlatform[stat.platform]) {
         currentByPlatform[stat.platform].mentions += stat.mentions_count || 0;
@@ -306,7 +474,7 @@ export async function getPlatformOverview(
     gemini: { mentions: 0, citations: 0 },
   };
 
-  previousResult.data?.forEach((stat: any) => {
+  previousStats.forEach((stat: any) => {
     if (stat.platform && previousByPlatform[stat.platform]) {
       previousByPlatform[stat.platform].mentions += stat.mentions_count || 0;
       previousByPlatform[stat.platform].citations += stat.citations_count || 0;
@@ -348,99 +516,121 @@ export async function getPlatformOverview(
 
 /**
  * Get daily mentions by platform for evolution chart
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getPlatformEvolution(
   projectId: string,
   fromDate?: Date,
   toDate?: Date,
   region?: string,
-  topicId?: string
+  topicId?: string,
+  baseData?: PlatformBaseData
 ) {
-  const supabase = await createClient();
   const { format, eachDayOfInterval } = await import("date-fns");
 
-  const endDate = toDate || getYesterday();
-  const startDate = fromDate || (() => {
-    const date = getYesterday();
-    date.setDate(date.getDate() - 29);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  })();
+  // Use provided base data or load it
+  let currentStats, realTimeStats, startDate, endDate, isQueryingToday;
+  
+  if (baseData) {
+    currentStats = baseData.currentStats;
+    realTimeStats = baseData.realTimeStats;
+    startDate = baseData.startDate;
+    endDate = baseData.endDate;
+    isQueryingToday = baseData.isQueryingToday;
+  } else {
+    // Fallback: load data if not provided (backward compatibility)
+    const supabase = await createClient();
 
-  // Check if we're querying today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const endDateOnly = new Date(endDate);
-  endDateOnly.setHours(0, 0, 0, 0);
-  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+    endDate = toDate || getYesterday();
+    startDate = fromDate || (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })();
 
-  const regionFilter = region && region !== "GLOBAL";
-  const topicFilter = topicId && topicId !== "all";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(endDate);
+    endDateOnly.setHours(0, 0, 0, 0);
+    isQueryingToday = endDateOnly.getTime() === today.getTime();
 
-  // Get region_id if region filter is active
-  let regionId: string | null = null;
-  if (regionFilter && region) {
-    regionId = await getRegionIdByCode(projectId, region);
+    const regionFilter = region && region !== "GLOBAL";
+    const topicFilter = topicId && topicId !== "all";
+
+    let regionId: string | null = null;
+    if (regionFilter && region) {
+      regionId = await getRegionIdByCode(projectId, region);
+    }
+
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+
+    let query = supabase
+      .from("daily_brand_stats")
+      .select("stat_date, platform, mentions_count")
+      .eq("project_id", projectId)
+      .gte("stat_date", startDateStr)
+      .lte("stat_date", endDateStr)
+      .in("platform", ["openai", "gemini"]);
+
+    if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
+    }
+    if (topicFilter) {
+      query = query.eq("topic_id", topicId);
+    }
+
+    const { data: stats, error } = await query;
+
+    if (error) {
+      console.error("Error fetching platform evolution:", error);
+      return [];
+    }
+
+    currentStats = stats || [];
+    realTimeStats = [];
+
+    if (isQueryingToday) {
+      const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+      const todayStr = format(today, "yyyy-MM-dd");
+      
+      const realTimeByPlatform: Record<string, number> = {
+        openai: 0,
+        gemini: 0,
+      };
+      
+      realTimeData.forEach((stat) => {
+        if (stat.platform && realTimeByPlatform.hasOwnProperty(stat.platform)) {
+          realTimeByPlatform[stat.platform] += stat.mentions_count || 0;
+        }
+      });
+
+      Object.entries(realTimeByPlatform).forEach(([platform, count]) => {
+        if (count > 0) {
+          realTimeStats.push({
+            stat_date: todayStr,
+            platform,
+            mentions_count: count,
+          });
+        }
+      });
+    }
   }
 
-  const startDateStr = format(startDate, "yyyy-MM-dd");
-  const endDateStr = format(endDate, "yyyy-MM-dd");
-
-  let query = supabase
-    .from("daily_brand_stats")
-    .select("stat_date, platform, mentions_count")
-    .eq("project_id", projectId)
-    .gte("stat_date", startDateStr)
-    .lte("stat_date", endDateStr)
-    .in("platform", ["openai", "gemini"]);
-
-  if (regionFilter && regionId) {
-    query = query.eq("region_id", regionId);
-  }
-  if (topicFilter) {
-    query = query.eq("topic_id", topicId);
-  }
-
-  const { data: stats, error } = await query;
-
-  if (error) {
-    console.error("Error fetching platform evolution:", error);
-    return [];
-  }
-
-  // Supplement with real-time data for today if querying today
-  let realTimeStats: any[] = [];
-  if (isQueryingToday) {
-    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
-    const todayStr = format(today, "yyyy-MM-dd");
-    
-    // Aggregate real-time stats by platform for today
-    const realTimeByPlatform: Record<string, number> = {
-      openai: 0,
-      gemini: 0,
-    };
-    
-    realTimeData.forEach((stat) => {
-      if (stat.platform && realTimeByPlatform.hasOwnProperty(stat.platform)) {
-        realTimeByPlatform[stat.platform] += stat.mentions_count || 0;
-      }
-    });
-
-    // Add to stats array for today
-    Object.entries(realTimeByPlatform).forEach(([platform, count]) => {
-      if (count > 0) {
-        realTimeStats.push({
-          stat_date: todayStr,
-          platform,
-          mentions_count: count,
-        });
-      }
-    });
-  }
+  // Convert currentStats to stats format (with stat_date)
+  const stats = currentStats.map((stat: any) => ({
+    stat_date: stat.stat_date,
+    platform: stat.platform,
+    mentions_count: stat.mentions_count || 0,
+  }));
 
   // Merge daily stats with real-time stats
   let allStats = [...(stats || [])];
   if (isQueryingToday && realTimeStats.length > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const todayStr = format(today, "yyyy-MM-dd");
     const todayDailyStats = allStats.filter((s: any) => s.stat_date === todayStr);
     const todayRealTimeStats = realTimeStats.filter((s: any) => s.stat_date === todayStr);
@@ -499,116 +689,139 @@ export async function getPlatformEvolution(
 
 /**
  * Get brand vs competitors breakdown per platform
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getPlatformEntityBreakdown(
   projectId: string,
   fromDate?: Date,
   toDate?: Date,
   region?: string,
-  topicId?: string
+  topicId?: string,
+  baseData?: PlatformBaseData
 ) {
   const supabase = await createClient();
   const { format } = await import("date-fns");
 
-  const endDate = toDate || getYesterday();
-  const startDate = fromDate || (() => {
-    const date = getYesterday();
-    date.setDate(date.getDate() - 29);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  })();
+  // Use provided base data or load it
+  let currentStats, realTimeStats, isQueryingToday;
+  
+  if (baseData) {
+    currentStats = baseData.currentStats;
+    realTimeStats = baseData.realTimeStats;
+    isQueryingToday = baseData.isQueryingToday;
+  } else {
+    // Fallback: load data if not provided (backward compatibility)
+    const endDate = toDate || getYesterday();
+    const startDate = fromDate || (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })();
 
-  // Check if we're querying today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const endDateOnly = new Date(endDate);
-  endDateOnly.setHours(0, 0, 0, 0);
-  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(endDate);
+    endDateOnly.setHours(0, 0, 0, 0);
+    isQueryingToday = endDateOnly.getTime() === today.getTime();
 
-  const regionFilter = region && region !== "GLOBAL";
-  const topicFilter = topicId && topicId !== "all";
+    const regionFilter = region && region !== "GLOBAL";
+    const topicFilter = topicId && topicId !== "all";
 
-  // Get region_id if region filter is active
-  let regionId: string | null = null;
-  if (regionFilter && region) {
-    regionId = await getRegionIdByCode(projectId, region);
+    let regionId: string | null = null;
+    if (regionFilter && region) {
+      regionId = await getRegionIdByCode(projectId, region);
+    }
+
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+
+    let query = supabase
+      .from("daily_brand_stats")
+      .select("platform, entity_type, competitor_id, entity_name, mentions_count, competitors(id, name, domain, is_active)")
+      .eq("project_id", projectId)
+      .gte("stat_date", startDateStr)
+      .lte("stat_date", endDateStr)
+      .in("platform", ["openai", "gemini"]);
+
+    if (regionFilter && regionId) {
+      query = query.eq("region_id", regionId);
+    }
+    if (topicFilter) {
+      query = query.eq("topic_id", topicId);
+    }
+
+    const { data: stats, error } = await query;
+
+    if (error) {
+      console.error("Error fetching platform entity breakdown:", error);
+      return {
+        openai: { entities: [], totalMentions: 0 },
+        gemini: { entities: [], totalMentions: 0 },
+      };
+    }
+
+    currentStats = stats || [];
+    realTimeStats = [];
+
+    if (isQueryingToday) {
+      const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+      
+      const competitorIds = new Set<string>();
+      realTimeData.forEach((stat) => {
+        if (stat.entity_type === "competitor" && stat.competitor_id) {
+          competitorIds.add(stat.competitor_id);
+        }
+      });
+
+      if (competitorIds.size > 0) {
+        const { data: realTimeCompetitors } = await supabase
+          .from("competitors")
+          .select("id, name, domain, is_active")
+          .in("id", Array.from(competitorIds));
+
+        const competitorMap = new Map<string, any>();
+        realTimeCompetitors?.forEach((c: any) => {
+          competitorMap.set(c.id, c);
+        });
+
+        const { data: project } = await supabase
+          .from("projects")
+          .select("name, client_url")
+          .eq("id", projectId)
+          .single();
+
+        realTimeData.forEach((stat) => {
+          if (stat.platform === "openai" || stat.platform === "gemini") {
+            realTimeStats.push({
+              platform: stat.platform,
+              entity_type: stat.entity_type,
+              competitor_id: stat.competitor_id,
+              entity_name: stat.entity_type === "brand" 
+                ? (project?.name || "Your Brand")
+                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
+              mentions_count: stat.mentions_count,
+              competitors: stat.entity_type === "competitor" && stat.competitor_id
+                ? competitorMap.get(stat.competitor_id)
+                : null,
+            });
+          }
+        });
+      }
+    }
   }
 
-  const startDateStr = format(startDate, "yyyy-MM-dd");
-  const endDateStr = format(endDate, "yyyy-MM-dd");
-
-  // Get project info
+  // Get project info (needed for brand name)
   const { data: project } = await supabase
     .from("projects")
     .select("name, client_url")
     .eq("id", projectId)
     .single();
 
-  // Get all stats
-  let query = supabase
-    .from("daily_brand_stats")
-    .select("platform, entity_type, competitor_id, entity_name, mentions_count, competitors(id, name, domain, is_active)")
-    .eq("project_id", projectId)
-    .gte("stat_date", startDateStr)
-    .lte("stat_date", endDateStr)
-    .in("platform", ["openai", "gemini"]);
-
-  if (regionFilter && regionId) {
-    query = query.eq("region_id", regionId);
-  }
-  if (topicFilter) {
-    query = query.eq("topic_id", topicId);
-  }
-
-  const { data: stats, error } = await query;
-
-  // Supplement with real-time data for today if querying today
-  let realTimeStats: any[] = [];
-  if (isQueryingToday && !error) {
-    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
-    
-    // Get competitor names for real-time stats
-    const competitorIds = new Set<string>();
-    realTimeData.forEach((stat) => {
-      if (stat.entity_type === "competitor" && stat.competitor_id) {
-        competitorIds.add(stat.competitor_id);
-      }
-    });
-
-    if (competitorIds.size > 0) {
-      const { data: realTimeCompetitors } = await supabase
-        .from("competitors")
-        .select("id, name, domain, is_active")
-        .in("id", Array.from(competitorIds));
-
-      const competitorMap = new Map<string, any>();
-      realTimeCompetitors?.forEach((c: any) => {
-        competitorMap.set(c.id, c);
-      });
-
-      // Convert to stats format
-      realTimeData.forEach((stat) => {
-        if (stat.platform === "openai" || stat.platform === "gemini") {
-          realTimeStats.push({
-            platform: stat.platform,
-            entity_type: stat.entity_type,
-            competitor_id: stat.competitor_id,
-            entity_name: stat.entity_type === "brand" 
-              ? (project?.name || "Your Brand")
-              : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
-            mentions_count: stat.mentions_count,
-            competitors: stat.entity_type === "competitor" && stat.competitor_id
-              ? competitorMap.get(stat.competitor_id)
-              : null,
-          });
-        }
-      });
-    }
-  }
-
   // Merge daily stats with real-time stats
-  let allStats = [...(stats || [])];
-  if (isQueryingToday && realTimeStats.length > 0) {
+  let allStats = [...(currentStats || [])];
+  if (isQueryingToday && realTimeStats && realTimeStats.length > 0) {
     // Merge by platform, entity_type, and competitor_id
     const mergedMap = new Map<string, any>();
     
@@ -629,14 +842,6 @@ export async function getPlatformEntityBreakdown(
     });
     
     allStats = Array.from(mergedMap.values());
-  }
-
-  if (error) {
-    console.error("Error fetching platform entity breakdown:", error);
-    return {
-      openai: { entities: [], totalMentions: 0 },
-      gemini: { entities: [], totalMentions: 0 },
-    };
   }
 
   // Process data per platform
@@ -1019,158 +1224,231 @@ export async function getPlatformCitationSources(
 
 /**
  * Get momentum data for scatter chart (share vs trend per platform)
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getPlatformMomentum(
   projectId: string,
   fromDate?: Date,
   toDate?: Date,
   region?: string,
-  topicId?: string
+  topicId?: string,
+  baseData?: PlatformBaseData
 ) {
   const supabase = await createClient();
-  const { format } = await import("date-fns");
 
-  const endDate = toDate || getYesterday();
-  const startDate = fromDate || (() => {
-    const date = getYesterday();
-    date.setDate(date.getDate() - 29);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  })();
+  // Use provided base data or load it
+  let currentStats, previousStats;
+  
+  if (baseData) {
+    currentStats = baseData.currentStats;
+    previousStats = baseData.previousStats;
+    
+    // Merge real-time stats if querying today
+    if (baseData.isQueryingToday && baseData.realTimeStats && baseData.realTimeStats.length > 0) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("name, client_url")
+        .eq("id", projectId)
+        .single();
+      
+      const competitorIds = new Set<string>();
+      baseData.realTimeStats.forEach((stat) => {
+        if (stat.entity_type === "competitor" && stat.competitor_id) {
+          competitorIds.add(stat.competitor_id);
+        }
+      });
 
-  // Check if we're querying today
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const endDateOnly = new Date(endDate);
-  endDateOnly.setHours(0, 0, 0, 0);
-  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+      if (competitorIds.size > 0) {
+        const { data: realTimeCompetitors } = await supabase
+          .from("competitors")
+          .select("id, name, domain, is_active")
+          .in("id", Array.from(competitorIds));
 
-  // Calculate previous period
-  const periodDuration = endDate.getTime() - startDate.getTime();
-  const previousEndDate = new Date(startDate);
-  const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
+        const competitorMap = new Map<string, any>();
+        realTimeCompetitors?.forEach((c: any) => {
+          competitorMap.set(c.id, c);
+        });
 
-  const regionFilter = region && region !== "GLOBAL";
-  const topicFilter = topicId && topicId !== "all";
+        const realTimeStats: any[] = [];
+        baseData.realTimeStats.forEach((stat) => {
+          if (stat.platform === "openai" || stat.platform === "gemini") {
+            realTimeStats.push({
+              platform: stat.platform,
+              entity_type: stat.entity_type,
+              competitor_id: stat.competitor_id,
+              entity_name: stat.entity_type === "brand" 
+                ? (project?.name || "Your Brand")
+                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
+              mentions_count: stat.mentions_count,
+              competitors: stat.entity_type === "competitor" && stat.competitor_id
+                ? competitorMap.get(stat.competitor_id)
+                : null,
+            });
+          }
+        });
 
-  const startDateStr = format(startDate, "yyyy-MM-dd");
-  const endDateStr = format(endDate, "yyyy-MM-dd");
-  const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
-  const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
+        const mergedMap = new Map<string, any>();
+        currentStats.forEach((stat: any) => {
+          const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+          mergedMap.set(key, { ...stat });
+        });
+        
+        realTimeStats.forEach((stat: any) => {
+          const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+          if (mergedMap.has(key)) {
+            mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
+          } else {
+            mergedMap.set(key, { ...stat });
+          }
+        });
+        
+        currentStats = Array.from(mergedMap.values());
+      }
+    }
+  } else {
+    // Fallback: load data if not provided (backward compatibility)
+    const { format } = await import("date-fns");
 
-  // Get project info
+    const endDate = toDate || getYesterday();
+    const startDate = fromDate || (() => {
+      const date = getYesterday();
+      date.setDate(date.getDate() - 29);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endDateOnly = new Date(endDate);
+    endDateOnly.setHours(0, 0, 0, 0);
+    const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
+    const periodDuration = endDate.getTime() - startDate.getTime();
+    const previousEndDate = new Date(startDate);
+    const previousStartDate = new Date(previousEndDate.getTime() - periodDuration);
+
+    const regionFilter = region && region !== "GLOBAL";
+    const topicFilter = topicId && topicId !== "all";
+
+    const startDateStr = format(startDate, "yyyy-MM-dd");
+    const endDateStr = format(endDate, "yyyy-MM-dd");
+    const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
+    const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
+
+    const { data: project } = await supabase
+      .from("projects")
+      .select("name, client_url")
+      .eq("id", projectId)
+      .single();
+
+    let regionId: string | null = null;
+    if (regionFilter && region) {
+      regionId = await getRegionIdByCode(projectId, region);
+    }
+
+    const buildQuery = (start: string, end: string) => {
+      let query = supabase
+        .from("daily_brand_stats")
+        .select("platform, entity_type, competitor_id, entity_name, mentions_count, competitors(id, name, domain, is_active)")
+        .eq("project_id", projectId)
+        .gte("stat_date", start)
+        .lte("stat_date", end)
+        .in("platform", ["openai", "gemini"]);
+
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
+      }
+      if (topicFilter) {
+        query = query.eq("topic_id", topicId);
+      }
+
+      return query;
+    };
+
+    const [currentResult, previousResult] = await Promise.all([
+      buildQuery(startDateStr, endDateStr),
+      buildQuery(previousStartStr, previousEndStr),
+    ]);
+
+    if (currentResult.error) {
+      console.error("Error fetching platform momentum:", currentResult.error);
+      return { openai: [], gemini: [] };
+    }
+
+    currentStats = currentResult.data || [];
+    previousStats = previousResult.data || [];
+
+    if (isQueryingToday) {
+      const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
+      
+      const competitorIds = new Set<string>();
+      realTimeData.forEach((stat) => {
+        if (stat.entity_type === "competitor" && stat.competitor_id) {
+          competitorIds.add(stat.competitor_id);
+        }
+      });
+
+      if (competitorIds.size > 0) {
+        const { data: realTimeCompetitors } = await supabase
+          .from("competitors")
+          .select("id, name, domain, is_active")
+          .in("id", Array.from(competitorIds));
+
+        const competitorMap = new Map<string, any>();
+        realTimeCompetitors?.forEach((c: any) => {
+          competitorMap.set(c.id, c);
+        });
+
+        const realTimeStats: any[] = [];
+        realTimeData.forEach((stat) => {
+          if (stat.platform === "openai" || stat.platform === "gemini") {
+            realTimeStats.push({
+              platform: stat.platform,
+              entity_type: stat.entity_type,
+              competitor_id: stat.competitor_id,
+              entity_name: stat.entity_type === "brand" 
+                ? (project?.name || "Your Brand")
+                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
+              mentions_count: stat.mentions_count,
+              competitors: stat.entity_type === "competitor" && stat.competitor_id
+                ? competitorMap.get(stat.competitor_id)
+                : null,
+            });
+          }
+        });
+
+        const mergedMap = new Map<string, any>();
+        currentStats.forEach((stat: any) => {
+          const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+          mergedMap.set(key, { ...stat });
+        });
+        
+        realTimeStats.forEach((stat: any) => {
+          const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
+          if (mergedMap.has(key)) {
+            mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
+          } else {
+            mergedMap.set(key, { ...stat });
+          }
+        });
+        
+        currentStats = Array.from(mergedMap.values());
+      }
+    }
+  }
+
+  // Get project info (needed for brand name)
   const { data: project } = await supabase
     .from("projects")
     .select("name, client_url")
     .eq("id", projectId)
     .single();
 
-  // Get region_id if region filter is active
-  let regionId: string | null = null;
-  if (regionFilter && region) {
-    regionId = await getRegionIdByCode(projectId, region);
-  }
-
-  // Build query helper
-  const buildQuery = (start: string, end: string) => {
-    let query = supabase
-      .from("daily_brand_stats")
-      .select("platform, entity_type, competitor_id, entity_name, mentions_count, competitors(id, name, domain, is_active)")
-      .eq("project_id", projectId)
-      .gte("stat_date", start)
-      .lte("stat_date", end)
-      .in("platform", ["openai", "gemini"]);
-
-    if (regionFilter && regionId) {
-      query = query.eq("region_id", regionId);
-    }
-    if (topicFilter) {
-      query = query.eq("topic_id", topicId);
-    }
-
-    return query;
-  };
-
-  const [currentResult, previousResult] = await Promise.all([
-    buildQuery(startDateStr, endDateStr),
-    buildQuery(previousStartStr, previousEndStr),
-  ]);
-
-  // Supplement current period with real-time data if querying today
-  let currentStats = currentResult.data || [];
-  if (isQueryingToday && !currentResult.error) {
-    const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
-    
-    // Get competitor names for real-time stats
-    const competitorIds = new Set<string>();
-    realTimeData.forEach((stat) => {
-      if (stat.entity_type === "competitor" && stat.competitor_id) {
-        competitorIds.add(stat.competitor_id);
-      }
-    });
-
-    if (competitorIds.size > 0) {
-      const { data: realTimeCompetitors } = await supabase
-        .from("competitors")
-        .select("id, name, domain, is_active")
-        .in("id", Array.from(competitorIds));
-
-      const competitorMap = new Map<string, any>();
-      realTimeCompetitors?.forEach((c: any) => {
-        competitorMap.set(c.id, c);
-      });
-
-      // Convert to stats format
-      const realTimeStats: any[] = [];
-      realTimeData.forEach((stat) => {
-        if (stat.platform === "openai" || stat.platform === "gemini") {
-          realTimeStats.push({
-            platform: stat.platform,
-            entity_type: stat.entity_type,
-            competitor_id: stat.competitor_id,
-            entity_name: stat.entity_type === "brand" 
-              ? (project?.name || "Your Brand")
-              : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
-            mentions_count: stat.mentions_count,
-            competitors: stat.entity_type === "competitor" && stat.competitor_id
-              ? competitorMap.get(stat.competitor_id)
-              : null,
-          });
-        }
-      });
-
-      // Merge by platform, entity_type, and competitor_id
-      const mergedMap = new Map<string, any>();
-      
-      // Add daily stats
-      currentStats.forEach((stat: any) => {
-        const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
-        mergedMap.set(key, { ...stat });
-      });
-      
-      // Merge real-time stats
-      realTimeStats.forEach((stat: any) => {
-        const key = `${stat.platform}-${stat.entity_type}-${stat.competitor_id || "brand"}`;
-        if (mergedMap.has(key)) {
-          mergedMap.get(key)!.mentions_count += stat.mentions_count || 0;
-        } else {
-          mergedMap.set(key, { ...stat });
-        }
-      });
-      
-      currentStats = Array.from(mergedMap.values());
-    }
-  }
-
-  if (currentResult.error) {
-    console.error("Error fetching platform momentum:", currentResult.error);
-    return { openai: [], gemini: [] };
-  }
-
   // Process for each platform
   const processForPlatform = (platform: string) => {
     const currentPlatformStats = currentStats.filter((s: any) => s.platform === platform);
-    const previousStats = previousResult.data?.filter((s: any) => s.platform === platform) || [];
+    const previousPlatformStats = previousStats.filter((s: any) => s.platform === platform) || [];
 
     // Current period - aggregate by entity
     const currentEntityMap = new Map<string, { name: string; domain: string; mentions: number; isBrand: boolean }>();
@@ -1207,13 +1485,13 @@ export async function getPlatformMomentum(
     // Previous period - same process
     const previousEntityMap = new Map<string, number>();
 
-    const previousBrandMentions = previousStats
+    const previousBrandMentions = previousPlatformStats
       .filter((s: any) => s.entity_type === "brand" && !s.competitor_id)
       .reduce((sum: number, s: any) => sum + (s.mentions_count || 0), 0);
 
     previousEntityMap.set("brand", previousBrandMentions);
 
-    previousStats
+    previousPlatformStats
       .filter((s: any) => s.entity_type === "competitor" && s.competitor_id)
       .forEach((s: any) => {
         const existing = previousEntityMap.get(s.competitor_id) || 0;

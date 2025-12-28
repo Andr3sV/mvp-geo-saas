@@ -168,8 +168,8 @@ export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({
       <CardContent>
         <div className="h-[300px] w-full" style={{ minHeight: 300, minWidth: 0 }}>
           {!isLoading && data && data.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 {entities.map((entity, index) => {
                   const entityColor = getEntityColor(entity, index);
@@ -225,8 +225,8 @@ export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({
                   strokeWidth={1.5}
                 />
               ))}
-              </AreaChart>
-            </ResponsiveContainer>
+            </AreaChart>
+          </ResponsiveContainer>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
               {isLoading ? (
