@@ -194,6 +194,7 @@ export async function getShareOfVoice(
               const compInfo = compInfoMap.get(compId);
               if (compInfo && compInfo.is_active) {
                 competitorStats?.push({
+                  entity_type: "competitor",
                   competitor_id: compId,
                   entity_name: compInfo.name,
                   mentions_count: count,
