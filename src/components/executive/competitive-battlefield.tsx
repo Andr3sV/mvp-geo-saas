@@ -8,12 +8,12 @@ import { cn } from "@/lib/utils";
 import type { CompetitiveBattlefieldData, CompetitorBattleData } from "@/lib/queries/executive-overview";
 
 interface CompetitiveBattlefieldProps {
-  data: CompetitiveBattlefieldData;
+  data: CompetitiveBattlefieldData | null;
   isLoading?: boolean;
 }
 
 export function CompetitiveBattlefield({ data, isLoading }: CompetitiveBattlefieldProps) {
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <Card>
         <CardHeader>

@@ -19,13 +19,13 @@ import { cn } from "@/lib/utils";
 import type { WeeklyBattleReportData } from "@/lib/queries/executive-overview";
 
 interface WeeklyBattleReportProps {
-  data: WeeklyBattleReportData;
+  data: WeeklyBattleReportData | null;
   brandName: string;
   isLoading?: boolean;
 }
 
 export function WeeklyBattleReport({ data, brandName, isLoading }: WeeklyBattleReportProps) {
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <Card>
         <CardHeader>

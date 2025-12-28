@@ -7,12 +7,12 @@ import { cn } from "@/lib/utils";
 import type { CompetitiveBattlefieldData } from "@/lib/queries/executive-overview";
 
 interface CompetitiveHeroProps {
-  data: CompetitiveBattlefieldData;
+  data: CompetitiveBattlefieldData | null;
   isLoading?: boolean;
 }
 
 export function CompetitiveHero({ data, isLoading }: CompetitiveHeroProps) {
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <div className="relative rounded-2xl overflow-hidden bg-background">
         {/* Background gradients matching landing page */}

@@ -23,12 +23,14 @@ import {
   getWeeklyBattleReport,
   getMomentumScore,
   getVisibilityScore,
+  getExecutiveBaseData,
 } from "@/lib/queries/executive-overview";
 import { type SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
 
 export default function ExecutiveOverviewPage() {
   const { selectedProjectId } = useProject();
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
 
   // Filter states - default to current week (Monday to today)
   const [dateRange, setDateRange] = useState<DateRangeValue>(getCurrentWeekDateRange());
@@ -51,33 +53,53 @@ export default function ExecutiveOverviewPage() {
     topicId: topicId !== "all" ? topicId : undefined,
   };
 
-  // Load all data
+  // Load data with phased loading
   const loadData = async () => {
     if (!selectedProjectId) return;
 
     setIsLoading(true);
+    setIsLoadingReport(false);
+
     try {
-      // Load all data in parallel
-      const [battlefield, weeklyReport, momentum, visibility] = await Promise.all([
-        getCompetitiveBattlefield(selectedProjectId, filtersPayload),
-        getWeeklyBattleReport(selectedProjectId, filtersPayload),
-        getMomentumScore(selectedProjectId, filtersPayload),
-        getVisibilityScore(selectedProjectId, filtersPayload),
+      // PHASE 1: Load Critical Data (Hero + KPIs)
+      // Load base data once to avoid redundant queries
+      const baseData = await getExecutiveBaseData(selectedProjectId, filtersPayload);
+
+      // Load critical data in parallel using base data
+      const [battlefield, momentum, visibility] = await Promise.all([
+        getCompetitiveBattlefield(selectedProjectId, filtersPayload, baseData),
+        getMomentumScore(selectedProjectId, filtersPayload, baseData),
+        getVisibilityScore(selectedProjectId, filtersPayload, baseData),
       ]);
 
       setBattlefieldData(battlefield);
-      setWeeklyReportData(weeklyReport);
       setMomentumData(momentum);
       setVisibilityScore(visibility);
+      setIsLoading(false); // Hero and KPIs are ready
 
       // Set brand name from battlefield data
       if (battlefield?.brand) {
         setBrandName(battlefield.brand.name);
       }
+
+      // PHASE 2: Charts are already ready (they use battlefieldData)
+      // No additional loading needed
+
+      // PHASE 3: Load Secondary Data (Report) - asynchronously
+      setIsLoadingReport(true);
+      getWeeklyBattleReport(selectedProjectId, filtersPayload, baseData)
+        .then((report) => {
+          setWeeklyReportData(report);
+          setIsLoadingReport(false);
+        })
+        .catch((error) => {
+          console.error("Error loading weekly report:", error);
+          setIsLoadingReport(false);
+        });
     } catch (error) {
       console.error("Failed to load executive metrics:", error);
-    } finally {
       setIsLoading(false);
+      setIsLoadingReport(false);
     }
   };
 
@@ -107,23 +129,7 @@ export default function ExecutiveOverviewPage() {
     }
   };
 
-  // Loading state
-  if (isLoading && !battlefieldData) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Executive Overview"
-          description="Strategic competitive intelligence for leadership decision-making"
-        />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-            <p className="mt-4 text-muted-foreground">Loading executive dashboard...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // No early return - use skeleton loaders instead
 
   return (
     <div className="space-y-6">
@@ -156,33 +162,25 @@ export default function ExecutiveOverviewPage() {
       </WelcomeTip>
 
       {/* Hero Section - Main Competitive Position */}
-      {battlefieldData && (
-        <CompetitiveHero data={battlefieldData} isLoading={isLoading} />
-      )}
+      <CompetitiveHero data={battlefieldData} isLoading={!battlefieldData} />
 
       {/* Battle KPIs - 4 Key Metrics */}
-      {battlefieldData && momentumData && (
-        <BattleKPIs
-          battlefieldData={battlefieldData}
-          momentumData={momentumData}
-          visibilityScore={visibilityScore}
-          isLoading={isLoading}
-        />
-      )}
+      <BattleKPIs
+        battlefieldData={battlefieldData}
+        momentumData={momentumData}
+        visibilityScore={visibilityScore}
+        isLoading={!battlefieldData || !momentumData}
+      />
 
       {/* Competitive Battlefield - Race Chart */}
-      {battlefieldData && (
-        <CompetitiveBattlefield data={battlefieldData} isLoading={isLoading} />
-      )}
+      <CompetitiveBattlefield data={battlefieldData} isLoading={!battlefieldData} />
 
       {/* Battle Report */}
-      {weeklyReportData && (
-        <WeeklyBattleReport
-          data={weeklyReportData}
-          brandName={brandName}
-          isLoading={isLoading}
-        />
-      )}
+      <WeeklyBattleReport
+        data={weeklyReportData}
+        brandName={brandName}
+        isLoading={!weeklyReportData || isLoadingReport}
+      />
     </div>
   );
 }

@@ -7,14 +7,14 @@ import { cn } from "@/lib/utils";
 import type { CompetitiveBattlefieldData, MomentumScoreData } from "@/lib/queries/executive-overview";
 
 interface BattleKPIsProps {
-  battlefieldData: CompetitiveBattlefieldData;
-  momentumData: MomentumScoreData;
+  battlefieldData: CompetitiveBattlefieldData | null;
+  momentumData: MomentumScoreData | null;
   visibilityScore: number;
   isLoading?: boolean;
 }
 
 export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isLoading }: BattleKPIsProps) {
-  if (isLoading) {
+  if (isLoading || !battlefieldData || !momentumData) {
     return (
       <div className="grid gap-4 md:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (

@@ -28,65 +28,122 @@ export interface WeeklyInsight {
 
 /**
  * Calculate Visibility Score based on:
- * - Total mentions (from brand_mentions)
- * - Total citations (from citations)
+ * - Total mentions (from brand_mentions or daily_brand_stats)
+ * - Total citations (from citations or daily_brand_stats)
  * - Share of voice percentage
  * - Platform presence
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getVisibilityScore(
   projectId: string,
-  filters: SentimentFilterOptions
+  filters: SentimentFilterOptions,
+  baseData?: ExecutiveBaseData
 ): Promise<number> {
   const supabase = await createClient();
 
   try {
-    // Get total mentions for brand (from brand_mentions)
-    const { count: totalMentions } = await supabase
-      .from("brand_mentions")
-      .select("*", { count: "exact", head: true })
-      .eq("project_id", projectId)
-      .eq("brand_type", "client");
+    // Reuse Share of Voice data if available
+    let sovData;
+    if (baseData?.currentSov) {
+      sovData = baseData.currentSov;
+    } else {
+      // Fallback: load if not provided
+      const { getShareOfVoice } = await import("./share-of-voice");
+      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+      
+      sovData = await getShareOfVoice(
+        projectId,
+        filters.dateRange?.from,
+        filters.dateRange?.to,
+        platformFilter,
+        regionFilter,
+        topicFilter
+      );
+    }
 
-    // Get total URL citations for brand (from citations)
-    const { count: totalCitations } = await supabase
-      .from("citations")
-      .select("*", { count: "exact", head: true })
-      .eq("project_id", projectId)
-      .eq("citation_type", "brand");
-
-    // Get share of voice
-    const { getShareOfVoice } = await import("./share-of-voice");
-    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+    // Use daily_brand_stats for mentions and citations if date range is available
+    let totalMentions = 0;
+    let totalCitations = 0;
     
-    const sovData = await getShareOfVoice(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+    if (filters.dateRange?.from && filters.dateRange?.to) {
+      const { format } = await import("date-fns");
+      const startDateStr = format(filters.dateRange.from, "yyyy-MM-dd");
+      const endDateStr = format(filters.dateRange.to, "yyyy-MM-dd");
 
-    // Get platform presence
+      // Get region_id if region filter is active
+      let regionId: string | null = null;
+      if (filters.region && filters.region !== "GLOBAL") {
+        regionId = await getRegionIdByCode(projectId, filters.region);
+      }
+
+      // Build query for daily_brand_stats
+      let query = supabase
+        .from("daily_brand_stats")
+        .select("mentions_count, citations_count")
+        .eq("project_id", projectId)
+        .eq("entity_type", "brand")
+        .is("competitor_id", null)
+        .gte("stat_date", startDateStr)
+        .lte("stat_date", endDateStr);
+
+      if (regionId) {
+        query = query.eq("region_id", regionId);
+      }
+
+      if (filters.topicId && filters.topicId !== "all") {
+        query = query.eq("topic_id", filters.topicId);
+      }
+
+      const { data: stats } = await query;
+
+      if (stats && stats.length > 0) {
+        totalMentions = stats.reduce((sum: number, stat: any) => sum + (stat.mentions_count || 0), 0);
+        totalCitations = stats.reduce((sum: number, stat: any) => sum + (stat.citations_count || 0), 0);
+      }
+    }
+
+    // Fallback to direct queries if daily_brand_stats doesn't have data
+    if (totalMentions === 0) {
+      const { count } = await supabase
+        .from("brand_mentions")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", projectId)
+        .eq("brand_type", "client");
+      totalMentions = count || 0;
+    }
+
+    if (totalCitations === 0) {
+      const { count } = await supabase
+        .from("citations")
+        .select("*", { count: "exact", head: true })
+        .eq("project_id", projectId)
+        .eq("citation_type", "brand");
+      totalCitations = count || 0;
+    }
+
+    // Get platform presence (optimized: only distinct platforms)
     const { data: platforms } = await supabase
       .from("ai_responses")
       .select("platform")
       .eq("project_id", projectId)
       .eq("status", "success")
-      .not("response_text", "is", null);
+      .not("response_text", "is", null)
+      .limit(1000); // Limit to avoid fetching too much data
 
     const uniquePlatforms = new Set(platforms?.map((p) => p.platform) || []);
     const platformPresence = (uniquePlatforms.size / 4) * 100;
 
-    // Get distinct domains from citations
+    // Get distinct domains from citations (optimized: only distinct)
     const { data: citedDomains } = await supabase
       .from("citations")
       .select("domain")
       .eq("project_id", projectId)
       .eq("citation_type", "brand")
-      .not("domain", "is", null);
+      .not("domain", "is", null)
+      .limit(1000); // Limit to avoid fetching too much data
 
     const uniqueDomains = new Set(citedDomains?.map((c: any) => c.domain) || []);
 
@@ -376,15 +433,75 @@ export interface CompetitiveBattlefieldData {
 }
 
 /**
+ * Get unified base data for executive overview
+ * Loads Share of Voice and Citations data once to avoid redundant queries
+ * This data is shared across multiple executive functions
+ */
+export interface ExecutiveBaseData {
+  currentSov: Awaited<ReturnType<typeof import("./share-of-voice").getShareOfVoice>>;
+  previousSov: Awaited<ReturnType<typeof import("./share-of-voice").getShareOfVoice>> | null;
+  currentCitations: Awaited<ReturnType<typeof import("./citations-real").getCitationsRanking>>;
+  previousCitations: Awaited<ReturnType<typeof import("./citations-real").getCitationsRanking>> | null;
+  periodDays: number;
+  previousFrom: Date;
+  previousTo: Date;
+}
+
+export async function getExecutiveBaseData(
+  projectId: string,
+  filters: SentimentFilterOptions
+): Promise<ExecutiveBaseData> {
+  const { subDays } = await import("date-fns");
+  const { getShareOfVoice } = await import("./share-of-voice");
+  const { getCitationsRanking } = await import("./citations-real");
+
+  const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+  const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+  const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+
+  // Calculate previous period
+  const periodDays = filters.dateRange?.from && filters.dateRange?.to
+    ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+    : 7;
+
+  const previousFrom = filters.dateRange?.from 
+    ? subDays(filters.dateRange.from, periodDays)
+    : subDays(new Date(), periodDays * 2);
+  const previousTo = filters.dateRange?.from 
+    ? subDays(filters.dateRange.from, 1)
+    : subDays(new Date(), periodDays);
+
+  // Load all base data in parallel (no redundancy)
+  const [currentSov, previousSov, currentCitations, previousCitations] = await Promise.all([
+    getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+    getShareOfVoice(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+    getCitationsRanking(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+    getCitationsRanking(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+  ]);
+
+  return {
+    currentSov,
+    previousSov,
+    currentCitations,
+    previousCitations,
+    periodDays,
+    previousFrom,
+    previousTo,
+  };
+}
+
+/**
  * Get competitive battlefield data for the CEO dashboard
  * Combines mentions and citations share with trend data
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getCompetitiveBattlefield(
   projectId: string,
-  filters: SentimentFilterOptions
+  filters: SentimentFilterOptions,
+  baseData?: ExecutiveBaseData
 ): Promise<CompetitiveBattlefieldData | null> {
   const supabase = await createClient();
-  const { format, subDays } = await import("date-fns");
 
   try {
     // Get project info with color
@@ -394,54 +511,42 @@ export async function getCompetitiveBattlefield(
       .eq("id", projectId)
       .single();
 
-    // Get current period data
-    const { getShareOfVoice } = await import("./share-of-voice");
-    const { getCitationsRanking } = await import("./citations-real");
+    // Use provided base data or load it
+    let currentSov, previousSov, currentCitations;
+    
+    if (baseData) {
+      currentSov = baseData.currentSov;
+      previousSov = baseData.previousSov;
+      currentCitations = baseData.currentCitations;
+    } else {
+      // Fallback: load data if not provided (backward compatibility)
+      const { getShareOfVoice } = await import("./share-of-voice");
+      const { getCitationsRanking } = await import("./citations-real");
+      const { subDays } = await import("date-fns");
 
-    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-    const currentSov = await getShareOfVoice(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      const periodDays = filters.dateRange?.from && filters.dateRange?.to
+        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+        : 7;
 
-    const currentCitations = await getCitationsRanking(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      const previousFrom = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, periodDays)
+        : subDays(new Date(), periodDays * 2);
+      const previousTo = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, 1)
+        : subDays(new Date(), periodDays);
+
+      [currentSov, previousSov, currentCitations] = await Promise.all([
+        getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+        getShareOfVoice(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+        getCitationsRanking(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+      ]);
+    }
 
     if (!currentSov || !currentCitations) return null;
-
-    // Calculate previous period for trends
-    const periodDays = filters.dateRange?.from && filters.dateRange?.to
-      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      : 7;
-
-    const previousFrom = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, periodDays)
-      : subDays(new Date(), periodDays * 2);
-    const previousTo = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, 1)
-      : subDays(new Date(), periodDays);
-
-    const previousSov = await getShareOfVoice(
-      projectId,
-      previousFrom,
-      previousTo,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
 
     // Build brand data
     const brandTrend = previousSov?.brand?.percentage
@@ -554,71 +659,53 @@ export interface WeeklyBattleReportData {
 
 /**
  * Get weekly battle report comparing current vs previous period
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getWeeklyBattleReport(
   projectId: string,
-  filters: SentimentFilterOptions
+  filters: SentimentFilterOptions,
+  baseData?: ExecutiveBaseData
 ): Promise<WeeklyBattleReportData | null> {
-  const { subDays } = await import("date-fns");
-
   try {
-    const { getShareOfVoice } = await import("./share-of-voice");
-    const { getCitationsRanking } = await import("./citations-real");
+    // Use provided base data or load it
+    let currentSov, previousSov, currentCitations, previousCitations;
+    
+    if (baseData) {
+      currentSov = baseData.currentSov;
+      previousSov = baseData.previousSov;
+      currentCitations = baseData.currentCitations;
+      previousCitations = baseData.previousCitations;
+    } else {
+      // Fallback: load data if not provided (backward compatibility)
+      const { subDays } = await import("date-fns");
+      const { getShareOfVoice } = await import("./share-of-voice");
+      const { getCitationsRanking } = await import("./citations-real");
 
-    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-    // Current period
-    const currentSov = await getShareOfVoice(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      const periodDays = filters.dateRange?.from && filters.dateRange?.to
+        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+        : 7;
 
-    const currentCitations = await getCitationsRanking(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      const previousFrom = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, periodDays)
+        : subDays(new Date(), periodDays * 2);
+      const previousTo = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, 1)
+        : subDays(new Date(), periodDays);
+
+      [currentSov, previousSov, currentCitations, previousCitations] = await Promise.all([
+        getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+        getShareOfVoice(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+        getCitationsRanking(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+        getCitationsRanking(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+      ]);
+    }
 
     if (!currentSov || !currentCitations) return null;
-
-    // Calculate previous period
-    const periodDays = filters.dateRange?.from && filters.dateRange?.to
-      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      : 7;
-
-    const previousFrom = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, periodDays)
-      : subDays(new Date(), periodDays * 2);
-    const previousTo = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, 1)
-      : subDays(new Date(), periodDays);
-
-    const previousSov = await getShareOfVoice(
-      projectId,
-      previousFrom,
-      previousTo,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
-
-    const previousCitations = await getCitationsRanking(
-      projectId,
-      previousFrom,
-      previousTo,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
 
     // Calculate changes
     const currentMentions = currentSov.brand.mentions;
@@ -877,50 +964,46 @@ export interface MomentumScoreData {
 
 /**
  * Calculate momentum score - how fast brand is growing vs competition
+ * 
+ * @param baseData - Optional pre-loaded base data to avoid redundant queries
  */
 export async function getMomentumScore(
   projectId: string,
-  filters: SentimentFilterOptions
+  filters: SentimentFilterOptions,
+  baseData?: ExecutiveBaseData
 ): Promise<MomentumScoreData> {
-  const { subDays } = await import("date-fns");
-
   try {
-    const { getShareOfVoice } = await import("./share-of-voice");
+    // Use provided base data or load it
+    let currentSov, previousSov;
+    
+    if (baseData) {
+      currentSov = baseData.currentSov;
+      previousSov = baseData.previousSov;
+    } else {
+      // Fallback: load data if not provided (backward compatibility)
+      const { subDays } = await import("date-fns");
+      const { getShareOfVoice } = await import("./share-of-voice");
 
-    const platformFilter = filters.platform === "all" ? undefined : filters.platform;
-    const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
-    const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
+      const platformFilter = filters.platform === "all" ? undefined : filters.platform;
+      const regionFilter = filters.region === "GLOBAL" ? undefined : filters.region;
+      const topicFilter = filters.topicId === "all" ? undefined : filters.topicId;
 
-    // Get current period
-    const currentSov = await getShareOfVoice(
-      projectId,
-      filters.dateRange?.from,
-      filters.dateRange?.to,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      const periodDays = filters.dateRange?.from && filters.dateRange?.to
+        ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
+        : 7;
 
-    // Calculate previous period
-    const periodDays = filters.dateRange?.from && filters.dateRange?.to
-      ? Math.ceil((filters.dateRange.to.getTime() - filters.dateRange.from.getTime()) / (1000 * 60 * 60 * 24))
-      : 7;
+      const previousFrom = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, periodDays)
+        : subDays(new Date(), periodDays * 2);
+      const previousTo = filters.dateRange?.from 
+        ? subDays(filters.dateRange.from, 1)
+        : subDays(new Date(), periodDays);
 
-    const previousFrom = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, periodDays)
-      : subDays(new Date(), periodDays * 2);
-    const previousTo = filters.dateRange?.from 
-      ? subDays(filters.dateRange.from, 1)
-      : subDays(new Date(), periodDays);
-
-    const previousSov = await getShareOfVoice(
-      projectId,
-      previousFrom,
-      previousTo,
-      platformFilter,
-      regionFilter,
-      topicFilter
-    );
+      [currentSov, previousSov] = await Promise.all([
+        getShareOfVoice(projectId, filters.dateRange?.from, filters.dateRange?.to, platformFilter, regionFilter, topicFilter),
+        getShareOfVoice(projectId, previousFrom, previousTo, platformFilter, regionFilter, topicFilter),
+      ]);
+    }
 
     if (!currentSov || !previousSov) {
       return {
