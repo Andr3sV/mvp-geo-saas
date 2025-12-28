@@ -329,9 +329,14 @@ export async function getPlatformBaseData(
     realTimeStats = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
   }
 
+  // Type assertions to handle Supabase query result types
+  // Convert through 'unknown' first to handle Supabase's complex query result types
+  const currentStats: PlatformBaseData["currentStats"] = (currentResult.data || []) as unknown as PlatformBaseData["currentStats"];
+  const previousStats: PlatformBaseData["previousStats"] = (previousResult.data || []) as unknown as PlatformBaseData["previousStats"];
+
   return {
-    currentStats: currentResult.data || [],
-    previousStats: previousResult.data || [],
+    currentStats,
+    previousStats,
     realTimeStats,
     startDate,
     endDate,
@@ -364,7 +369,10 @@ export async function getPlatformOverview(
   baseData?: PlatformBaseData
 ) {
   // Use provided base data or load it
-  let currentStats, previousStats, realTimeStats, isQueryingToday;
+  let currentStats: PlatformBaseData["currentStats"];
+  let previousStats: PlatformBaseData["previousStats"];
+  let realTimeStats: PlatformBaseData["realTimeStats"];
+  let isQueryingToday: boolean;
   
   if (baseData) {
     currentStats = baseData.currentStats;
@@ -436,8 +444,11 @@ export async function getPlatformOverview(
       return { platforms: [], totalMentions: 0, totalCitations: 0 };
     }
 
-    currentStats = currentResult.data || [];
-    previousStats = previousResult.data || [];
+    // Type assertions to handle Supabase query result types
+    // Note: Fallback query only selects platform, mentions_count, citations_count
+    // but we cast to full type for compatibility
+    currentStats = (currentResult.data || []) as unknown as PlatformBaseData["currentStats"];
+    previousStats = (previousResult.data || []) as unknown as PlatformBaseData["previousStats"];
     realTimeStats = [];
 
     if (isQueryingToday) {
@@ -530,7 +541,11 @@ export async function getPlatformEvolution(
   const { format, eachDayOfInterval } = await import("date-fns");
 
   // Use provided base data or load it
-  let currentStats, realTimeStats, startDate, endDate, isQueryingToday;
+  let currentStats: PlatformBaseData["currentStats"];
+  let realTimeStats: PlatformBaseData["realTimeStats"];
+  let startDate: Date;
+  let endDate: Date;
+  let isQueryingToday: boolean;
   
   if (baseData) {
     currentStats = baseData.currentStats;
@@ -589,7 +604,9 @@ export async function getPlatformEvolution(
       return [];
     }
 
-    currentStats = stats || [];
+    // Type assertions to handle Supabase query result types
+    // Note: Fallback query may not include all fields, cast to full type for compatibility
+    currentStats = (stats || []) as unknown as PlatformBaseData["currentStats"];
     realTimeStats = [];
 
     if (isQueryingToday) {
@@ -610,9 +627,11 @@ export async function getPlatformEvolution(
       Object.entries(realTimeByPlatform).forEach(([platform, count]) => {
         if (count > 0) {
           realTimeStats.push({
-            stat_date: todayStr,
             platform,
+            entity_type: "brand" as const,
+            competitor_id: null,
             mentions_count: count,
+            citations_count: 0,
           });
         }
       });
@@ -704,7 +723,9 @@ export async function getPlatformEntityBreakdown(
   const { format } = await import("date-fns");
 
   // Use provided base data or load it
-  let currentStats, realTimeStats, isQueryingToday;
+  let currentStats: PlatformBaseData["currentStats"];
+  let realTimeStats: PlatformBaseData["realTimeStats"];
+  let isQueryingToday: boolean;
   
   if (baseData) {
     currentStats = baseData.currentStats;
@@ -762,7 +783,8 @@ export async function getPlatformEntityBreakdown(
       };
     }
 
-    currentStats = stats || [];
+    // Type assertions to handle Supabase query result types
+    currentStats = (stats || []) as unknown as PlatformBaseData["currentStats"];
     realTimeStats = [];
 
     if (isQueryingToday) {
@@ -798,13 +820,8 @@ export async function getPlatformEntityBreakdown(
               platform: stat.platform,
               entity_type: stat.entity_type,
               competitor_id: stat.competitor_id,
-              entity_name: stat.entity_type === "brand" 
-                ? (project?.name || "Your Brand")
-                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
               mentions_count: stat.mentions_count,
-              competitors: stat.entity_type === "competitor" && stat.competitor_id
-                ? competitorMap.get(stat.competitor_id)
-                : null,
+              citations_count: stat.citations_count || 0,
             });
           }
         });
@@ -1238,7 +1255,8 @@ export async function getPlatformMomentum(
   const supabase = await createClient();
 
   // Use provided base data or load it
-  let currentStats, previousStats;
+  let currentStats: PlatformBaseData["currentStats"];
+  let previousStats: PlatformBaseData["previousStats"];
   
   if (baseData) {
     currentStats = baseData.currentStats;
@@ -1277,13 +1295,8 @@ export async function getPlatformMomentum(
               platform: stat.platform,
               entity_type: stat.entity_type,
               competitor_id: stat.competitor_id,
-              entity_name: stat.entity_type === "brand" 
-                ? (project?.name || "Your Brand")
-                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
               mentions_count: stat.mentions_count,
-              competitors: stat.entity_type === "competitor" && stat.competitor_id
-                ? competitorMap.get(stat.competitor_id)
-                : null,
+              citations_count: stat.citations_count || 0,
             });
           }
         });
@@ -1376,8 +1389,9 @@ export async function getPlatformMomentum(
       return { openai: [], gemini: [] };
     }
 
-    currentStats = currentResult.data || [];
-    previousStats = previousResult.data || [];
+    // Type assertions to handle Supabase query result types
+    currentStats = (currentResult.data || []) as unknown as PlatformBaseData["currentStats"];
+    previousStats = (previousResult.data || []) as unknown as PlatformBaseData["previousStats"];
 
     if (isQueryingToday) {
       const realTimeData = await getTodayRealTimeStatsByPlatform(projectId, undefined, region, topicId);
@@ -1407,13 +1421,8 @@ export async function getPlatformMomentum(
               platform: stat.platform,
               entity_type: stat.entity_type,
               competitor_id: stat.competitor_id,
-              entity_name: stat.entity_type === "brand" 
-                ? (project?.name || "Your Brand")
-                : (competitorMap.get(stat.competitor_id || "")?.name || "Unknown"),
               mentions_count: stat.mentions_count,
-              competitors: stat.entity_type === "competitor" && stat.competitor_id
-                ? competitorMap.get(stat.competitor_id)
-                : null,
+              citations_count: stat.citations_count || 0,
             });
           }
         });
