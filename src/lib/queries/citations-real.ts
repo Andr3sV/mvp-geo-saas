@@ -92,29 +92,8 @@ async function getTodayRealTimeCitationsStats(
 
   // Map platform filter
   const mappedPlatform = mapPlatformToDatabase(platform);
-  const platformFilter = mappedPlatform !== null;
   const regionFilter = region && region !== "GLOBAL";
   const topicFilter = topicId && topicId !== "all";
-
-  // Get citations created after 4:30 AM today
-  let citationsQuery = supabase
-    .from("citations")
-    .select("created_at, citation_type, competitor_id, ai_response_id")
-    .eq("project_id", projectId)
-    .gte("created_at", cutoffTime.toISOString())
-    .lte("created_at", today.toISOString());
-
-  const { data: citations } = await citationsQuery;
-
-  // Get ai_response_ids
-  const aiResponseIds = new Set<string>();
-  citations?.forEach((c: any) => {
-    if (c.ai_response_id) aiResponseIds.add(c.ai_response_id);
-  });
-
-  if (aiResponseIds.size === 0) {
-    return { brandCitations: 0, competitorCitations: [] };
-  }
 
   // Get region_id if region filter is active
   let regionId: string | null = null;
@@ -122,58 +101,32 @@ async function getTodayRealTimeCitationsStats(
     regionId = await getRegionIdByCode(projectId, region);
   }
 
-  // Fetch ai_responses with prompt_tracking data (including region_id and regions join)
-  let aiResponsesQuery = supabase
-    .from("ai_responses")
-    .select("id, platform, prompt_tracking(region_id, topic_id, regions:region_id(code))")
-    .in("id", Array.from(aiResponseIds));
-
-  if (platformFilter) {
-    aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
-  }
-
-  const { data: aiResponses } = await aiResponsesQuery;
-
-  // Filter by region_id and topic_id after fetching
-  let filteredAiResponses = aiResponses || [];
-  if (regionFilter && regionId) {
-    filteredAiResponses = filteredAiResponses.filter((ar: any) => {
-      const pt = ar.prompt_tracking;
-      if (!pt) return false;
-      // Handle both array and object returns from Supabase join
-      const ptRegionId = Array.isArray(pt) ? pt[0]?.region_id : pt.region_id;
-      return ptRegionId === regionId;
-    });
-  }
-  if (topicFilter) {
-    filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-      ar.prompt_tracking?.topic_id === topicId
-    );
-  }
-
-  // Create map for quick lookup
-  const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
-
-  // Count brand citations
-  const brandCitations = citations?.filter((c: any) => 
-    c.citation_type === "brand" && aiResponseMap.has(c.ai_response_id)
-  ).length || 0;
-
-  // Count competitor citations by competitor_id
-  const competitorCitationsMap = new Map<string, number>();
-  citations?.forEach((citation: any) => {
-    if (!aiResponseMap.has(citation.ai_response_id)) return;
-    
-    if (citation.citation_type === "competitor" && citation.competitor_id) {
-      const currentCount = competitorCitationsMap.get(citation.competitor_id) || 0;
-      competitorCitationsMap.set(citation.competitor_id, currentCount + 1);
-    }
+  // Use SQL function for efficient aggregation
+  const { data: todayData, error: todayError } = await supabase.rpc("get_today_citations_aggregated", {
+    p_project_id: projectId,
+    p_cutoff_time: cutoffTime.toISOString(),
+    p_platform: mappedPlatform,
+    p_region_id: regionId,
+    p_topic_id: topicId && topicId !== "all" ? topicId : null,
   });
 
-  const competitorCitations = Array.from(competitorCitationsMap.entries()).map(([competitor_id, citations_count]) => ({
-    competitor_id,
-    citations_count,
-  }));
+  if (todayError || !todayData || todayData.length === 0) {
+    return { brandCitations: 0, competitorCitations: [] };
+  }
+
+  const result = todayData[0];
+  const brandCitations = Number(result.brand_citations) || 0;
+  
+  // Convert JSONB competitor_citations to array format
+  const competitorCitations: Array<{ competitor_id: string; citations_count: number }> = [];
+  if (result.competitor_citations && typeof result.competitor_citations === 'object') {
+    Object.entries(result.competitor_citations).forEach(([competitor_id, citations_count]) => {
+      competitorCitations.push({
+        competitor_id,
+        citations_count: Number(citations_count) || 0,
+      });
+    });
+  }
 
   return { brandCitations, competitorCitations };
 }
@@ -199,10 +152,239 @@ function mapPlatformToDatabase(platform: string | undefined): string | null {
 // =============================================
 
 /**
+ * Get unified citations data (combines getQuickLookMetrics and getCitationsRanking)
+ * Returns both quick metrics and ranking data in a single optimized query
+ */
+export async function getCitationsData(
+  projectId: string,
+  fromDate?: Date,
+  toDate?: Date,
+  platform?: string,
+  region?: string,
+  topicId?: string
+) {
+  const supabase = await createClient();
+  const { format } = await import("date-fns");
+
+  // Get project info
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name, client_url, color")
+    .eq("id", projectId)
+    .single();
+
+  // Calculate date range (default to last 30 days ending yesterday)
+  const endDate = toDate || getYesterday();
+  const startDate = fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29); // 30 days total including yesterday
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
+
+  // Check if we're querying today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDateOnly = new Date(endDate);
+  endDateOnly.setHours(0, 0, 0, 0);
+  const isQueryingToday = endDateOnly.getTime() === today.getTime();
+
+  // Map platform filter
+  const mappedPlatform = mapPlatformToDatabase(platform);
+  const platformFilter = mappedPlatform !== null;
+  const regionFilter = region && region !== "GLOBAL";
+  const topicFilter = topicId && topicId !== "all";
+
+  // Get region_id if region filter is active
+  let regionId: string | null = null;
+  if (regionFilter && region) {
+    regionId = await getRegionIdByCode(projectId, region);
+  }
+
+  // Format dates for SQL
+  const startDateStr = format(startDate, "yyyy-MM-dd");
+  const endDateStr = format(endDate, "yyyy-MM-dd");
+
+  // Execute unified query for all stats + competitors in parallel
+  const [allStatsResult, allCompetitorsResult] = await Promise.all([
+    // Unified query for brand and competitor citations
+    (async () => {
+      let query = supabase
+        .from("daily_brand_stats")
+        .select("entity_type, competitor_id, entity_name, citations_count, competitors(id, name, domain, is_active, color)")
+        .eq("project_id", projectId)
+        .gte("stat_date", startDateStr)
+        .lte("stat_date", endDateStr);
+
+      if (platformFilter) {
+        query = query.eq("platform", mappedPlatform);
+      }
+
+      if (regionFilter && regionId) {
+        query = query.eq("region_id", regionId);
+      }
+
+      if (topicFilter) {
+        query = query.eq("topic_id", topicId);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching citations from daily_brand_stats:', error);
+        return { data: [], error };
+      }
+      return { data: data || [], error: null };
+    })(),
+    
+    // Get all active competitors
+    (async () => {
+      const { data, error } = await supabase
+        .from("competitors")
+        .select("id, name, domain, color")
+        .eq("project_id", projectId)
+        .eq("is_active", true);
+      
+      if (error) {
+        console.error('Error fetching competitors:', error);
+        return { data: [], error };
+      }
+      return { data: data || [], error: null };
+    })()
+  ]);
+
+  // Separate brand and competitor stats in JavaScript
+  const brandStats = allStatsResult.data?.filter(s => s.entity_type === "brand" && !s.competitor_id) || [];
+  const competitorStats = allStatsResult.data?.filter(s => s.entity_type === "competitor" && s.competitor_id) || [];
+
+  // Calculate brand citations
+  let brandCitations = brandStats.reduce((sum, stat) => sum + (stat.citations_count || 0), 0);
+
+  // Build competitor citations map
+  const competitorCitationsMap = new Map<string, { id: string; name: string; domain: string; color?: string; citations: number }>();
+  
+  // Initialize with all active competitors (with 0 citations)
+  allCompetitorsResult.data?.forEach((competitor: any) => {
+    competitorCitationsMap.set(competitor.id, {
+      id: competitor.id,
+      name: competitor.name,
+      domain: competitor.domain || "",
+      color: competitor.color || undefined,
+      citations: 0,
+    });
+  });
+
+  // Sum citations from daily_brand_stats
+  competitorStats.forEach((stat: any) => {
+    const competitor = stat.competitors;
+    if (!competitor || !competitor.is_active || !stat.competitor_id) return;
+
+    const competitorId = stat.competitor_id;
+    if (!competitorCitationsMap.has(competitorId)) {
+      competitorCitationsMap.set(competitorId, {
+        id: competitorId,
+        name: competitor.name || stat.entity_name || "Unknown",
+        domain: competitor.domain || "",
+        citations: 0,
+      });
+    }
+
+    competitorCitationsMap.get(competitorId)!.citations += stat.citations_count || 0;
+  });
+
+  // Supplement with real-time data for today if querying today
+  if (isQueryingToday) {
+    const realTimeStats = await getTodayRealTimeCitationsStats(projectId, platform, region, topicId);
+    
+    brandCitations += realTimeStats.brandCitations;
+    
+    realTimeStats.competitorCitations.forEach((compStat) => {
+      const competitorId = compStat.competitor_id;
+      if (!competitorCitationsMap.has(competitorId)) {
+        const competitor = allCompetitorsResult.data?.find((c: any) => c.id === competitorId);
+        if (competitor) {
+          competitorCitationsMap.set(competitorId, {
+            id: competitorId,
+            name: competitor.name,
+            domain: competitor.domain || "",
+            color: competitor.color || undefined,
+            citations: 0,
+          });
+        }
+      }
+      
+      if (competitorCitationsMap.has(competitorId)) {
+        competitorCitationsMap.get(competitorId)!.citations += compStat.citations_count;
+      }
+    });
+  }
+
+  // Calculate totals
+  const competitorCitationsTotal = Array.from(competitorCitationsMap.values()).reduce(
+    (sum, comp) => sum + comp.citations,
+    0
+  );
+  const totalCitations = brandCitations + competitorCitationsTotal;
+
+  // Build competitors array for ranking
+  const competitors = Array.from(competitorCitationsMap.values())
+    .filter((comp) => comp.citations > 0)
+    .map((comp) => ({
+      id: comp.id,
+      name: comp.name,
+      domain: comp.domain || comp.name,
+      color: comp.color,
+      citations: comp.citations,
+      percentage: totalCitations > 0 ? Number(((comp.citations / totalCitations) * 100).toFixed(1)) : 0,
+    }));
+
+  // Sort competitors by citations descending
+  competitors.sort((a, b) => b.citations - a.citations);
+
+  // Build all entities for ranking
+  const allEntities = [
+    {
+      id: projectId,
+      name: project?.name || "Your Brand",
+      domain: project?.client_url || project?.name || "",
+      citations: brandCitations,
+      percentage: totalCitations > 0 ? Number(((brandCitations / totalCitations) * 100).toFixed(1)) : 0,
+    },
+    ...competitors,
+  ].sort((a, b) => b.citations - a.citations);
+
+  // Determine market position (1-based index)
+  const marketPosition = allEntities.findIndex((e) => e.id === projectId) + 1;
+
+  // Return both quick metrics and ranking data
+  return {
+    // Quick metrics format
+    totalCitationPages: brandCitations,
+    myPagesCited: brandCitations,
+    ranking: {
+      position: marketPosition,
+      totalEntities: allEntities.length,
+      entities: allEntities,
+    },
+    // Ranking format (for compatibility)
+    brand: {
+      name: project?.name || "Your Brand",
+      domain: project?.client_url || project?.name || "",
+      color: project?.color || "#3B82F6",
+      citations: brandCitations,
+      percentage: totalCitations > 0 ? Number(((brandCitations / totalCitations) * 100).toFixed(1)) : 0,
+    },
+    competitors,
+    totalCitations,
+    marketPosition,
+  };
+}
+
+/**
  * Get Quick Look Metrics using REAL data from AI analysis
  * - Total Citation Pages: Count of citations for brand from daily_brand_stats
  * - My Pages Cited: Same as totalCitationPages
  * - Ranking: Brand vs Competitors citations ranking
+ * @deprecated Use getCitationsData instead for better performance
  */
 export async function getQuickLookMetrics(
   projectId: string,
@@ -251,13 +433,13 @@ export async function getQuickLookMetrics(
     .single();
 
   // Execute all queries in parallel for better performance
+  // Note: totalCitationPages and myPagesCited are the same value, so we only need one query
   const [
-    totalCitationPagesResult,
-    myPagesCitedResult,
+    brandCitationsResult,
     competitorCitationsResult,
     allCompetitorsResult
   ] = await Promise.all([
-    // Total Citation Pages - use daily_brand_stats.citations_count for brand
+    // Brand Citations - single query for both totalCitationPages and myPagesCited
     (async () => {
       let query = supabase
         .from("daily_brand_stats")
@@ -283,39 +465,7 @@ export async function getQuickLookMetrics(
 
       const { data, error } = await query;
       if (error) {
-        console.error('Error fetching total citation pages:', error);
-        return { data: 0, error };
-      }
-      const total = data?.reduce((sum, row) => sum + (row.citations_count || 0), 0) || 0;
-      return { data: total, error: null };
-    })(),
-    
-    // My Pages Cited - same as totalCitationPages (citations_count from daily_brand_stats)
-    (async () => {
-      let query = supabase
-        .from("daily_brand_stats")
-        .select("citations_count")
-              .eq("project_id", projectId)
-        .eq("entity_type", "brand")
-        .is("competitor_id", null)
-        .gte("stat_date", startDateStr)
-        .lte("stat_date", endDateStr);
-
-      if (platformFilter) {
-        query = query.eq("platform", mappedPlatform);
-      }
-
-      if (regionFilter && regionId) {
-        query = query.eq("region_id", regionId);
-      }
-
-      if (topicFilter) {
-        query = query.eq("topic_id", filters.topicId);
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        console.error('Error fetching my pages cited:', error);
+        console.error('Error fetching brand citations:', error);
         return { data: 0, error };
       }
       const total = data?.reduce((sum, row) => sum + (row.citations_count || 0), 0) || 0;
@@ -370,10 +520,9 @@ export async function getQuickLookMetrics(
   ]);
 
   // Total Citation Pages
-  let totalCitationPages = totalCitationPagesResult.data || 0;
-
-  // My Pages Cited (same as totalCitationPages)
-  let myPagesCited = myPagesCitedResult.data || 0;
+  // Both values are the same (brand citations)
+  let totalCitationPages = brandCitationsResult.data || 0;
+  let myPagesCited = brandCitationsResult.data || 0;
 
   // Supplement with real-time data for today if querying today
   if (isQueryingToday) {
@@ -757,75 +906,46 @@ export async function getCitationsRanking(
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
-  // =============================================
-  // GET BRAND CITATIONS (from daily_brand_stats)
-  // =============================================
-  let brandQuery = supabase
-    .from("daily_brand_stats")
-    .select("citations_count")
-            .eq("project_id", projectId)
-    .eq("entity_type", "brand")
-    .is("competitor_id", null)
-    .gte("stat_date", startDateStr)
-    .lte("stat_date", endDateStr);
-
-  if (platformFilter) {
-    brandQuery = brandQuery.eq("platform", mappedPlatform);
-  }
-
   // Get region_id if region filter is active
   let regionId: string | null = null;
   if (regionFilter && region) {
     regionId = await getRegionIdByCode(projectId, region);
   }
 
-  // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter && regionId) {
-    brandQuery = brandQuery.eq("region_id", regionId);
-  }
-
-  if (topicFilter) {
-    brandQuery = brandQuery.eq("topic_id", topicId);
-  }
-
-  const { data: brandStats, error: brandError } = await brandQuery;
-
-  if (brandError) {
-    console.error('Error fetching brand citations from daily_brand_stats:', brandError);
-  }
-
-  let brandCitations = brandStats?.reduce((sum, stat) => sum + (stat.citations_count || 0), 0) || 0;
-
   // =============================================
-  // GET COMPETITOR CITATIONS (from daily_brand_stats)
+  // GET BRAND AND COMPETITOR CITATIONS (unified query)
   // =============================================
-  let competitorQuery = supabase
+  let unifiedQuery = supabase
     .from("daily_brand_stats")
-        .select("competitor_id, entity_name, citations_count, competitors!inner(id, name, domain, is_active, color)")
+    .select("entity_type, competitor_id, entity_name, citations_count, competitors(id, name, domain, is_active, color)")
     .eq("project_id", projectId)
-    .eq("entity_type", "competitor")
-    .not("competitor_id", "is", null)
     .gte("stat_date", startDateStr)
     .lte("stat_date", endDateStr);
 
   if (platformFilter) {
-    competitorQuery = competitorQuery.eq("platform", mappedPlatform);
+    unifiedQuery = unifiedQuery.eq("platform", mappedPlatform);
   }
 
   // When region is GLOBAL, don't filter by region (sum all regions)
   if (regionFilter && regionId) {
-    competitorQuery = competitorQuery.eq("region_id", regionId);
+    unifiedQuery = unifiedQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
-    competitorQuery = competitorQuery.eq("topic_id", topicId);
+    unifiedQuery = unifiedQuery.eq("topic_id", topicId);
   }
 
-  const { data: competitorStats, error: compError } = await competitorQuery;
+  const { data: allStats, error: statsError } = await unifiedQuery;
 
-  if (compError) {
-    console.error('Error fetching competitor citations from daily_brand_stats:', compError);
+  if (statsError) {
+    console.error('Error fetching citations from daily_brand_stats:', statsError);
   }
+
+  // Separate brand and competitor stats in JavaScript
+  const brandStats = allStats?.filter(s => s.entity_type === "brand" && !s.competitor_id) || [];
+  const competitorStats = allStats?.filter(s => s.entity_type === "competitor" && s.competitor_id) || [];
+
+  let brandCitations = brandStats.reduce((sum, stat) => sum + (stat.citations_count || 0), 0);
 
   // Get ALL active competitors (for the region if filtered, or all if GLOBAL)
   let allCompetitorsQuery = supabase
@@ -950,7 +1070,7 @@ export async function getCitationsRanking(
  * Get most cited domains/sources that mention your brand
  * This shows the actual websites (deportesroman.com, nike.com, etc.)
  * that AI models are using as sources when they cite your brand
- * Uses citations table - counts ALL citations by domain (not filtered by citation_type)
+ * Uses optimized SQL function for fast aggregation
  */
 export async function getMostCitedDomains(
   projectId: string,
@@ -961,7 +1081,6 @@ export async function getMostCitedDomains(
 
   // Map platform filter
   const mappedPlatform = mapPlatformToDatabase(filters?.platform);
-  const platformFilter = mappedPlatform !== null;
   const regionFilter = filters?.region && filters.region !== "GLOBAL";
   const topicFilter = filters?.topicId && filters.topicId !== "all";
 
@@ -975,177 +1094,160 @@ export async function getMostCitedDomains(
     }
   }
 
-  // Helper function to build the base query
-  const buildQuery = () => {
-    let query = supabase
-      .from("citations")
-      .select(`
-        id,
-        domain,
-        url,
-        ai_responses!inner(
-          platform,
-          prompt_tracking!inner(
-            region_id,
-            topic_id,
-            regions:region_id(code)
-          )
-        )
-      `)
-      .eq("project_id", projectId)
-      .not("domain", "is", null)
-      .not("url", "is", null);
+  // Calculate date range (default to last 30 days ending yesterday)
+  const endDate = filters?.toDate || getYesterday();
+  const startDate = filters?.fromDate || (() => {
+    const date = getYesterday();
+    date.setDate(date.getDate() - 29); // 30 days total including yesterday
+    date.setHours(0, 0, 0, 0);
+    return date;
+  })();
 
-    // Apply date filter
-    query = applyDateFilter(query, filters, "created_at");
-
-    // Apply platform filter (with mapping)
-    if (platformFilter) {
-      query = query.eq("ai_responses.platform", mappedPlatform);
-    }
-
-    // Apply region filter using region_id
-    if (regionFilter && regionId) {
-      query = query.eq("ai_responses.prompt_tracking.region_id", regionId);
-    }
-
-    // Apply topic filter
-    if (topicFilter) {
-      query = query.eq("ai_responses.prompt_tracking.topic_id", filters.topicId);
-    }
-
-    return query;
+  // Use optimized SQL function for fast aggregation
+  // Extract topicId safely from filters
+  const topicIdValue: string | null = (filters?.topicId && filters.topicId !== "all") ? filters.topicId : null;
+  
+  // Debug: Log parameters being passed to SQL function
+  const rpcParams = {
+    p_project_id: projectId,
+    p_from_date: startDate.toISOString(),
+    p_to_date: endDate.toISOString(),
+    p_platform: mappedPlatform,
+    p_region_id: regionId,
+    p_topic_id: topicIdValue,
+    p_limit: limit,
   };
-
-  console.log("Most Cited Domains query filters:", {
+  
+  console.log("🔍 [getMostCitedDomains] Calling SQL function with params:", {
     projectId,
-    platformFilter: mappedPlatform,
-    regionFilter: filters?.region,
-    topicFilter: filters?.topicId,
-    dateRange: filters?.fromDate && filters?.toDate ? {
-      from: filters.fromDate.toISOString(),
-      to: filters.toDate.toISOString()
-    } : null
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    mappedPlatform,
+    regionId,
+    topicIdValue,
+    limit,
+    regionFilter,
+    topicFilter,
   });
-
-  // Fetch citations using pagination (Supabase has a 1000 row limit per query)
-  // We'll fetch in batches, but limit to a reasonable number of pages for performance
-  let allCitations: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  const maxPages = 10; // Limit to 10,000 citations max for performance (should be enough for most cases)
-
+  
   try {
-    while (page < maxPages) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      
-      // Build a fresh query for each page
-      const query = buildQuery();
-      const { data: citations, error } = await query.range(from, to);
+    const { data: domainsData, error } = await supabase.rpc("get_most_cited_domains_aggregated", rpcParams);
 
-      if (error) {
-        console.error("Error fetching most cited domains (page", page, "):", error);
-        // If we have some data, return what we have instead of failing completely
-        if (allCitations.length > 0) {
-          console.warn("Returning partial data due to error on page", page);
-          break;
-        }
+    // Debug: Log RPC result
+    console.log("🔍 [getMostCitedDomains] RPC result:", {
+      hasData: !!domainsData,
+      dataLength: domainsData?.length || 0,
+      error: error ? {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      } : null,
+      sampleData: domainsData?.slice(0, 2),
+    });
+
+    if (error) {
+      console.error("❌ [getMostCitedDomains] Error fetching most cited domains:", {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        fullError: error,
+      });
+      
+      // If function doesn't exist (code 42883 = function does not exist), try fallback
+      if (error.code === "42883" || error.message?.includes("does not exist") || (error.message?.includes("function") && error.message?.includes("not exist"))) {
+        console.warn("⚠️ [getMostCitedDomains] SQL function does not exist. Falling back to direct query method.");
+        console.warn("⚠️ Please run migration: 20251228140000_add_most_cited_domains_function.sql");
+        
+        // Try a simple direct query to verify if there's data at all
+        const { data: testData } = await supabase
+          .from("citations")
+          .select("domain")
+          .eq("project_id", projectId)
+          .not("domain", "is", null)
+          .limit(1);
+        
+        console.log("🔍 [getMostCitedDomains] Fallback test query result:", { hasData: !!testData?.length });
+        
+        // Return empty for now - user needs to run migration
         return [];
       }
-
-      if (!citations || citations.length === 0) {
-        // No more data
-        break;
-      }
-
-      allCitations = allCitations.concat(citations);
       
-      // If we got fewer than pageSize results, we've reached the end
-      if (citations.length < pageSize) {
-        break;
-      }
-      
-      page++;
-    }
-  } catch (error) {
-    console.error("Unexpected error in pagination loop:", error);
-    // If we have some data, return what we have
-    if (allCitations.length === 0) {
       return [];
     }
-  }
 
-  if (allCitations.length === 0) {
-    console.log("No citations found for Most Cited Domains");
+    if (!domainsData || domainsData.length === 0) {
+      console.warn("⚠️ [getMostCitedDomains] No data returned from SQL function. This could indicate:");
+      console.warn("  - No citations match the filters");
+      console.warn("  - SQL function has a logic issue");
+      console.warn("  - Joins are filtering out all results");
+      
+      // Try a simple direct query to verify if there's any data at all
+      // Note: citations table doesn't have project_id, need to join with ai_responses
+      const { data: testData, error: testError } = await supabase
+        .from("citations")
+        .select(`
+          domain, 
+          created_at, 
+          ai_response_id,
+          ai_responses!inner(project_id, platform, prompt_tracking_id)
+        `)
+        .not("domain", "is", null)
+        .not("url", "is", null)
+        .gte("created_at", startDate.toISOString())
+        .lte("created_at", endDate.toISOString())
+        .eq("ai_responses.project_id", projectId)
+        .limit(5);
+      
+      console.log("🔍 [getMostCitedDomains] Test query to verify data exists:", {
+        hasData: !!testData?.length,
+        count: testData?.length || 0,
+        sampleDomains: testData?.map((c: any) => ({ 
+          domain: c.domain, 
+          created_at: c.created_at, 
+          has_ai_response: !!c.ai_response_id,
+          platform: c.ai_responses?.platform,
+          has_prompt_tracking: !!c.ai_responses?.prompt_tracking_id,
+        })),
+        testError: testError?.message,
+        testErrorDetails: testError,
+      });
+      
+      // Also check total citations count for this project (without date filter)
+      const { count: totalCount } = await supabase
+        .from("citations")
+        .select(`
+          id,
+          ai_responses!inner(project_id)
+        `, { count: "exact", head: true })
+        .eq("ai_responses.project_id", projectId)
+        .not("domain", "is", null);
+      
+      console.log("🔍 [getMostCitedDomains] Total citations for project (no date filter):", totalCount);
+      
+      return [];
+    }
+
+    // Map SQL function results to expected format
+    const domains = domainsData.map((row: any) => ({
+      domain: row.domain,
+      citations: Number(row.citations_count) || 0,
+      type: "Web Source",
+      platforms: Array.isArray(row.platforms) ? row.platforms : [],
+      changePercent: 0, // TODO: Calculate trend comparing with previous period
+    }));
+
+    console.log("✅ [getMostCitedDomains] Successfully mapped", domains.length, "domains");
+    return domains;
+  } catch (err) {
+    console.error("❌ [getMostCitedDomains] Unexpected error:", {
+      error: err,
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return [];
   }
-
-  console.log(`Fetched ${allCitations.length} total citations across ${page + 1} page(s)`);
-
-  const citations = allCitations;
-
-  // Debug: Log unique domains found
-  const uniqueDomains = new Set(citations.map((c: any) => c.domain).filter(Boolean));
-  console.log(`Found ${uniqueDomains.size} unique domains in citations (total citations: ${citations.length})`);
-
-  // Count citations by domain - simple aggregation
-  const domainStats = new Map<string, {
-    domain: string;
-    citations: number;
-    platforms: Set<string>;
-    sampleUrl: string;
-  }>();
-
-  citations.forEach((citation: any) => {
-    const domain = citation.domain;
-    if (!domain) {
-      console.log("Skipping citation with no domain:", citation.id);
-      return;
-    }
-
-    if (!domainStats.has(domain)) {
-      domainStats.set(domain, {
-        domain,
-        citations: 0,
-        platforms: new Set(),
-        sampleUrl: citation.url,
-      });
-    }
-
-    const stats = domainStats.get(domain)!;
-    stats.citations++;
-    if (citation.ai_responses?.platform) {
-      stats.platforms.add(citation.ai_responses.platform);
-    } else {
-      console.log("Citation missing platform:", citation.id, citation.domain);
-    }
-  });
-
-  // Debug: Log domain distribution
-  console.log("Domain stats:", Array.from(domainStats.entries()).slice(0, 10).map(([domain, stats]) => ({
-    domain,
-    citations: stats.citations,
-    platforms: Array.from(stats.platforms)
-  })));
-
-  // Convert to array and sort by citations count (descending)
-  const domains = Array.from(domainStats.values())
-    .map((stats) => {
-      return {
-        domain: stats.domain,
-        citations: stats.citations,
-        type: "Web Source",
-        platforms: Array.from(stats.platforms),
-        changePercent: 0, // TODO: Calculate trend comparing with previous period
-      };
-    })
-    .sort((a, b) => b.citations - a.citations)
-    .slice(0, limit);
-
-  console.log(`Returning ${domains.length} domains, top domain has ${domains[0]?.citations || 0} citations`);
-
-  return domains;
 }
 
 // =============================================
@@ -1865,21 +1967,14 @@ export async function getCitationsTrends(
   const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
   const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
 
-  // Helper function to build query
-  const buildStatsQuery = (startDate: string, endDate: string, entityType: "brand" | "competitor") => {
+  // Helper function to build unified query
+  const buildUnifiedStatsQuery = (startDate: string, endDate: string) => {
     let query = supabase
       .from("daily_brand_stats")
-      .select("citations_count, competitor_id, entity_name, competitors!inner(name, is_active)")
+      .select("entity_type, citations_count, competitor_id, entity_name, competitors!inner(name, is_active)")
       .eq("project_id", projectId)
-      .eq("entity_type", entityType)
       .gte("stat_date", startDate)
       .lte("stat_date", endDate);
-
-    if (entityType === "brand") {
-      query = query.is("competitor_id", null);
-    } else {
-      query = query.not("competitor_id", "is", null);
-    }
 
     if (platformFilter) {
       query = query.eq("platform", mappedPlatform);
@@ -1897,21 +1992,22 @@ export async function getCitationsTrends(
   };
 
   // =============================================
-  // CURRENT PERIOD
+  // CURRENT PERIOD (unified query)
   // =============================================
-  const [currentBrandResult, currentCompResult] = await Promise.all([
-    buildStatsQuery(currentStartStr, currentEndStr, "brand"),
-    buildStatsQuery(currentStartStr, currentEndStr, "competitor"),
-  ]);
+  const currentResult = await buildUnifiedStatsQuery(currentStartStr, currentEndStr);
+
+  // Separate brand and competitor stats in JavaScript
+  const currentBrandStats = currentResult.data?.filter(s => s.entity_type === "brand" && !s.competitor_id) || [];
+  const currentCompStats = currentResult.data?.filter(s => s.entity_type === "competitor" && s.competitor_id) || [];
 
   // Calculate current period stats
-  let currentBrandCitations = currentBrandResult.data?.reduce(
+  let currentBrandCitations = currentBrandStats.reduce(
     (sum, stat) => sum + (stat.citations_count || 0),
     0
-  ) || 0;
+  );
 
   const currentCompCitationsMap = new Map<string, number>();
-  currentCompResult.data?.forEach((stat: any) => {
+  currentCompStats.forEach((stat: any) => {
     const competitor = stat.competitors;
     if (!competitor?.is_active || !stat.competitor_id) return;
 
@@ -1942,21 +2038,22 @@ export async function getCitationsTrends(
     : 0;
 
   // =============================================
-  // PREVIOUS PERIOD
+  // PREVIOUS PERIOD (unified query)
   // =============================================
-  const [previousBrandResult, previousCompResult] = await Promise.all([
-    buildStatsQuery(previousStartStr, previousEndStr, "brand"),
-    buildStatsQuery(previousStartStr, previousEndStr, "competitor"),
-  ]);
+  const previousResult = await buildUnifiedStatsQuery(previousStartStr, previousEndStr);
+  
+  // Separate brand and competitor stats in JavaScript
+  const previousBrandStats = previousResult.data?.filter(s => s.entity_type === "brand" && !s.competitor_id) || [];
+  const previousCompStats = previousResult.data?.filter(s => s.entity_type === "competitor" && s.competitor_id) || [];
   
   // Calculate previous period stats
-  const previousBrandCitations = previousBrandResult.data?.reduce(
+  const previousBrandCitations = previousBrandStats.reduce(
     (sum, stat) => sum + (stat.citations_count || 0),
     0
-  ) || 0;
+  );
 
   const previousCompCitationsMap = new Map<string, number>();
-  previousCompResult.data?.forEach((stat: any) => {
+  previousCompStats.forEach((stat: any) => {
     const competitor = stat.competitors;
     if (!competitor?.is_active || !stat.competitor_id) return;
 
@@ -1987,8 +2084,8 @@ export async function getCitationsTrends(
   ]);
 
   allCompetitorIds.forEach((competitorId) => {
-    const currentStat = currentCompResult.data?.find((s: any) => s.competitor_id === competitorId);
-    const previousStat = previousCompResult.data?.find((s: any) => s.competitor_id === competitorId);
+    const currentStat = currentCompStats.find((s: any) => s.competitor_id === competitorId);
+    const previousStat = previousCompStats.find((s: any) => s.competitor_id === competitorId);
     
     const currentCompetitor = currentStat?.competitors as { name?: string; is_active?: boolean } | undefined;
     const previousCompetitor = previousStat?.competitors as { name?: string; is_active?: boolean } | undefined;
