@@ -109,36 +109,48 @@ export default function ShareOfVoicePage() {
     isLoadingRef.current = true;
 
     setIsLoading(true);
-    setIsLoadingCharts(true);
+    setIsLoadingCharts(true); // Keep charts loading until their data is ready
 
     try {
+      // =============================================
+      // PHASE 1: Load Critical Data (Stats Cards)
+      // =============================================
+      // These queries are essential for showing the initial UI
       const [sov, trends] = await Promise.all([
         getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
         getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
       ]);
 
-      // Calculate insights using already fetched data (no additional queries)
-      const insightsData = await getShareOfVoiceInsights(sov, trends);
-
       setSovData(sov);
       setTrendsData(trends);
-      setInsights(insightsData);
+      setIsLoading(false); // Stats cards are ready
 
-      // Load additional chart data in parallel (non-blocking)
+      // =============================================
+      // PHASE 2: Load Important Data (Charts)
+      // =============================================
+      // Load after critical data is ready, but don't block UI
       getShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId)
         .then((shareEvo) => {
           setShareEvolutionData(shareEvo);
-          setIsLoadingCharts(false);
+          setIsLoadingCharts(false); // Charts are ready
         })
         .catch((error) => {
           console.error("Error loading chart data:", error);
           setIsLoadingCharts(false);
         });
+
+      // =============================================
+      // PHASE 3: Calculate Insights (Secondary)
+      // =============================================
+      // Calculate insights using already fetched data (no additional queries)
+      // This can happen in parallel with chart loading
+      const insightsData = await getShareOfVoiceInsights(sov, trends);
+      setInsights(insightsData);
     } catch (error) {
       console.error("Error loading Share of Voice data:", error);
+      setIsLoading(false);
       setIsLoadingCharts(false);
     } finally {
-      setIsLoading(false);
       isLoadingRef.current = false;
       hasLoadedInitialData.current = true;
     }
