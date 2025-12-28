@@ -1,9 +1,13 @@
 "use client";
 
+import React, { useRef, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { Layers, Info } from "lucide-react";
 import { Tooltip as TooltipUI, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+
+// Memoize BrandLogo to avoid unnecessary re-renders
+const MemoizedBrandLogo = React.memo(BrandLogo);
 import {
   AreaChart,
   Area,
@@ -41,7 +45,39 @@ const COLORS = [
   "#f97316", // orange
 ];
 
-export function ShareEvolutionChart({ data, entities, isLoading, infoTooltip }: ShareEvolutionChartProps) {
+export const ShareEvolutionChart = React.memo(function ShareEvolutionChart({ 
+  data, 
+  entities, 
+  isLoading, 
+  infoTooltip 
+}: ShareEvolutionChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  // Verify container has dimensions before rendering chart
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const checkDimensions = () => {
+      if (!containerRef.current) return;
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      if (width > 0 && height > 0) {
+        setIsReady(true);
+      } else {
+        setIsReady(false);
+      }
+    };
+
+    // Check immediately
+    checkDimensions();
+
+    // Use ResizeObserver to detect when container is ready
+    const observer = new ResizeObserver(checkDimensions);
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
   // Helper function to get color for entity
   const getEntityColor = (entity: Entity, index: number): string => {
     if (entity.color) return entity.color;
@@ -148,7 +184,7 @@ export function ShareEvolutionChart({ data, entities, isLoading, infoTooltip }: 
                 className="w-3 h-3 rounded-sm"
                 style={{ backgroundColor: getEntityColor(entity, index) }}
               />
-              <BrandLogo domain={entity.domain || entity.name} name={entity.name} size={14} />
+              <MemoizedBrandLogo domain={entity.domain || entity.name} name={entity.name} size={14} />
               <span className="text-xs text-muted-foreground">{entity.name}</span>
             </div>
           ))}
@@ -156,9 +192,11 @@ export function ShareEvolutionChart({ data, entities, isLoading, infoTooltip }: 
       </CardHeader>
 
       <CardContent>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+        <div ref={containerRef} className="h-[300px] w-full" style={{ minHeight: 300, minWidth: 0 }}>
+          {!isLoading && data && data.length > 0 ? (
+            isReady ? (
+              <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 {entities.map((entity, index) => {
                   const entityColor = getEntityColor(entity, index);
@@ -214,10 +252,20 @@ export function ShareEvolutionChart({ data, entities, isLoading, infoTooltip }: 
                   strokeWidth={1.5}
                 />
               ))}
-            </AreaChart>
-          </ResponsiveContainer>
+              </AreaChart>
+            </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+              </div>
+            )
+          ) : (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              No data available
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
   );
-}
+});

@@ -91,68 +91,52 @@ export async function getShareOfVoice(
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
   // =============================================
-  // GET BRAND MENTIONS (from daily_brand_stats)
+  // GET BRAND AND COMPETITOR MENTIONS (unified query)
   // =============================================
-  let brandQuery = supabase
+  // Single query for both brand and competitors (more efficient than 2 separate queries)
+  let allStatsQuery = supabase
     .from("daily_brand_stats")
-    .select("mentions_count")
+    .select(`
+      entity_type,
+      competitor_id,
+      entity_name,
+      mentions_count,
+      competitors(id, name, domain, is_active, color)
+    `)
     .eq("project_id", projectId)
-    .eq("entity_type", "brand")
-    .is("competitor_id", null)
     .gte("stat_date", startDateStr)
     .lte("stat_date", endDateStr);
 
+  // Apply common filters
   if (platformFilter) {
-    brandQuery = brandQuery.eq("platform", mappedPlatform);
+    allStatsQuery = allStatsQuery.eq("platform", mappedPlatform);
   }
 
   // When region is GLOBAL, don't filter by region (sum all regions)
   if (regionFilter && regionId) {
-    brandQuery = brandQuery.eq("region_id", regionId);
+    allStatsQuery = allStatsQuery.eq("region_id", regionId);
   }
 
   if (topicFilter) {
-    brandQuery = brandQuery.eq("topic_id", topicId);
+    allStatsQuery = allStatsQuery.eq("topic_id", topicId);
   }
 
-  const { data: brandStats, error: brandError } = await brandQuery;
+  const { data: allStats, error: statsError } = await allStatsQuery;
   
-  if (brandError) {
-    console.error('Error fetching brand mentions from daily_brand_stats:', brandError);
+  if (statsError) {
+    console.error('Error fetching stats from daily_brand_stats:', statsError);
   }
+
+  // Separate brand and competitor stats in JavaScript (faster than 2 round-trips)
+  const brandStats = allStats?.filter(s => 
+    s.entity_type === "brand" && !s.competitor_id
+  ) || [];
   
-  let brandMentions = brandStats?.reduce((sum, stat) => sum + (stat.mentions_count || 0), 0) || 0;
+  const competitorStats = allStats?.filter(s => 
+    s.entity_type === "competitor" && s.competitor_id
+  ) || [];
 
-  // =============================================
-  // GET COMPETITOR MENTIONS (from daily_brand_stats)
-  // =============================================
-  let competitorQuery = supabase
-    .from("daily_brand_stats")
-    .select("competitor_id, entity_name, mentions_count, competitors!inner(id, name, domain, is_active, color)")
-    .eq("project_id", projectId)
-    .eq("entity_type", "competitor")
-    .not("competitor_id", "is", null)
-    .gte("stat_date", startDateStr)
-    .lte("stat_date", endDateStr);
-
-  if (platformFilter) {
-    competitorQuery = competitorQuery.eq("platform", mappedPlatform);
-  }
-
-  // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter && regionId) {
-    competitorQuery = competitorQuery.eq("region_id", regionId);
-  }
-
-  if (topicFilter) {
-    competitorQuery = competitorQuery.eq("topic_id", topicId);
-  }
-
-  const { data: competitorStats, error: compError } = await competitorQuery;
-  
-  if (compError) {
-    console.error('Error fetching competitor mentions from daily_brand_stats:', compError);
-  }
+  let brandMentions = brandStats.reduce((sum, stat) => sum + (stat.mentions_count || 0), 0);
 
   // =============================================
   // SUPPLEMENT WITH REAL-TIME DATA FOR TODAY (if querying today)
@@ -162,147 +146,63 @@ export async function getShareOfVoice(
     const cutoffTime = new Date(today);
     cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
 
-    // Get brand_mentions created after 4:30 AM today
-    let realTimeBrandQuery = supabase
-      .from("brand_mentions")
-      .select("created_at, brand_type, competitor_id, ai_response_id")
-    .eq("project_id", projectId)
-      .eq("brand_type", "client")
-      .gte("created_at", cutoffTime.toISOString())
-      .lte("created_at", today.toISOString());
-
-    const { data: realTimeBrandMentions } = await realTimeBrandQuery;
-
-    // Get ai_response_ids to fetch platform, region, topic_id
-    const aiResponseIds = new Set<string>();
-    realTimeBrandMentions?.forEach((m: any) => {
-      if (m.ai_response_id) aiResponseIds.add(m.ai_response_id);
+    // Use optimized SQL function to get today's mentions
+    const { data: todayData, error: todayError } = await supabase.rpc("get_today_mentions_aggregated", {
+      p_project_id: projectId,
+      p_cutoff_time: cutoffTime.toISOString(),
+      p_platform: mappedPlatform,
+      p_region_id: regionId,
+      p_topic_id: topicId && topicId !== "all" ? topicId : null,
     });
 
-    if (aiResponseIds.size > 0) {
-      // Fetch ai_responses with prompt_tracking data
-      let aiResponsesQuery = supabase
-        .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
-        .in("id", Array.from(aiResponseIds));
+    if (!todayError && todayData && todayData.length > 0) {
+      const result = todayData[0];
+      
+      // Add brand mentions
+      brandMentions += Number(result.brand_mentions) || 0;
 
-      // Apply platform filter if provided
-      if (platformFilter) {
-        aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
-      }
-
-      const { data: aiResponses } = await aiResponsesQuery;
-
-      // Filter by region and topic_id after fetching
-      let filteredAiResponses = aiResponses || [];
-  if (regionFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
-      }
-      if (topicFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.topic_id === topicId
-        );
-      }
-
-      // Count filtered brand mentions
-      const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
-      const filteredBrandMentions = realTimeBrandMentions?.filter((m: any) => 
-        aiResponseMap.has(m.ai_response_id)
-      ).length || 0;
-
-      brandMentions += filteredBrandMentions;
-    }
-
-    // Get competitor mentions created after 4:30 AM today
-    let realTimeCompQuery = supabase
-      .from("brand_mentions")
-      .select("created_at, brand_type, competitor_id, ai_response_id")
-      .eq("project_id", projectId)
-      .eq("brand_type", "competitor")
-      .not("competitor_id", "is", null)
-      .gte("created_at", cutoffTime.toISOString())
-      .lte("created_at", today.toISOString());
-
-    const { data: realTimeCompMentions } = await realTimeCompQuery;
-
-    // Get ai_response_ids for competitor mentions
-    const compAiResponseIds = new Set<string>();
-    realTimeCompMentions?.forEach((m: any) => {
-      if (m.ai_response_id) compAiResponseIds.add(m.ai_response_id);
-    });
-
-    if (compAiResponseIds.size > 0) {
-      // Fetch ai_responses with prompt_tracking data
-      let compAiResponsesQuery = supabase
-        .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
-        .in("id", Array.from(compAiResponseIds));
-
-      // Apply platform filter if provided
-      if (platformFilter) {
-        compAiResponsesQuery = compAiResponsesQuery.eq("platform", mappedPlatform);
-      }
-
-      const { data: compAiResponses } = await compAiResponsesQuery;
-
-      // Filter by region and topic_id after fetching
-      let filteredCompAiResponses = compAiResponses || [];
-      if (regionFilter) {
-        filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
-      }
-      if (topicFilter) {
-        filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.topic_id === topicId
-        );
-      }
-
-      // Count filtered competitor mentions by competitor_id
-      const compAiResponseMap = new Set(filteredCompAiResponses.map((ar: any) => ar.id));
-      const filteredCompMentions = realTimeCompMentions?.filter((m: any) => 
-        compAiResponseMap.has(m.ai_response_id)
-      );
-
-      // Get unique competitor IDs that need info
-      const competitorIdsNeeded = new Set<string>();
-      filteredCompMentions?.forEach((mention: any) => {
-        const existingStat = competitorStats?.find((s: any) => s.competitor_id === mention.competitor_id);
-        if (existingStat) {
-          existingStat.mentions_count = (existingStat.mentions_count || 0) + 1;
-        } else {
-          competitorIdsNeeded.add(mention.competitor_id);
-        }
-      });
-
-      // Fetch all competitor info at once
-      if (competitorIdsNeeded.size > 0) {
-        const { data: compInfos } = await supabase
-          .from("competitors")
-          .select("id, name, domain, is_active, color")
-          .in("id", Array.from(competitorIdsNeeded));
-
-        const compInfoMap = new Map<string, any>();
-        compInfos?.forEach((comp: any) => {
-          compInfoMap.set(comp.id, comp);
-        });
-
-        // Add competitor stats
-        filteredCompMentions?.forEach((mention: any) => {
-          if (competitorIdsNeeded.has(mention.competitor_id)) {
-            const compInfo = compInfoMap.get(mention.competitor_id);
-            if (compInfo && compInfo.is_active) {
-              competitorStats?.push({
-                competitor_id: mention.competitor_id,
-                entity_name: compInfo.name,
-                mentions_count: 1,
-                competitors: compInfo,
-              });
-            }
+      // Process competitor mentions from JSONB
+      if (result.competitor_mentions && typeof result.competitor_mentions === 'object') {
+        const compMentionsObj = result.competitor_mentions as Record<string, number>;
+        
+        // Get competitor IDs that need info
+        const competitorIdsNeeded = new Set<string>();
+        Object.entries(compMentionsObj).forEach(([compId, count]) => {
+          const existingStat = competitorStats?.find((s: any) => s.competitor_id === compId);
+          if (existingStat) {
+            existingStat.mentions_count = (existingStat.mentions_count || 0) + count;
+          } else {
+            competitorIdsNeeded.add(compId);
           }
         });
+
+        // Fetch competitor info for new competitors
+        if (competitorIdsNeeded.size > 0) {
+          const { data: compInfos } = await supabase
+            .from("competitors")
+            .select("id, name, domain, is_active, color")
+            .in("id", Array.from(competitorIdsNeeded));
+
+          const compInfoMap = new Map<string, any>();
+          compInfos?.forEach((comp: any) => {
+            compInfoMap.set(comp.id, comp);
+          });
+
+          // Add competitor stats
+          Object.entries(compMentionsObj).forEach(([compId, count]) => {
+            if (competitorIdsNeeded.has(compId)) {
+              const compInfo = compInfoMap.get(compId);
+              if (compInfo && compInfo.is_active) {
+                competitorStats?.push({
+                  competitor_id: compId,
+                  entity_name: compInfo.name,
+                  mentions_count: count,
+                  competitors: compInfo,
+                });
+              }
+            }
+          });
+        }
       }
     }
   }
@@ -457,54 +357,53 @@ export async function getShareOfVoiceTrends(
   const previousStartStr = format(previousStartDate, "yyyy-MM-dd");
   const previousEndStr = format(previousEndDate, "yyyy-MM-dd");
 
-  // Helper function to build query
-  const buildStatsQuery = (startDate: string, endDate: string, entityType: "brand" | "competitor") => {
+  // Helper function to build unified query (both brand and competitors)
+  const buildUnifiedStatsQuery = (startDate: string, endDate: string) => {
     let query = supabase
       .from("daily_brand_stats")
-      .select("mentions_count, competitor_id, entity_name, competitors!inner(name, is_active, color)")
-    .eq("project_id", projectId)
-      .eq("entity_type", entityType)
+      .select("mentions_count, competitor_id, entity_name, entity_type, competitors!inner(name, is_active, color)")
+      .eq("project_id", projectId)
       .gte("stat_date", startDate)
       .lte("stat_date", endDate);
 
-    if (entityType === "brand") {
-      query = query.is("competitor_id", null);
-    } else {
-      query = query.not("competitor_id", "is", null);
+    if (platformFilter) {
+      query = query.eq("platform", mappedPlatform);
     }
 
-  if (platformFilter) {
-      query = query.eq("platform", mappedPlatform);
-  }
-
     // When region is GLOBAL, don't filter by region (sum all regions)
-  if (regionFilter && regionId) {
+    if (regionFilter && regionId) {
       query = query.eq("region_id", regionId);
-  }
+    }
 
-  if (topicFilter) {
+    if (topicFilter) {
       query = query.eq("topic_id", topicId);
-  }
+    }
 
     return query;
   };
 
   // =============================================
-  // CURRENT PERIOD
+  // CURRENT PERIOD (unified query)
   // =============================================
-  const [currentBrandResult, currentCompResult] = await Promise.all([
-    buildStatsQuery(currentStartStr, currentEndStr, "brand"),
-    buildStatsQuery(currentStartStr, currentEndStr, "competitor"),
-    ]);
+  const currentStatsResult = await buildUnifiedStatsQuery(currentStartStr, currentEndStr);
+
+  // Separate brand and competitor stats in JavaScript
+  const currentBrandStats = currentStatsResult.data?.filter(s => 
+    s.entity_type === "brand" && !s.competitor_id
+  ) || [];
+  
+  const currentCompStats = currentStatsResult.data?.filter(s => 
+    s.entity_type === "competitor" && s.competitor_id
+  ) || [];
 
   // Calculate current period stats
-  let currentBrandMentions = currentBrandResult.data?.reduce(
+  let currentBrandMentions = currentBrandStats.reduce(
     (sum, stat) => sum + (stat.mentions_count || 0),
     0
-  ) || 0;
+  );
   
   const currentCompMentionsMap = new Map<string, number>();
-  currentCompResult.data?.forEach((stat: any) => {
+  currentCompStats.forEach((stat: any) => {
     const competitor = stat.competitors;
     if (!competitor?.is_active || !stat.competitor_id) return;
 
@@ -518,105 +417,29 @@ export async function getShareOfVoiceTrends(
     const cutoffTime = new Date(today);
     cutoffTime.setHours(4, 30, 0, 0); // 4:30 AM today (UTC)
 
-    // Get brand_mentions created after 4:30 AM today
-    let realTimeBrandQuery = supabase
-      .from("brand_mentions")
-      .select("created_at, brand_type, competitor_id, ai_response_id")
-    .eq("project_id", projectId)
-      .eq("brand_type", "client")
-      .gte("created_at", cutoffTime.toISOString())
-      .lte("created_at", today.toISOString());
-
-    const { data: realTimeBrandMentions } = await realTimeBrandQuery;
-
-    // Get ai_response_ids
-    const aiResponseIds = new Set<string>();
-    realTimeBrandMentions?.forEach((m: any) => {
-      if (m.ai_response_id) aiResponseIds.add(m.ai_response_id);
+    // Use optimized SQL function to get today's mentions
+    const { data: todayData, error: todayError } = await supabase.rpc("get_today_mentions_aggregated", {
+      p_project_id: projectId,
+      p_cutoff_time: cutoffTime.toISOString(),
+      p_platform: mappedPlatform,
+      p_region_id: regionId,
+      p_topic_id: topicId && topicId !== "all" ? topicId : null,
     });
 
-    if (aiResponseIds.size > 0) {
-      let aiResponsesQuery = supabase
-        .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
-        .in("id", Array.from(aiResponseIds));
+    if (!todayError && todayData && todayData.length > 0) {
+      const result = todayData[0];
+      
+      // Add brand mentions
+      currentBrandMentions += Number(result.brand_mentions) || 0;
 
-  if (platformFilter) {
-        aiResponsesQuery = aiResponsesQuery.eq("platform", mappedPlatform);
-  }
-
-      const { data: aiResponses } = await aiResponsesQuery;
-
-      let filteredAiResponses = aiResponses || [];
-  if (regionFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
-  }
-  if (topicFilter) {
-        filteredAiResponses = filteredAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.topic_id === topicId
-        );
+      // Process competitor mentions from JSONB
+      if (result.competitor_mentions && typeof result.competitor_mentions === 'object') {
+        const compMentionsObj = result.competitor_mentions as Record<string, number>;
+        Object.entries(compMentionsObj).forEach(([compId, count]) => {
+          const currentCount = currentCompMentionsMap.get(compId) || 0;
+          currentCompMentionsMap.set(compId, currentCount + count);
+        });
       }
-
-      const aiResponseMap = new Set(filteredAiResponses.map((ar: any) => ar.id));
-      const filteredBrandMentions = realTimeBrandMentions?.filter((m: any) => 
-        aiResponseMap.has(m.ai_response_id)
-      ).length || 0;
-
-      currentBrandMentions += filteredBrandMentions;
-    }
-
-    // Get competitor mentions created after 4:30 AM today
-    let realTimeCompQuery = supabase
-      .from("brand_mentions")
-      .select("created_at, brand_type, competitor_id, ai_response_id")
-    .eq("project_id", projectId)
-      .eq("brand_type", "competitor")
-      .not("competitor_id", "is", null)
-      .gte("created_at", cutoffTime.toISOString())
-      .lte("created_at", today.toISOString());
-
-    const { data: realTimeCompMentions } = await realTimeCompQuery;
-
-    const compAiResponseIds = new Set<string>();
-    realTimeCompMentions?.forEach((m: any) => {
-      if (m.ai_response_id) compAiResponseIds.add(m.ai_response_id);
-    });
-
-    if (compAiResponseIds.size > 0) {
-      let compAiResponsesQuery = supabase
-        .from("ai_responses")
-        .select("id, platform, prompt_tracking(region, topic_id)")
-        .in("id", Array.from(compAiResponseIds));
-
-  if (platformFilter) {
-        compAiResponsesQuery = compAiResponsesQuery.eq("platform", mappedPlatform);
-  }
-
-      const { data: compAiResponses } = await compAiResponsesQuery;
-
-      let filteredCompAiResponses = compAiResponses || [];
-  if (regionFilter) {
-        filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.region === region
-        );
-  }
-  if (topicFilter) {
-        filteredCompAiResponses = filteredCompAiResponses.filter((ar: any) => 
-          ar.prompt_tracking?.topic_id === topicId
-        );
-      }
-
-      const compAiResponseMap = new Set(filteredCompAiResponses.map((ar: any) => ar.id));
-      const filteredCompMentions = realTimeCompMentions?.filter((m: any) => 
-        compAiResponseMap.has(m.ai_response_id)
-      );
-
-      filteredCompMentions?.forEach((mention: any) => {
-        const currentCount = currentCompMentionsMap.get(mention.competitor_id) || 0;
-        currentCompMentionsMap.set(mention.competitor_id, currentCount + 1);
-      });
     }
   }
 
@@ -631,21 +454,27 @@ export async function getShareOfVoiceTrends(
     : 0;
 
   // =============================================
-  // PREVIOUS PERIOD
+  // PREVIOUS PERIOD (unified query)
   // =============================================
-  const [previousBrandResult, previousCompResult] = await Promise.all([
-    buildStatsQuery(previousStartStr, previousEndStr, "brand"),
-    buildStatsQuery(previousStartStr, previousEndStr, "competitor"),
-  ]);
+  const previousStatsResult = await buildUnifiedStatsQuery(previousStartStr, previousEndStr);
+
+  // Separate brand and competitor stats in JavaScript
+  const previousBrandStats = previousStatsResult.data?.filter(s => 
+    s.entity_type === "brand" && !s.competitor_id
+  ) || [];
+  
+  const previousCompStats = previousStatsResult.data?.filter(s => 
+    s.entity_type === "competitor" && s.competitor_id
+  ) || [];
 
   // Calculate previous period stats
-  const previousBrandMentions = previousBrandResult.data?.reduce(
+  const previousBrandMentions = previousBrandStats.reduce(
     (sum, stat) => sum + (stat.mentions_count || 0),
     0
-  ) || 0;
+  );
   
   const previousCompMentionsMap = new Map<string, number>();
-  previousCompResult.data?.forEach((stat: any) => {
+  previousCompStats.forEach((stat: any) => {
     const competitor = stat.competitors;
     if (!competitor?.is_active || !stat.competitor_id) return;
 
@@ -677,8 +506,8 @@ export async function getShareOfVoiceTrends(
 
   allCompetitorIds.forEach((competitorId) => {
     // Get competitor name from current or previous result
-    const currentStat = currentCompResult.data?.find((s: any) => s.competitor_id === competitorId);
-    const previousStat = previousCompResult.data?.find((s: any) => s.competitor_id === competitorId);
+    const currentStat = currentCompStats.find((s: any) => s.competitor_id === competitorId);
+    const previousStat = previousCompStats.find((s: any) => s.competitor_id === competitorId);
     
     // competitors is a single object from the join (Supabase returns it as an object, not array)
     const currentCompetitor = currentStat?.competitors as { name?: string; is_active?: boolean } | undefined;
@@ -728,18 +557,9 @@ export async function getShareOfVoiceTrends(
  * Generate AI-powered insights based on Share of Voice data
  */
 export async function getShareOfVoiceInsights(
-  projectId: string,
-  fromDate?: Date,
-  toDate?: Date,
-  platform?: string,
-  region?: string,
-  topicId?: string
+  sovData: Awaited<ReturnType<typeof getShareOfVoice>>,
+  trendsData: Awaited<ReturnType<typeof getShareOfVoiceTrends>>
 ) {
-  const [sovData, trendsData] = await Promise.all([
-    getShareOfVoice(projectId, fromDate, toDate, platform, region, topicId),
-    getShareOfVoiceTrends(projectId, fromDate, toDate, platform, region, topicId),
-  ]);
-
   const insights: Array<{
     type: "success" | "info" | "warning" | "opportunity";
     title: string;

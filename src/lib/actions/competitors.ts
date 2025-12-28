@@ -39,48 +39,26 @@ export async function getProjectCompetitors(projectId: string) {
  */
 export async function getCompetitorsByRegion(projectId: string, region: string = "GLOBAL") {
   const supabase = await createClient();
-  
-  console.log('🔍 [getCompetitorsByRegion] Called with:', { projectId, region });
 
-  // Get ALL active competitors first (filter in JavaScript is more reliable)
-  const { data: allCompetitors, error } = await supabase
+  // Build query with SQL filtering (more efficient than JavaScript filtering)
+  let query = supabase
     .from("competitors")
     .select("id, name, domain, region, color")
     .eq("project_id", projectId)
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+    .eq("is_active", true);
 
-  console.log('🔍 [getCompetitorsByRegion] All competitors fetched:', {
-    count: allCompetitors?.length,
-    error: error?.message,
-    allCompetitors: allCompetitors?.map((c: any) => ({ name: c.name, region: c.region }))
-  });
+  // Filter by region in SQL when not GLOBAL
+  if (region && region !== "GLOBAL") {
+    query = query.eq("region", region);
+  }
+
+  const { data, error } = await query.order("name", { ascending: true });
 
   if (error) {
-    console.error('❌ [getCompetitorsByRegion] Error:', error);
     return { error: error.message, data: null };
   }
 
-  // Filter by region in JavaScript (more reliable than SQL .or())
-  // If region is ES, show ONLY competitors with region = ES (not GLOBAL)
-  // If region is GLOBAL, show ALL competitors
-  let filteredCompetitors = allCompetitors || [];
-
-  if (region && region !== "GLOBAL") {
-    // Filter: ONLY competitors with the selected region (NOT GLOBAL)
-    filteredCompetitors = allCompetitors?.filter(
-      (c: any) => c.region === region
-    ) || [];
-    console.log('🔍 [getCompetitorsByRegion] After filtering by region:', {
-      region,
-      count: filteredCompetitors.length,
-      filteredCompetitors: filteredCompetitors.map((c: any) => ({ name: c.name, region: c.region }))
-    });
-  } else {
-    console.log('🔍 [getCompetitorsByRegion] No region filter (GLOBAL), returning all');
-  }
-
-  return { error: null, data: filteredCompetitors };
+  return { error: null, data: data || [] };
 }
 
 export async function createCompetitor(data: {

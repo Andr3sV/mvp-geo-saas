@@ -46,12 +46,6 @@ export function MentionsEvolutionChart({
   isLoading,
   infoTooltip,
 }: MentionsEvolutionChartProps) {
-  useEffect(() => {
-    console.log('🔍 [MentionsEvolutionChart] Received competitors:', {
-      count: competitors.length,
-      competitors: competitors.map(c => ({ name: c.name, id: c.id, domain: c.domain }))
-    });
-  }, [competitors]);
 
   return (
     <EvolutionChart

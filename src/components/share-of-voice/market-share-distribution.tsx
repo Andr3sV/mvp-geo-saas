@@ -1,8 +1,12 @@
 "use client";
 
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { TrendingUp, TrendingDown, Crown, BarChart3, Info } from "lucide-react";
+
+// Memoize BrandLogo to avoid unnecessary re-renders
+const MemoizedBrandLogo = React.memo(BrandLogo);
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +40,7 @@ const COLORS = [
   "bg-orange-500",
 ];
 
-export function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions", infoTooltip }: MarketShareDistributionProps) {
+export const MarketShareDistribution = React.memo(function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions", infoTooltip }: MarketShareDistributionProps) {
   if (isLoading) {
     return (
       <Card>
@@ -153,7 +157,7 @@ export function MarketShareDistribution({ entities, isLoading, metricLabel = "me
 
                 {/* Logo */}
                 <div className="relative flex-shrink-0">
-                  <BrandLogo
+                  <MemoizedBrandLogo
                     domain={entity.domain || entity.name}
                     name={entity.name}
                     size={20}
@@ -231,4 +235,4 @@ export function MarketShareDistribution({ entities, isLoading, metricLabel = "me
       </CardContent>
     </Card>
   );
-}
+});

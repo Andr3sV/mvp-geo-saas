@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { TrendingUp, Users, Trophy, MessageSquare } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
@@ -60,42 +60,23 @@ export default function ShareOfVoicePage() {
   const [shareEvolutionData, setShareEvolutionData] = useState<any>({ data: [], entities: [] });
   const [isLoadingCharts, setIsLoadingCharts] = useState(false);
 
-  useEffect(() => {
-    if (selectedProjectId && dateRange.from && dateRange.to) {
-      loadData();
-    }
-  }, [selectedProjectId, dateRange, platform, region, topicId]);
+  // Cache competitors by region to avoid redundant queries (useRef to persist across renders)
+  const competitorsCache = useRef(new Map<string, any[]>());
 
-  useEffect(() => {
-    if (selectedProjectId && dateRange.from && dateRange.to) {
-      loadEvolutionData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, selectedCompetitorId, dateRange, platform, region, topicId]);
-
-  // Load competitors filtered by region for the selector
-  useEffect(() => {
-    if (selectedProjectId) {
-      loadRegionFilteredCompetitors();
-      // Reset selected competitor when region changes
-      setSelectedCompetitorId(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId, region]);
-
-  const loadRegionFilteredCompetitors = async () => {
+  // Define functions before useEffect hooks that use them
+  const loadRegionFilteredCompetitors = useCallback(async () => {
     if (!selectedProjectId) return;
 
-    console.log('🔍 [loadRegionFilteredCompetitors] Called with:', { selectedProjectId, region });
+    const cacheKey = `${selectedProjectId}-${region}`;
+
+    // Check cache first
+    if (competitorsCache.current.has(cacheKey)) {
+      setRegionFilteredCompetitors(competitorsCache.current.get(cacheKey)!);
+      return;
+    }
 
     try {
       const result = await getCompetitorsByRegion(selectedProjectId, region);
-      console.log('🔍 [loadRegionFilteredCompetitors] Result:', {
-        hasData: !!result.data,
-        count: result.data?.length,
-        error: result.error,
-        competitors: result.data?.map((c: any) => ({ name: c.name, region: c.region }))
-      });
 
       if (result.data) {
         const competitorsForSelector = result.data.map((c: any) => ({
@@ -103,11 +84,9 @@ export default function ShareOfVoicePage() {
           name: c.name,
           domain: c.domain || c.name,
         }));
-        console.log('✅ [loadRegionFilteredCompetitors] Setting competitors:', {
-          count: competitorsForSelector.length,
-          competitors: competitorsForSelector.map(c => ({ name: c.name, id: c.id, domain: c.domain })),
-          allDataWithRegions: result.data.map((c: any) => ({ name: c.name, region: c.region }))
-        });
+        
+        // Cache the result
+        competitorsCache.current.set(cacheKey, competitorsForSelector);
         setRegionFilteredCompetitors(competitorsForSelector);
       } else if (result.error) {
         console.error('❌ [loadRegionFilteredCompetitors] Error:', result.error);
@@ -115,20 +94,22 @@ export default function ShareOfVoicePage() {
     } catch (error) {
       console.error("❌ [loadRegionFilteredCompetitors] Exception:", error);
     }
-  };
+  }, [selectedProjectId, region]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoading(true);
     setIsLoadingCharts(true);
 
     try {
-      const [sov, trends, insightsData] = await Promise.all([
+      const [sov, trends] = await Promise.all([
         getShareOfVoice(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
         getShareOfVoiceTrends(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
-        getShareOfVoiceInsights(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId),
       ]);
+
+      // Calculate insights using already fetched data (no additional queries)
+      const insightsData = await getShareOfVoiceInsights(sov, trends);
 
       setSovData(sov);
       setTrendsData(trends);
@@ -150,9 +131,9 @@ export default function ShareOfVoicePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId]);
 
-  const loadEvolutionData = async () => {
+  const loadEvolutionData = useCallback(async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
 
     setIsLoadingEvolution(true);
@@ -180,7 +161,32 @@ export default function ShareOfVoicePage() {
     } finally {
       setIsLoadingEvolution(false);
     }
-  };
+  }, [selectedProjectId, selectedCompetitorId, dateRange.from, dateRange.to, platform, region, topicId]);
+
+  // Memoize competitors array to prevent unnecessary re-renders
+  const memoizedCompetitors = useMemo(() => regionFilteredCompetitors, [regionFilteredCompetitors]);
+
+  // useEffect hooks that use the functions defined above
+  useEffect(() => {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
+      loadData();
+    }
+  }, [loadData, dateRange.from, dateRange.to]);
+
+  useEffect(() => {
+    if (selectedProjectId && dateRange.from && dateRange.to) {
+      loadEvolutionData();
+    }
+  }, [loadEvolutionData, dateRange.from, dateRange.to]);
+
+  // Load competitors filtered by region for the selector
+  useEffect(() => {
+    if (selectedProjectId) {
+      loadRegionFilteredCompetitors();
+      // Reset selected competitor when region changes
+      setSelectedCompetitorId(null);
+    }
+  }, [selectedProjectId, loadRegionFilteredCompetitors]);
 
   const handleFiltersChange = (filters: {
     region: string;
@@ -280,14 +286,6 @@ export default function ShareOfVoicePage() {
       </div>
 
       {/* Mentions Evolution Chart */}
-      {(() => {
-        console.log('🔍 [ShareOfVoicePage Render] Passing competitors to MentionsEvolutionChart:', {
-          count: regionFilteredCompetitors.length,
-          competitors: regionFilteredCompetitors.map(c => ({ name: c.name, id: c.id, domain: c.domain })),
-          region: region
-        });
-        return null;
-      })()}
       <MentionsEvolutionChart
         data={evolutionData}
         brandName={evolutionBrandName}
@@ -296,7 +294,7 @@ export default function ShareOfVoicePage() {
         competitorName={evolutionCompetitorName}
         competitorDomain={evolutionCompetitorDomain}
         competitorColor={evolutionCompetitorColor || (selectedCompetitorId ? regionFilteredCompetitors.find(c => c.id === selectedCompetitorId)?.color : undefined)}
-        competitors={regionFilteredCompetitors}
+        competitors={memoizedCompetitors}
         selectedCompetitorId={selectedCompetitorId}
         onCompetitorChange={setSelectedCompetitorId}
         isLoading={isLoadingEvolution}
