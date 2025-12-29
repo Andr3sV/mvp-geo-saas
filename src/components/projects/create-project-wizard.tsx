@@ -23,6 +23,10 @@ import { cn } from "@/lib/utils";
 import { CompetitorSelection } from "./competitor-selection";
 import { motion, AnimatePresence } from "framer-motion";
 import { useProject } from "@/contexts/project-context";
+import { BasicInfoStep } from "./wizard-steps/basic-info-step";
+import { PromptQuantityStep } from "./wizard-steps/prompt-quantity-step";
+import { CompetitorSelectionStep } from "./wizard-steps/competitor-selection-step";
+import { ReviewEditStep } from "./wizard-steps/review-edit-step";
 
 interface Workspace {
   id: string;
@@ -596,145 +600,31 @@ export function CreateProjectWizard({
 
           {/* Step 1: Basic Info */}
           {currentStep === 1 && (
-            <div className="space-y-5">
-              {isLoading && (
-                <div className="flex flex-col items-center justify-center py-8 text-center bg-muted/30 rounded-lg">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground font-medium">
-                    Creating project and analyzing website...
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    This may take a minute. Please wait...
-                  </p>
-                </div>
-              )}
-              
-              {!isLoading && (
-                <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="project-name">Project Name *</Label>
-                  <Input
-                    id="project-name"
-                    placeholder="e.g., Acme Corp, Nike Campaign"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="client-url">Website URL *</Label>
-                  <Input
-                    id="client-url"
-                    type="url"
-                    placeholder="https://example.com"
-                    value={clientUrl}
-                    onChange={(e) => setClientUrl(e.target.value)}
-                    disabled={isLoading}
-                    required
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                We'll analyze this website to generate prompt suggestions
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="region">Region *</Label>
-                  <CountrySelect
-                    value={selectedRegion}
-                    onValueChange={setSelectedRegion}
-                    disabled={isLoading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Select the primary region for tracking (default: US)
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="project-color">Brand Color</Label>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div
-                        className="h-11 w-11 rounded-lg border-2 border-border shadow-sm"
-                        style={{ backgroundColor: projectColor }}
-                      />
-                      <input
-                        id="project-color"
-                        type="color"
-                        value={projectColor}
-                        onChange={(e) => setProjectColor(e.target.value)}
-                        disabled={isLoading}
-                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                        title="Click to pick a color"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <Input
-                        type="text"
-                        value={projectColor.toUpperCase()}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
-                            setProjectColor(value);
-                          }
-                        }}
-                        placeholder="#3B82F6"
-                        disabled={isLoading}
-                        className="font-mono text-sm"
-                        pattern="^#[0-9A-Fa-f]{6}$"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-                </>
-              )}
-            </div>
+            <BasicInfoStep
+              projectName={projectName}
+              clientUrl={clientUrl}
+              selectedRegion={selectedRegion}
+              projectColor={projectColor}
+              onProjectNameChange={setProjectName}
+              onClientUrlChange={setClientUrl}
+              onRegionChange={setSelectedRegion}
+              onColorChange={setProjectColor}
+              isLoading={isLoading}
+              variant="wizard"
+              selectedWorkspaceId={selectedWorkspaceId}
+              workspaces={workspaces}
+              onWorkspaceChange={setSelectedWorkspaceId}
+            />
           )}
 
           {/* Step 2: Prompt Selection */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <div className="text-sm text-muted-foreground">
-                Select how many prompts you want to track. They will be distributed evenly across categories after we analyze your website.
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="total-prompts" className="text-base font-medium">Total Prompts to Track</Label>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-foreground">{totalPrompts}</span>
-                    <span className="text-sm text-muted-foreground font-medium">prompts</span>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="relative py-2">
-                    <input
-                      id="total-prompts"
-                      type="range"
-                      min={10}
-                      max={200}
-                      step={5}
-                      value={totalPrompts}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value) || 10;
-                        setTotalPrompts(Math.max(10, Math.min(200, value)));
-                      }}
-                      disabled={isLoading}
-                      className="w-full slider-custom cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground font-medium px-1">
-                    <span>10</span>
-                    <span>200</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <PromptQuantityStep
+              totalPrompts={totalPrompts}
+              onTotalPromptsChange={setTotalPrompts}
+              isLoading={isLoading}
+              variant="wizard"
+            />
           )}
 
           {/* Step 3: Select Competitors */}
@@ -756,13 +646,14 @@ export function CreateProjectWizard({
                   )}
                 </div>
               ) : (
-                <CompetitorSelection
-                  suggestedCompetitors={suggestedCompetitors || []}
+                <CompetitorSelectionStep
+                  suggestedCompetitors={suggestedCompetitors}
                   selectedCompetitors={selectedCompetitors}
                   newCompetitors={newCompetitors}
                   onSelectedChange={setSelectedCompetitors}
                   onNewCompetitorsChange={setNewCompetitors}
                   isLoading={isLoading}
+                  variant="wizard"
                 />
               )}
             </div>
@@ -787,10 +678,11 @@ export function CreateProjectWizard({
                   )}
                 </div>
               ) : (
-                <PromptCategoryEditor
+                <ReviewEditStep
                   categories={editablePrompts.categories}
                   onCategoriesChange={setEditablePrompts}
                   isLoading={isLoading}
+                  variant="wizard"
                 />
               )}
             </div>
@@ -865,166 +757,4 @@ export function CreateProjectWizard({
   );
 }
 
-// Prompt Category Editor Component (will be extracted to separate file later)
-function PromptCategoryEditor({
-  categories,
-  onCategoriesChange,
-  isLoading,
-}: {
-  categories: Array<{
-    name: string;
-    prompts: Array<{ text: string; order: number; id?: string }>;
-  }>;
-  onCategoriesChange: (categories: {
-    categories: Array<{
-      name: string;
-      prompts: Array<{ text: string; order: number; id?: string }>;
-    }>;
-  }) => void;
-  isLoading: boolean;
-}) {
-  const [editingPrompt, setEditingPrompt] = useState<{ category: string; index: number } | null>(null);
-  const [editText, setEditText] = useState("");
-
-  const handleEditPrompt = (categoryName: string, index: number) => {
-    const category = categories.find((c) => c.name === categoryName);
-    if (category) {
-      setEditText(category.prompts[index].text);
-      setEditingPrompt({ category: categoryName, index });
-    }
-  };
-
-  const handleSaveEdit = () => {
-    if (!editingPrompt) return;
-
-    const updated = { categories: [...categories] };
-    const categoryIndex = updated.categories.findIndex(
-      (c) => c.name === editingPrompt.category
-    );
-    if (categoryIndex >= 0) {
-      updated.categories[categoryIndex].prompts[editingPrompt.index].text = editText;
-      onCategoriesChange(updated);
-      setEditingPrompt(null);
-      setEditText("");
-    }
-  };
-
-  const handleDeletePrompt = (categoryName: string, index: number) => {
-    const updated = { categories: [...categories] };
-    const categoryIndex = updated.categories.findIndex((c) => c.name === categoryName);
-    if (categoryIndex >= 0) {
-      updated.categories[categoryIndex].prompts.splice(index, 1);
-      onCategoriesChange(updated);
-    }
-  };
-
-  const handleAddPrompt = (categoryName: string) => {
-    const updated = { categories: [...categories] };
-    const categoryIndex = updated.categories.findIndex((c) => c.name === categoryName);
-    if (categoryIndex >= 0) {
-      const newPrompt = {
-        text: "",
-        order: updated.categories[categoryIndex].prompts.length + 1,
-        id: `${categoryName}-new-${Date.now()}`,
-      };
-      updated.categories[categoryIndex].prompts.push(newPrompt);
-      onCategoriesChange(updated);
-      // Start editing immediately
-      setEditText("");
-      setEditingPrompt({
-        category: categoryName,
-        index: updated.categories[categoryIndex].prompts.length - 1,
-      });
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">
-        Review and customize the prompts that will be tracked. You can edit, delete, or add new prompts.
-      </div>
-      {categories.map((category) => (
-        <div key={category.name} className="rounded-md border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-medium">{category.name}</h3>
-            <span className="text-xs text-muted-foreground">
-              {category.prompts.length} prompt{category.prompts.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="space-y-2">
-            {category.prompts.map((prompt, index) => (
-              <div
-                key={prompt.id || index}
-                className="flex items-start gap-2 p-2 rounded border bg-muted/30"
-              >
-                {editingPrompt?.category === category.name &&
-                editingPrompt?.index === index ? (
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      placeholder="Enter prompt text..."
-                      disabled={isLoading}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        disabled={isLoading || !editText.trim()}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingPrompt(null);
-                          setEditText("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="flex-1 text-sm">{prompt.text}</p>
-                    <div className="flex gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEditPrompt(category.name, index)}
-                        disabled={isLoading}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeletePrompt(category.name, index)}
-                        disabled={isLoading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleAddPrompt(category.name)}
-              disabled={isLoading}
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Prompt
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 

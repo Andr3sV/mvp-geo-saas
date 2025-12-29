@@ -24,3 +24,4 @@ WHERE ar.project_id = 'a915d1f3-8a07-4b5b-a767-17bd2a28d684'
 GROUP BY DATE(ar.created_at), r.code, ar.platform
 ORDER BY fecha DESC, r.code, ar.platform;
 
+

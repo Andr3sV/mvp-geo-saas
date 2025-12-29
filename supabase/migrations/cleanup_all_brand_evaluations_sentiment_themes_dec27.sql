@@ -42,3 +42,4 @@ WHERE DATE(created_at) = '2025-12-27';
 -- Si hay algún problema, hacer ROLLBACK
 -- COMMIT;
 -- ROLLBACK;
+

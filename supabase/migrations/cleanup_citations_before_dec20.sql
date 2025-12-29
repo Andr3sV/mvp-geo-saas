@@ -125,3 +125,4 @@ WHERE DATE(created_at) > '2025-12-20';
 -- Si hay algún problema, hacer ROLLBACK
 -- COMMIT;
 -- ROLLBACK;
+
