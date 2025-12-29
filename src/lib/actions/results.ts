@@ -70,80 +70,101 @@ export async function checkResultsReady(projectId: string): Promise<{
 }
 
 /**
- * Check if all prompts have been processed (2 ai_responses per prompt: chatgpt + gemini)
+ * Check if all prompts have been processed (2 ai_responses per prompt: openai + gemini)
  */
 export async function checkPromptsProcessed(projectId: string): Promise<{
   allProcessed: boolean;
   totalPrompts: number;
   processedPrompts: number;
   missingResponses: Array<{ promptId: string; missingPlatforms: string[] }>;
+  error?: string;
 }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
-    return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [] };
-  }
-
-  // 1. Get all prompts for this project
-  const { data: prompts, error: promptsError } = await supabase
-    .from("prompt_tracking")
-    .select("id")
-    .eq("project_id", projectId)
-    .eq("is_active", true);
-
-  if (promptsError || !prompts || prompts.length === 0) {
-    return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [] };
-  }
-
-  const promptIds = prompts.map(p => p.id);
-  const platforms = ['chatgpt', 'gemini'];
-
-  // 2. Get all ai_responses for these prompts
-  const { data: aiResponses, error: responsesError } = await supabase
-    .from("ai_responses")
-    .select("id, prompt_tracking_id, platform")
-    .in("prompt_tracking_id", promptIds)
-    .in("platform", platforms);
-
-  if (responsesError) {
-    return { allProcessed: false, totalPrompts: prompts.length, processedPrompts: 0, missingResponses: [] };
-  }
-
-  // 3. Group responses by prompt_tracking_id
-  const responsesByPrompt = new Map<string, Set<string>>();
-  promptIds.forEach(promptId => {
-    responsesByPrompt.set(promptId, new Set());
-  });
-
-  aiResponses?.forEach(response => {
-    const promptId = response.prompt_tracking_id;
-    if (responsesByPrompt.has(promptId)) {
-      responsesByPrompt.get(promptId)!.add(response.platform);
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log("[checkPromptsProcessed] No user found");
+      return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [], error: "Not authenticated" };
     }
-  });
 
-  // 4. Check which prompts are fully processed
-  const missingResponses: Array<{ promptId: string; missingPlatforms: string[] }> = [];
-  let processedCount = 0;
+    // 1. Get all prompts for this project
+    const { data: prompts, error: promptsError } = await supabase
+      .from("prompt_tracking")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("is_active", true);
 
-  responsesByPrompt.forEach((platformsSet, promptId) => {
-    const missing = platforms.filter(p => !platformsSet.has(p));
-    if (missing.length === 0) {
-      processedCount++;
-    } else {
-      missingResponses.push({ promptId, missingPlatforms: missing });
+    if (promptsError) {
+      console.error("[checkPromptsProcessed] Error fetching prompts:", promptsError);
+      return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [], error: promptsError.message };
     }
-  });
 
-  const allProcessed = processedCount === prompts.length;
+    if (!prompts || prompts.length === 0) {
+      console.log("[checkPromptsProcessed] No prompts found for project:", projectId);
+      return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [], error: "No prompts found" };
+    }
 
-  return {
-    allProcessed,
-    totalPrompts: prompts.length,
-    processedPrompts: processedCount,
-    missingResponses,
-  };
+    console.log(`[checkPromptsProcessed] Found ${prompts.length} prompts for project ${projectId}`);
+
+    const promptIds = prompts.map(p => p.id);
+    const platforms = ['openai', 'gemini'];
+
+    // 2. Get all ai_responses for these prompts
+    const { data: aiResponses, error: responsesError } = await supabase
+      .from("ai_responses")
+      .select("id, prompt_tracking_id, platform")
+      .in("prompt_tracking_id", promptIds)
+      .in("platform", platforms);
+
+    if (responsesError) {
+      console.error("[checkPromptsProcessed] Error fetching ai_responses:", responsesError);
+      return { allProcessed: false, totalPrompts: prompts.length, processedPrompts: 0, missingResponses: [], error: responsesError.message };
+    }
+
+    console.log(`[checkPromptsProcessed] Found ${aiResponses?.length || 0} ai_responses for ${promptIds.length} prompts`);
+
+    // 3. Group responses by prompt_tracking_id
+    const responsesByPrompt = new Map<string, Set<string>>();
+    promptIds.forEach(promptId => {
+      responsesByPrompt.set(promptId, new Set());
+    });
+
+    aiResponses?.forEach(response => {
+      const promptId = response.prompt_tracking_id;
+      if (responsesByPrompt.has(promptId)) {
+        responsesByPrompt.get(promptId)!.add(response.platform);
+      }
+    });
+
+    // 4. Check which prompts are fully processed
+    const missingResponses: Array<{ promptId: string; missingPlatforms: string[] }> = [];
+    let processedCount = 0;
+
+    responsesByPrompt.forEach((platformsSet, promptId) => {
+      const missing = platforms.filter(p => !platformsSet.has(p));
+      if (missing.length === 0) {
+        processedCount++;
+      } else {
+        missingResponses.push({ promptId, missingPlatforms: missing });
+        console.log(`[checkPromptsProcessed] Prompt ${promptId} missing platforms: ${missing.join(", ")}`);
+      }
+    });
+
+    const allProcessed = processedCount === prompts.length;
+
+    console.log(`[checkPromptsProcessed] Status: ${processedCount}/${prompts.length} prompts processed, allProcessed: ${allProcessed}`);
+
+    return {
+      allProcessed,
+      totalPrompts: prompts.length,
+      processedPrompts: processedCount,
+      missingResponses,
+    };
+  } catch (error: any) {
+    console.error("[checkPromptsProcessed] Unexpected error:", error);
+    return { allProcessed: false, totalPrompts: 0, processedPrompts: 0, missingResponses: [], error: error.message || "Unexpected error" };
+  }
 }
 
 /**
@@ -205,7 +226,7 @@ export async function getBrandRankingFromDirectQueries(projectId: string): Promi
       .from("ai_responses")
       .select("id")
       .in("prompt_tracking_id", promptIds)
-      .in("platform", ['chatgpt', 'gemini']);
+      .in("platform", ['openai', 'gemini']);
 
     if (!aiResponses || aiResponses.length === 0) {
       return { error: "No AI responses found", data: null };

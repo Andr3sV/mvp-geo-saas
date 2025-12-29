@@ -21,7 +21,7 @@ export function ResultsStep({
 }: ResultsStepProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("Initializing analysis...");
+  const [statusMessage, setStatusMessage] = useState("Checking prompts...");
   const [rankingData, setRankingData] = useState<{
     brand: {
       name: string;
@@ -51,18 +51,36 @@ export function ResultsStep({
 
     const poll = async () => {
       attempts++;
+      console.log(`[ResultsStep] Poll attempt ${attempts}/${maxAttempts}`);
       
       try {
         const result = await checkPromptsProcessed(projectId);
+        
+        console.log(`[ResultsStep] Poll result:`, {
+          allProcessed: result.allProcessed,
+          totalPrompts: result.totalPrompts,
+          processedPrompts: result.processedPrompts,
+          error: result.error,
+        });
         
         // Update progress based on processed prompts
         if (result.totalPrompts > 0) {
           const progressPercent = Math.min(90, (result.processedPrompts / result.totalPrompts) * 90);
           setLoadingProgress(progressPercent);
+          console.log(`[ResultsStep] Updated progress to ${progressPercent}% (${result.processedPrompts}/${result.totalPrompts} prompts processed)`);
+        } else {
+          // If no prompts found, show status but let interval handle progress animation
+          console.log(`[ResultsStep] No prompts found yet, keeping progress animation`);
+        }
+
+        if (result.error) {
+          console.warn(`[ResultsStep] Error from checkPromptsProcessed: ${result.error}`);
+          // Continue polling despite error
         }
 
         if (result.allProcessed && !allPromptsProcessedRef.current) {
           allPromptsProcessedRef.current = true;
+          console.log(`[ResultsStep] All prompts processed! Starting 15-second wait...`);
           
           // Clear progress interval
           if (progressInterval) {
@@ -81,10 +99,13 @@ export function ResultsStep({
           setLoadingProgress(98);
           setStatusMessage("Calculating ranking...");
           
+          console.log(`[ResultsStep] Fetching ranking data...`);
+          
           // Fetch ranking data
           const rankingResult = await getBrandRankingFromDirectQueries(projectId);
           
           if (rankingResult.error || !rankingResult.data) {
+            console.error(`[ResultsStep] Error fetching ranking:`, rankingResult.error);
             setError(rankingResult.error || "Failed to load ranking data");
             setIsLoading(false);
             if (pollInterval) {
@@ -93,6 +114,8 @@ export function ResultsStep({
             return;
           }
 
+          console.log(`[ResultsStep] Ranking data fetched successfully`);
+          
           // Set progress to 100%
           setLoadingProgress(100);
           setRankingData(rankingResult.data);
@@ -113,7 +136,7 @@ export function ResultsStep({
           }
         }
       } catch (err: any) {
-        console.error("Error polling for results:", err);
+        console.error("[ResultsStep] Error polling for results:", err);
         if (attempts >= maxAttempts) {
           setError("Timeout waiting for results. Please check back later.");
           setIsLoading(false);
@@ -127,9 +150,12 @@ export function ResultsStep({
         }
       }
 
+      // Always continue polling until maxAttempts or allProcessed
       if (attempts < maxAttempts && !allPromptsProcessedRef.current) {
         pollInterval = setTimeout(poll, 5000); // Poll every 5 seconds
+        console.log(`[ResultsStep] Scheduled next poll in 5s (attempt ${attempts + 1}/${maxAttempts})`);
       } else if (attempts >= maxAttempts) {
+        console.log(`[ResultsStep] Max attempts reached (${maxAttempts}), stopping polling`);
         setError("Timeout waiting for results. The analysis may still be in progress.");
         setIsLoading(false);
         if (progressInterval) {
@@ -142,18 +168,22 @@ export function ResultsStep({
     };
 
     // Simulate progress animation (0-90% based on actual progress)
+    // This provides visual feedback while waiting for prompts/responses
     progressInterval = setInterval(() => {
       setLoadingProgress((prev) => {
         // Only animate if we're below 90% and don't have all prompts processed
         if (prev < 90 && !allPromptsProcessedRef.current) {
-          return Math.min(90, prev + 0.5); // Slowly increment
+          const newProgress = Math.min(90, prev + 0.3); // Slowly increment (0.3% per second)
+          return newProgress;
         }
         return prev;
       });
     }, 1000);
 
     // Start polling after a short delay
+    console.log(`[ResultsStep] Starting polling for project ${projectId}`);
     const initialDelay = setTimeout(() => {
+      console.log(`[ResultsStep] Starting first poll...`);
       poll();
     }, 1000);
 
