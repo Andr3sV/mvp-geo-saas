@@ -617,7 +617,10 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col relative overflow-hidden bg-gradient-to-b from-[#C2C2E1]/10 via-background to-background">
+    <div className={cn(
+      "flex min-h-screen flex-col relative bg-gradient-to-b from-[#C2C2E1]/10 via-background to-background",
+      currentStep === 7 ? "overflow-y-auto" : "overflow-hidden"
+    )}>
       {/* Background gradients */}
       <motion.div
         className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(194,194,225,0.15),transparent_50%)]"
@@ -783,14 +786,20 @@ export default function OnboardingPage() {
         </motion.div>
 
         {/* Content Area */}
-        <div className="flex flex-1 items-center justify-center pb-12 pt-8">
+        <div className={cn(
+          "flex flex-1 justify-center pb-12 pt-8",
+          currentStep === 7 ? "items-start" : "items-center"
+        )}>
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-2xl">
               {/* Main Card */}
               <motion.div
-                className="relative overflow-hidden rounded-2xl border bg-card/50 backdrop-blur-sm shadow-xl"
+                className={cn(
+                  "relative overflow-hidden rounded-2xl border bg-card/50 backdrop-blur-sm shadow-xl",
+                  currentStep === 7 && "my-8"
+                )}
                 variants={itemVariants}
-                whileHover={{ boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
+                whileHover={{ boxShadow: currentStep === 7 ? undefined : "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)" }}
                 transition={{ duration: 0.3 }}
               >
                 {/* Card gradient overlay */}
