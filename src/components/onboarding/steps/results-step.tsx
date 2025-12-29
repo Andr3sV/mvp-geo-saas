@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { checkPromptsProcessed, getBrandRankingFromDirectQueries } from "@/lib/actions/results";
+import { getMostCitedDomains } from "@/lib/queries/citations-real";
 import { containerVariants, itemVariants } from "../variants";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function ResultsStep({
   const [rankingData, setRankingData] = useState<{
     brand: {
       name: string;
+      domain: string;
       percentage: number;
       mentions: number;
       rank: number;
@@ -32,13 +34,36 @@ export function ResultsStep({
     competitors: Array<{
       id: string;
       name: string;
+      domain: string;
       percentage: number;
       mentions: number;
       rank: number;
     }>;
     totalMentions: number;
   } | null>(null);
+  const [mostCitedDomains, setMostCitedDomains] = useState<Array<{
+    domain: string;
+    citations: number;
+    type: string;
+    platforms?: string[];
+  }> | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper function to get favicon URL from domain
+  function getFaviconUrl(domain: string | null | undefined): string {
+    if (!domain) return "";
+    
+    // Extract domain from URL if it's a full URL
+    try {
+      const url = domain.startsWith("http") ? new URL(domain) : new URL(`https://${domain}`);
+      const hostname = url.hostname.replace("www.", "");
+      return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+    } catch {
+      // If URL parsing fails, try to use domain as-is
+      const cleanDomain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+      return `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=32`;
+    }
+  }
 
   useEffect(() => {
     if (!projectId) return;
@@ -119,6 +144,19 @@ export function ResultsStep({
           // Set progress to 100%
           setLoadingProgress(100);
           setRankingData(rankingResult.data);
+          
+          // Fetch most cited domains
+          console.log(`[ResultsStep] Fetching most cited domains...`);
+          getMostCitedDomains(projectId, 5, {
+            // Use all available data for onboarding
+          }).then(domains => {
+            console.log(`[ResultsStep] Most cited domains fetched:`, domains?.length || 0);
+            setMostCitedDomains(domains || []);
+          }).catch(err => {
+            console.error("[ResultsStep] Error fetching most cited domains:", err);
+            setMostCitedDomains([]);
+          });
+          
           setIsLoading(false);
           
           if (pollInterval) {
@@ -366,9 +404,6 @@ export function ResultsStep({
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2 }}
               >
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Industry Ranking
-                </h3>
                 <div className="space-y-1.5">
                   {/* Your Brand - Rank 1 */}
                   <motion.div
@@ -382,10 +417,32 @@ export function ResultsStep({
                         <span className="text-sm font-medium text-muted-foreground w-6">
                           {rankingData.brand.rank}
                         </span>
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 border border-[#C2C2E1]/30">
-                          <span className="text-xs font-semibold text-[#C2C2E1]">
-                            {(projectName || rankingData.brand.name).charAt(0).toUpperCase()}
-                          </span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#C2C2E1]/20 border border-[#C2C2E1]/30 overflow-hidden">
+                          {rankingData.brand.domain ? (
+                            <>
+                              <img 
+                                src={getFaviconUrl(rankingData.brand.domain)} 
+                                alt={`${rankingData.brand.name} logo`}
+                                className="h-6 w-6 object-contain"
+                                onError={(e) => {
+                                  // Fallback to initial letter if favicon fails
+                                  const target = e.currentTarget;
+                                  target.style.display = 'none';
+                                  const fallback = target.nextElementSibling as HTMLElement;
+                                  if (fallback) {
+                                    fallback.classList.remove('hidden');
+                                  }
+                                }}
+                              />
+                              <span className="text-xs font-semibold text-[#C2C2E1] hidden">
+                                {(projectName || rankingData.brand.name).charAt(0).toUpperCase()}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-semibold text-[#C2C2E1]">
+                              {(projectName || rankingData.brand.name).charAt(0).toUpperCase()}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{projectName || rankingData.brand.name}</span>
@@ -424,10 +481,32 @@ export function ResultsStep({
                           <span className="text-sm font-medium text-muted-foreground w-6">
                             {competitor.rank}
                           </span>
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border border-border">
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {competitor.name.charAt(0)}
-                            </span>
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border border-border overflow-hidden">
+                            {competitor.domain ? (
+                              <>
+                                <img
+                                  src={getFaviconUrl(competitor.domain)}
+                                  alt={`${competitor.name} logo`}
+                                  className="h-6 w-6 object-contain"
+                                  onError={(e) => {
+                                    // Fallback to initial letter if favicon fails
+                                    const target = e.currentTarget;
+                                    target.style.display = 'none';
+                                    const fallback = target.nextElementSibling as HTMLElement;
+                                    if (fallback) {
+                                      fallback.classList.remove('hidden');
+                                    }
+                                  }}
+                                />
+                                <span className="text-xs font-medium text-muted-foreground hidden">
+                                  {competitor.name.charAt(0)}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {competitor.name.charAt(0)}
+                              </span>
+                            )}
                           </div>
                           <span className="font-medium text-sm">{competitor.name}</span>
                         </div>
@@ -443,6 +522,52 @@ export function ResultsStep({
                               transition={{ delay: 0.6 + index * 0.05, duration: 0.8, ease: "easeOut" }}
                             />
                           </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {/* Most Cited Domains Section */}
+            {mostCitedDomains && mostCitedDomains.length > 0 && (
+              <motion.div
+                className="space-y-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  Most Cited Domains
+                </h3>
+                <div className="space-y-1.5">
+                  {mostCitedDomains.slice(0, 5).map((domain, index) => (
+                    <motion.div
+                      key={domain.domain}
+                      className="group relative overflow-hidden rounded-lg border border-border bg-card/30 px-4 py-3 transition-all hover:border-[#C2C2E1]/30 hover:bg-card/50"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.45 + index * 0.05 }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 border border-border overflow-hidden">
+                            <img
+                              src={getFaviconUrl(domain.domain)}
+                              alt={`${domain.domain} logo`}
+                              className="h-6 w-6 object-contain"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                          <span className="font-medium text-sm font-mono">{domain.domain}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {domain.citations} citation{domain.citations !== 1 ? 's' : ''}
+                          </span>
                         </div>
                       </div>
                     </motion.div>

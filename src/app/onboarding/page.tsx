@@ -1318,7 +1318,7 @@ export default function OnboardingPage() {
                                 className="w-full h-12 text-base"
                                 size="lg"
                               >
-                            Continue
+                            Discover More Stats and Opportunities
                             <ArrowRight className="ml-2 h-5 w-5" />
                           </Button>
                         </motion.div>

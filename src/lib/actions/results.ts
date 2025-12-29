@@ -176,6 +176,7 @@ export async function getBrandRankingFromDirectQueries(projectId: string): Promi
   data: {
     brand: {
       name: string;
+      domain: string;
       percentage: number;
       mentions: number;
       rank: number;
@@ -183,6 +184,7 @@ export async function getBrandRankingFromDirectQueries(projectId: string): Promi
     competitors: Array<{
       id: string;
       name: string;
+      domain: string;
       percentage: number;
       mentions: number;
       rank: number;
@@ -306,17 +308,37 @@ export async function getBrandRankingFromDirectQueries(projectId: string): Promi
 
     const brandRank = allEntities.findIndex(e => e.name === project.name) + 1;
 
-    // Assign ranks to competitors
+    // Assign ranks to competitors and include domain
     const competitorsWithRank = competitors.map(comp => {
       const rank = allEntities.findIndex(e => e.name === comp.name) + 1;
-      return { ...comp, rank };
+      const competitor = allCompetitors?.find(c => c.id === comp.id);
+      return { 
+        ...comp, 
+        rank,
+        domain: competitor?.domain || comp.name || "",
+      };
     });
+
+    // Extract domain from client_url for brand
+    let brandDomain = "";
+    if (project.client_url) {
+      try {
+        const url = project.client_url.startsWith("http") 
+          ? new URL(project.client_url) 
+          : new URL(`https://${project.client_url}`);
+        brandDomain = url.hostname.replace("www.", "");
+      } catch {
+        // If URL parsing fails, try to clean the domain
+        brandDomain = project.client_url.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+      }
+    }
 
     return {
       error: null,
       data: {
         brand: {
           name: project.name,
+          domain: brandDomain,
           percentage: brandPercentage,
           mentions: brandMentionsCount,
           rank: brandRank,
