@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Trophy, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { checkResultsReady, getBrandRanking } from "@/lib/actions/results";
+import { checkPromptsProcessed, getBrandRankingFromDirectQueries } from "@/lib/actions/results";
 import { containerVariants, itemVariants } from "../variants";
 import { cn } from "@/lib/utils";
 
@@ -46,54 +46,55 @@ export function ResultsStep({
     let pollInterval: NodeJS.Timeout | null = null;
     let progressInterval: NodeJS.Timeout | null = null;
     let attempts = 0;
-    const maxAttempts = 120; // 10 minutes max (5 second intervals)
-
-    // Simulate progress (0-90%)
-    progressInterval = setInterval(() => {
-      setLoadingProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 2; // Increment by 0-2% randomly
-      });
-    }, 500);
+    const maxAttempts = 240; // 20 minutes max (5 second intervals)
+    const allPromptsProcessedRef = { current: false };
 
     const poll = async () => {
       attempts++;
       
       try {
-        // Update status messages based on progress
-        if (attempts < 10) {
-          setStatusMessage("Analyzing website content...");
-        } else if (attempts < 20) {
-          setStatusMessage("Generating prompts...");
-        } else if (attempts < 40) {
-          setStatusMessage("Processing mentions...");
-        } else if (attempts < 60) {
-          setStatusMessage("Analyzing citations...");
-        } else {
-          setStatusMessage("Finalizing results...");
+        const result = await checkPromptsProcessed(projectId);
+        
+        // Update progress based on processed prompts
+        if (result.totalPrompts > 0) {
+          const progressPercent = Math.min(90, (result.processedPrompts / result.totalPrompts) * 90);
+          setLoadingProgress(progressPercent);
         }
 
-        const result = await checkResultsReady(projectId);
-        
-        if (result.ready) {
+        if (result.allProcessed && !allPromptsProcessedRef.current) {
+          allPromptsProcessedRef.current = true;
+          
           // Clear progress interval
           if (progressInterval) {
             clearInterval(progressInterval);
+            progressInterval = null;
           }
           
-          // Set to 100%
-          setLoadingProgress(100);
-          setStatusMessage("Results ready!");
-
+          // Set progress to 95%
+          setLoadingProgress(95);
+          setStatusMessage("All prompts processed. Finalizing results...");
+          
+          // Wait 15 seconds
+          await new Promise(resolve => setTimeout(resolve, 15000));
+          
+          // Set progress to 98%
+          setLoadingProgress(98);
+          setStatusMessage("Calculating ranking...");
+          
           // Fetch ranking data
-          const rankingResult = await getBrandRanking(projectId);
+          const rankingResult = await getBrandRankingFromDirectQueries(projectId);
           
           if (rankingResult.error || !rankingResult.data) {
             setError(rankingResult.error || "Failed to load ranking data");
             setIsLoading(false);
+            if (pollInterval) {
+              clearInterval(pollInterval);
+            }
             return;
           }
 
+          // Set progress to 100%
+          setLoadingProgress(100);
           setRankingData(rankingResult.data);
           setIsLoading(false);
           
@@ -101,6 +102,15 @@ export function ResultsStep({
             clearInterval(pollInterval);
           }
           return;
+        } else if (!result.allProcessed) {
+          // Update status message with progress
+          if (result.totalPrompts === 0) {
+            setStatusMessage("Waiting for prompts to be processed...");
+          } else {
+            setStatusMessage(
+              `Processing prompts... (${result.processedPrompts}/${result.totalPrompts} completed)`
+            );
+          }
         }
       } catch (err: any) {
         console.error("Error polling for results:", err);
@@ -113,12 +123,13 @@ export function ResultsStep({
           if (pollInterval) {
             clearInterval(pollInterval);
           }
+          return;
         }
       }
 
-      if (attempts < maxAttempts) {
+      if (attempts < maxAttempts && !allPromptsProcessedRef.current) {
         pollInterval = setTimeout(poll, 5000); // Poll every 5 seconds
-      } else {
+      } else if (attempts >= maxAttempts) {
         setError("Timeout waiting for results. The analysis may still be in progress.");
         setIsLoading(false);
         if (progressInterval) {
@@ -129,6 +140,17 @@ export function ResultsStep({
         }
       }
     };
+
+    // Simulate progress animation (0-90% based on actual progress)
+    progressInterval = setInterval(() => {
+      setLoadingProgress((prev) => {
+        // Only animate if we're below 90% and don't have all prompts processed
+        if (prev < 90 && !allPromptsProcessedRef.current) {
+          return Math.min(90, prev + 0.5); // Slowly increment
+        }
+        return prev;
+      });
+    }, 1000);
 
     // Start polling after a short delay
     const initialDelay = setTimeout(() => {
