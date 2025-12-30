@@ -2005,31 +2005,7 @@ export async function getThemeFrequencyMatrix(
 > {
   const supabase = await createClient();
 
-  // First, get all themes for this project
-  const { data: themes, error: themesError } = await supabase
-    .from("sentiment_themes")
-    .select("id, name, type")
-    .eq("project_id", projectId);
-
-  if (themesError) {
-    console.error("Error fetching themes:", themesError);
-    return [];
-  }
-
-  if (!themes || themes.length === 0) {
-    return [];
-  }
-
-  // Create theme map
-  const themeMap = new Map<string, { name: string; category: "positive" | "negative" }>();
-  themes.forEach((theme) => {
-    themeMap.set(theme.id, {
-      name: theme.name,
-      category: theme.type as "positive" | "negative",
-    });
-  });
-
-  // Get all evaluations
+  // Step 1: Get all evaluations first
   let query = supabase
     .from("brand_evaluations")
     .select("entity_name, entity_type, competitor_id, positive_theme_ids, negative_theme_ids, created_at")
@@ -2049,11 +2025,81 @@ export async function getThemeFrequencyMatrix(
   const { data: evaluations, error: evaluationsError } = await query;
 
   if (evaluationsError) {
-    console.error("Error fetching evaluations:", evaluationsError);
+    console.error("[getThemeFrequencyMatrix] Error fetching evaluations:", evaluationsError);
     return [];
   }
 
-  // Count theme frequencies by entity
+  if (!evaluations || evaluations.length === 0) {
+    console.log(`[getThemeFrequencyMatrix] No evaluations found for project ${projectId}`);
+    return [];
+  }
+
+  console.log(`[getThemeFrequencyMatrix] Found ${evaluations.length} evaluations for project ${projectId}`);
+
+  // Step 2: Extract all unique theme IDs from evaluations
+  const themeIdsSet = new Set<string>();
+  (evaluations || []).forEach((eval_) => {
+    if (eval_.positive_theme_ids && Array.isArray(eval_.positive_theme_ids)) {
+      eval_.positive_theme_ids.forEach((themeId: string) => {
+        if (themeId && typeof themeId === 'string') {
+          themeIdsSet.add(themeId);
+        }
+      });
+    }
+    if (eval_.negative_theme_ids && Array.isArray(eval_.negative_theme_ids)) {
+      eval_.negative_theme_ids.forEach((themeId: string) => {
+        if (themeId && typeof themeId === 'string') {
+          themeIdsSet.add(themeId);
+        }
+      });
+    }
+  });
+
+  if (themeIdsSet.size === 0) {
+    console.log(`[getThemeFrequencyMatrix] No theme IDs found in evaluations for project ${projectId}`);
+    return [];
+  }
+
+  console.log(`[getThemeFrequencyMatrix] Extracted ${themeIdsSet.size} unique theme IDs from evaluations`);
+
+  // Step 3: Fetch only themes that are actually used in evaluations
+  const themeIdsArray = Array.from(themeIdsSet);
+  const { data: themes, error: themesError } = await supabase
+    .from("sentiment_themes")
+    .select("id, name, type")
+    .eq("project_id", projectId)
+    .in("id", themeIdsArray);
+
+  if (themesError) {
+    console.error("[getThemeFrequencyMatrix] Error fetching themes:", themesError);
+    return [];
+  }
+
+  if (!themes || themes.length === 0) {
+    console.warn(`[getThemeFrequencyMatrix] No themes found in sentiment_themes for the ${themeIdsArray.length} theme IDs used in evaluations`);
+    console.warn(`[getThemeFrequencyMatrix] Theme IDs from evaluations (first 10):`, themeIdsArray.slice(0, 10));
+    return [];
+  }
+
+  console.log(`[getThemeFrequencyMatrix] Found ${themes.length} themes in sentiment_themes for ${themeIdsArray.length} theme IDs from evaluations`);
+
+  // Log any theme IDs that were in evaluations but not found in sentiment_themes
+  const foundThemeIds = new Set(themes.map(t => t.id));
+  const missingThemeIds = themeIdsArray.filter(id => !foundThemeIds.has(id));
+  if (missingThemeIds.length > 0) {
+    console.warn(`[getThemeFrequencyMatrix] Found ${missingThemeIds.length} theme IDs in evaluations that don't exist in sentiment_themes (first 10):`, missingThemeIds.slice(0, 10));
+  }
+
+  // Create theme map (only for themes that exist)
+  const themeMap = new Map<string, { name: string; category: "positive" | "negative" }>();
+  themes.forEach((theme) => {
+    themeMap.set(theme.id, {
+      name: theme.name,
+      category: theme.type as "positive" | "negative",
+    });
+  });
+
+  // Step 4: Count theme frequencies by entity
   const frequencyMap = new Map<
     string,
     Map<
@@ -2078,11 +2124,7 @@ export async function getThemeFrequencyMatrix(
     entityEvaluationCounts.set(entityKey, (entityEvaluationCounts.get(entityKey) || 0) + 1);
   });
 
-  // Debug logging
-  console.log(`[getThemeFrequencyMatrix] Found ${themes?.length || 0} themes for project ${projectId}`);
-  console.log(`[getThemeFrequencyMatrix] Found ${evaluations?.length || 0} evaluations`);
-  
-  // Second pass: count theme frequencies
+  // Step 4: Count theme frequencies
   let unmatchedThemeIds = new Set<string>();
   (evaluations || []).forEach((eval_) => {
     const entityKey =
@@ -2155,9 +2197,9 @@ export async function getThemeFrequencyMatrix(
     }
   });
 
-  // Log unmatched theme IDs for debugging
+  // Log unmatched theme IDs for debugging (these should be minimal now since we only fetch themes that exist)
   if (unmatchedThemeIds.size > 0) {
-    console.warn(`[getThemeFrequencyMatrix] Found ${unmatchedThemeIds.size} unmatched theme IDs:`, Array.from(unmatchedThemeIds));
+    console.warn(`[getThemeFrequencyMatrix] Found ${unmatchedThemeIds.size} unmatched theme IDs (these were in evaluations but not found in sentiment_themes):`, Array.from(unmatchedThemeIds).slice(0, 10));
   }
 
   // Convert to array format
