@@ -166,7 +166,23 @@ function parseAnalysisResponse(responseText: string): {
   }>;
   competitors: Array<{ name: string; domain: string }>;
 } {
-  // First, try to parse as JSON
+  // Check if response seems incomplete
+  const isLikelyTruncated = responseText.length > 0 && (
+    !responseText.includes('SENTIMENT TAXONOMY') ||
+    (!responseText.includes('INDUSTRY') && !responseText.includes('TOPICS'))
+  );
+
+  if (isLikelyTruncated) {
+    logError('analyze-brand-website', 'Response appears truncated - missing Phase 2 sections', {
+      response_length: responseText.length,
+      has_sentiment_section: responseText.includes('SENTIMENT TAXONOMY'),
+      has_industry: responseText.includes('INDUSTRY'),
+      has_topics: responseText.includes('TOPICS'),
+      last_200_chars: responseText.slice(-200),
+    });
+  }
+
+  // First, try to parse as JSON (Phase 1)
   const jsonResult = extractJsonFromResponse(responseText);
   if (jsonResult && jsonResult.categories.length > 0) {
     // JSON parsing successful - use it for AEO categories and competitors
@@ -175,52 +191,74 @@ function parseAnalysisResponse(responseText: string): {
     let industry: string | null = null;
     const topics: string[] = [];
     
-    let section: 'none' | 'industry' | 'topics' = 'none';
+    // More flexible section detection
+    let inSentimentSection = false;
+    let inIndustrySection = false;
+    let inTopicsSection = false;
     
     // Parse Phase 2 (sentiment topics) from text
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      const line = lines[i].toLowerCase();
       
-      // Detect Phase 2: Sentiment Taxonomy section
-      if (line.toUpperCase().includes('SENTIMENT TAXONOMY') || line.toUpperCase().includes('SENTIMENT')) {
-        section = 'none'; // Reset before checking for industry/topics
+      // Detect sentiment section with multiple patterns
+      if (line.includes('sentiment taxonomy') || 
+          line.includes('sentiment evaluation') ||
+          (line.includes('phase 2') && line.includes('sentiment'))) {
+        inSentimentSection = true;
+        inIndustrySection = false;
+        inTopicsSection = false;
         continue;
       }
       
-      // Detect section headers within sentiment
-      if (line.toLowerCase().includes('industry') && line.toLowerCase().includes('company type')) {
-        section = 'industry';
-        continue;
-      }
-      if (line.toLowerCase().includes('topics') || line.toLowerCase().includes('user intents')) {
-        section = 'topics';
+      // Detect industry section with multiple patterns
+      if (inSentimentSection && (
+          line.includes('industry') || 
+          line.includes('company type') ||
+          (line.includes('industry') && line.includes('company'))
+        )) {
+        inIndustrySection = true;
+        inTopicsSection = false;
         continue;
       }
       
-      // Parse sentiment topics (Phase 2)
-      if (section === 'topics') {
-        if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
-          const content = line.replace(/^[-•*]\s*/, '').trim();
-          if (!content) continue;
-          
-          const normalizedTopic = content
-            .toLowerCase()
-            .replace(/[.,:;!?]$/g, '')
-            .trim();
-          if (normalizedTopic && !topics.includes(normalizedTopic)) {
-            topics.push(normalizedTopic);
+      // Detect topics section with multiple patterns
+      if (inSentimentSection && (
+          line.includes('topics') || 
+          line.includes('user intents') ||
+          line.includes('user intent')
+        )) {
+        inTopicsSection = true;
+        inIndustrySection = false;
+        continue;
+      }
+      
+      // Parse industry (more flexible)
+      if (inIndustrySection) {
+        // Try multiple patterns
+        const industryMatch = lines[i].match(/^[-•*]\s*(.+)$/) || 
+                             lines[i].match(/^(\d+\.\s*)?(.+)$/);
+        if (industryMatch) {
+          const content = (industryMatch[2] || industryMatch[1]).trim();
+          if (content && content.length > 3 && !industry) {
+            industry = content;
           }
         }
       }
       
-      // Parse industry (Phase 2)
-      if (section === 'industry') {
-        if (line.startsWith('-') || line.startsWith('•') || line.startsWith('*')) {
-          const content = line.replace(/^[-•*]\s*/, '').trim();
-          if (!content) continue;
-          
-          if (!industry) {
-            industry = content;
+      // Parse topics (more flexible)
+      if (inTopicsSection) {
+        const topicMatch = lines[i].match(/^[-•*]\s*(.+)$/) || 
+                          lines[i].match(/^(\d+\.\s*)?(.+)$/);
+        if (topicMatch) {
+          const content = (topicMatch[2] || topicMatch[1]).trim();
+          if (content && content.length > 2) {
+            const normalizedTopic = content
+              .toLowerCase()
+              .replace(/[.,:;!?]$/g, '')
+              .trim();
+            if (normalizedTopic && !topics.includes(normalizedTopic)) {
+              topics.push(normalizedTopic);
+            }
           }
         }
       }
@@ -446,13 +484,36 @@ export const analyzeBrandWebsite = inngest.createFunction(
           apiKey: geminiApiKey,
           model: 'gemini-2.5-flash-lite',
           temperature: 0.3,
-          maxTokens: Math.max(100000, totalPrompts * 80), // Scale tokens based on prompt quantity (approx 80 tokens per prompt)
+          maxTokens: Math.max(180000, totalPrompts * 200), // Increased from 80 to 150 tokens per prompt, minimum 150k
         });
+
+        // Check if response might be truncated
+        const mightBeTruncated = result.text.length > 0 && (
+          (!result.text.trim().endsWith('}') && result.text.includes('```json')) || // JSON should end with }
+          (!result.text.includes('SENTIMENT TAXONOMY') && result.text.length > 5000) // Should have Phase 2 section for long responses
+        );
+
+        if (mightBeTruncated) {
+          logError('analyze-brand-website', 'Response might be truncated', {
+            project_id,
+            response_length: result.text.length,
+            ends_with_json: result.text.trim().endsWith('}'),
+            has_sentiment_section: result.text.includes('SENTIMENT TAXONOMY'),
+            last_200_chars: result.text.slice(-200),
+          });
+        }
 
         logInfo('analyze-brand-website', 'Gemini response received', {
           project_id,
           response_length: result.text.length,
           has_web_search: result.has_web_search,
+          has_json_block: result.text.includes('```json'),
+          has_sentiment_section: result.text.includes('SENTIMENT TAXONOMY'),
+          has_industry_section: result.text.includes('INDUSTRY'),
+          has_topics_section: result.text.includes('TOPICS'),
+          might_be_truncated: mightBeTruncated,
+          first_500_chars: result.text.slice(0, 500),
+          last_500_chars: result.text.slice(-500),
         });
 
         return result;
@@ -464,19 +525,50 @@ export const analyzeBrandWebsite = inngest.createFunction(
 
     // 5. Parse the response
     const parsedResult = await step.run('parse-response', async () => {
+      logInfo('analyze-brand-website', 'Attempting to parse response', {
+        project_id,
+        response_length: analysisResult.text.length,
+        has_json: analysisResult.text.includes('```json') || analysisResult.text.includes('"categories"'),
+      });
+
       const parsed = parseAnalysisResponse(analysisResult.text);
+
+      // Validate parsed results
+      const validationErrors: string[] = [];
+
+      if (!parsed.industry || parsed.industry.trim().length === 0) {
+        validationErrors.push('Industry is missing or empty');
+      }
+
+      if (!parsed.topics || parsed.topics.length < 5) {
+        validationErrors.push(`Topics count is insufficient: ${parsed.topics.length} (minimum 5 expected)`);
+      }
+
+      if (!parsed.aeoCategories || parsed.aeoCategories.length === 0) {
+        validationErrors.push('AEO categories are missing');
+      }
+
+      if (validationErrors.length > 0) {
+        logError('analyze-brand-website', 'Parsed results failed validation', {
+          project_id,
+          errors: validationErrors,
+          parsed_industry: parsed.industry,
+          parsed_topics_count: parsed.topics.length,
+          parsed_aeo_categories_count: parsed.aeoCategories.length,
+          response_preview: analysisResult.text.slice(0, 1000),
+          response_length: analysisResult.text.length,
+        });
+        
+        // Don't save invalid data - throw error to trigger retry
+        throw new Error(`Parsing validation failed: ${validationErrors.join(', ')}`);
+      }
 
       logInfo('analyze-brand-website', 'Parsed analysis result', {
         project_id,
         industry: parsed.industry,
         topics_count: parsed.topics.length,
+        aeo_categories_count: parsed.aeoCategories.length,
       });
-
-      if (!parsed.industry || parsed.topics.length === 0) {
-        logError('analyze-brand-website', 'Failed to parse industry or topics from response', {
-          response_preview: analysisResult.text.slice(0, 500),
-        });
-      }
 
       return parsed;
     });
