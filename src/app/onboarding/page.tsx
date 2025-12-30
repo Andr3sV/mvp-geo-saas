@@ -671,7 +671,7 @@ export default function OnboardingPage() {
                 <span className="text-xl font-semibold">Ateneai</span>
               </Link>
             </motion.div>
-            <button
+             {/*<button
               type="button"
               onClick={() => {
                 if (currentStep > 1) {
@@ -687,7 +687,7 @@ export default function OnboardingPage() {
             >
               <ArrowLeft className="h-4 w-4" />
               <span>boton temporal</span>
-            </button>
+            </button>*/}
           </div>
         </motion.div>
 
