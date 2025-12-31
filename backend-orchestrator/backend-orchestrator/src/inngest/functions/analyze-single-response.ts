@@ -6,7 +6,7 @@ import { inngest } from '../client';
 import { createSupabaseClient, logInfo, logError } from '../../lib/utils';
 import { analyzeBrandMentions } from '../../lib/brand-analysis';
 import { saveBrandAnalysis } from '../../lib/brand-storage';
-import { getGroqAPIKey } from '../../lib/groq-client';
+import { getAPIKey } from '../../lib/ai-clients';
 
 /**
  * Analyze a single AI response for brand mentions, sentiment, and attributes
@@ -186,19 +186,19 @@ export const analyzeSingleResponse = inngest.createFunction(
       return { message: 'Response already analyzed', skipped: true };
     }
 
-    // 3. Check Groq API key
-    const groqApiKey = getGroqAPIKey();
-    if (!groqApiKey) {
-      logError('analyze-single-response', 'Missing GROQ_API_KEY, skipping analysis', {
+    // 3. Check Gemini API key
+    const geminiApiKey = getAPIKey('gemini');
+    if (!geminiApiKey) {
+      logError('analyze-single-response', 'Missing GEMINI_API_KEY, skipping analysis', {
         aiResponseId: ai_response_id,
       });
-      return { message: 'Missing GROQ_API_KEY, skipping analysis', skipped: true };
+      return { message: 'Missing GEMINI_API_KEY, skipping analysis', skipped: true };
     }
 
     // 4. Analyze brand mentions, sentiment, and attributes
     const analysis = await step.run('analyze-brands', async () => {
       try {
-        logInfo('analyze-single-response', 'Calling Groq for brand analysis', {
+        logInfo('analyze-single-response', 'Calling Gemini for brand analysis', {
           aiResponseId: ai_response_id,
           brandName,
           competitorCount: competitorNames.length,
@@ -209,10 +209,11 @@ export const analyzeSingleResponse = inngest.createFunction(
           brandName,
           competitorNames,
           {
-            apiKey: groqApiKey,
-            model: 'openai/gpt-oss-20b',
+            apiKey: geminiApiKey,
+            model: 'gemini-2.5-flash-lite',
             temperature: 0.3,
-            maxTokens: 2000,
+            maxTokens: 4000, // Gemini supports more tokens
+            useWebSearch: false, // No web search needed for analyzing existing text
           }
         );
 

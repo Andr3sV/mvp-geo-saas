@@ -1,9 +1,10 @@
 // =============================================
-// BRAND ANALYSIS USING GROQ AI
+// BRAND ANALYSIS USING GEMINI AI
 // =============================================
 
-import { callGroq, getGroqAPIKey, type GroqConfig } from './groq-client';
-import type { BrandAnalysisResult } from './types';
+import { callGemini, getAPIKey } from './ai-clients';
+import { waitForRateLimit } from './rate-limiter';
+import type { BrandAnalysisResult, AIClientConfig } from './types';
 import { logError, logInfo } from './utils';
 
 /**
@@ -188,7 +189,7 @@ ${responseText}`;
 }
 
 /**
- * Parse and validate the JSON response from Groq
+ * Parse and validate the JSON response from AI
  */
 function parseBrandAnalysisResponse(jsonText: string): BrandAnalysisResult {
   try {
@@ -262,7 +263,7 @@ export async function analyzeBrandMentions(
   responseText: string,
   brandName: string,
   competitorList: string[],
-  config?: Partial<GroqConfig>
+  config?: Partial<AIClientConfig>
 ): Promise<BrandAnalysisResult> {
   try {
     logInfo('brand-analysis', 'Starting brand analysis', {
@@ -271,31 +272,35 @@ export async function analyzeBrandMentions(
       responseLength: responseText.length,
     });
 
-    // Get Groq API key
-    const apiKey = config?.apiKey || getGroqAPIKey();
+    // Get Gemini API key
+    const apiKey = config?.apiKey || getAPIKey('gemini');
     if (!apiKey) {
-      throw new Error('Missing GROQ_API_KEY environment variable');
+      throw new Error('Missing GEMINI_API_KEY environment variable');
     }
+
+    // Apply rate limiting before calling Gemini
+    await waitForRateLimit('gemini');
 
     // Build prompt
     const prompt = buildBrandAnalysisPrompt(responseText, brandName, competitorList);
 
-    // Call Groq
-    const groqConfig: GroqConfig = {
+    // Call Gemini (without web search for brand analysis - we're analyzing existing text)
+    const geminiConfig: AIClientConfig = {
       apiKey,
-      model: config?.model || 'openai/gpt-oss-20b',
+      model: config?.model || 'gemini-2.5-flash-lite',
       temperature: config?.temperature ?? 0.2, // Very low temperature for consistent JSON
-      maxTokens: config?.maxTokens ?? 8000, // More tokens for complex responses
+      maxTokens: config?.maxTokens ?? 4000, // Gemini supports more tokens than Groq in JSON mode
+      useWebSearch: false, // No web search needed - we're analyzing text we already have
     };
 
-    logInfo('brand-analysis', 'Calling Groq API', {
-      model: groqConfig.model,
+    logInfo('brand-analysis', 'Calling Gemini API', {
+      model: geminiConfig.model,
       promptLength: prompt.length,
     });
 
-    const result = await callGroq(prompt, groqConfig);
+    const result = await callGemini(prompt, geminiConfig);
 
-    logInfo('brand-analysis', 'Groq response received', {
+    logInfo('brand-analysis', 'Gemini response received', {
       responseLength: result.text.length,
       tokensUsed: result.tokens_used,
     });
@@ -316,13 +321,12 @@ export async function analyzeBrandMentions(
       error: error.message,
       errorType: error.type || 'unknown',
       errorCode: error.code || 'unknown',
-      failedGeneration: (error as any).failed_generation || 'none',
     });
     
-    // If it's a JSON validation error, log more details
-    if (error.code === 'json_validate_failed' || error.message?.includes('validate JSON')) {
-      logError('brand-analysis', 'Groq JSON validation failed - this may indicate the prompt needs adjustment', {
-        errorDetails: error,
+    // If it's a JSON parsing error, log more details
+    if (error.message?.includes('parse') || error.message?.includes('JSON')) {
+      logError('brand-analysis', 'JSON parsing failed - this may indicate the prompt needs adjustment', {
+        errorDetails: error.message,
       });
     }
     

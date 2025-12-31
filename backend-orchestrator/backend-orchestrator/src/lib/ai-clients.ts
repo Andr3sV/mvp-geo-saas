@@ -132,6 +132,28 @@ export async function callGemini(
   const model = config.model || 'gemini-2.5-flash-lite';
 
   try {
+    // Build request body conditionally based on useWebSearch flag
+    const requestBody: Record<string, any> = {
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: config.temperature || 0.7,
+        maxOutputTokens: config.maxTokens || 2000,
+      },
+    };
+
+    // Only include Google Search grounding if useWebSearch is not explicitly false
+    if (config.useWebSearch !== false) {
+      requestBody.tools = [{ google_search: {} }];
+    }
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`,
       {
@@ -139,27 +161,7 @@ export async function callGemini(
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: config.temperature || 0.7,
-            maxOutputTokens: config.maxTokens || 2000,
-          },
-          // Enable Google Search grounding (updated API)
-          tools: [
-            {
-              google_search: {},
-            },
-          ],
-        }),
+        body: JSON.stringify(requestBody),
       }
     );
 
