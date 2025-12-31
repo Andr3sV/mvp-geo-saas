@@ -18,8 +18,39 @@ function buildBrandAnalysisPrompt(
     ? competitorList.join(', ')
     : '(no competitors defined)';
 
-  return `Role:
+  return `You are a JSON output assistant. You MUST respond with valid JSON only, no other text. Do not include markdown code blocks or any explanatory text.
 
+Return ONLY a valid JSON object in this exact structure:
+
+{
+  "client_brand_mentioned": true,
+  "mentioned_competitors": [],
+  "client_brand_sentiment": "neutral",
+  "client_brand_sentiment_rating": 0,
+  "client_brand_sentiment_ratio": 0.0,
+  "competitor_sentiments": [
+    {
+      "competitor": "",
+      "sentiment": "",
+      "sentiment_rating": 0,
+      "sentiment_ratio": 0.0
+    }
+  ],
+  "client_brand_attributes": {
+    "positive": [],
+    "negative": []
+  },
+  "competitor_attributes": [
+    {
+      "competitor": "",
+      "positive": [],
+      "negative": []
+    }
+  ],
+  "other_brands_detected": []
+}
+
+Role:
 You are an information-extraction assistant. Your task is to analyze an AI-generated answer and extract structured data about brand mentions, competitor mentions, sentiment, sentiment scoring, contextual sentiment, attributes, and unlisted brands.
 
 Instructions:
@@ -57,7 +88,7 @@ IMPORTANT:
 - You MUST use contextual and industry reasoning.
 - Do NOT exclude a brand simply because competition is implied rather than stated.
 
-Return ONLY brands that reasonably compete with the client’s brand.
+Return ONLY brands that reasonably compete with the client's brand.
 
 5. Return all newly discovered competitors as an array in the property of the JSON other_brands_detected
 
@@ -134,42 +165,6 @@ ATTRIBUTE EXTRACTION
 Attributes are descriptive qualities, strengths, weaknesses, or perceptions assigned directly or indirectly.
 
 14. Extract positive and negative attributes associated with each competitor brand that appears in the answer.
-
------------------------------------------
-
-OUTPUT FORMAT (JSON)
-
------------------------------------------
-
-Return only valid JSON with the following structure:
-
-{
-  "client_brand_mentioned": true,
-  "mentioned_competitors": [],
-  "client_brand_sentiment": "neutral",
-  "client_brand_sentiment_rating": 0,
-  "client_brand_sentiment_ratio": 0.0,
-  "competitor_sentiments": [
-    {
-      "competitor": "",
-      "sentiment": "",
-      "sentiment_rating": 0,
-      "sentiment_ratio": 0.0
-    }
-  ],
-  "client_brand_attributes": {
-    "positive": [],
-    "negative": []
-  },
-  "competitor_attributes": [
-    {
-      "competitor": "",
-      "positive": [],
-      "negative": []
-    }
-  ],
-  "other_brands_detected": []
-}
 
 -----------------------------------------
 
