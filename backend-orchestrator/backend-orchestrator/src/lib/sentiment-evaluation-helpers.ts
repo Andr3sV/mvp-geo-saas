@@ -80,10 +80,10 @@ ${negativeThemes.length > 0 ? negativeThemes.map(t => `- ${t.name}`).join('\n') 
 Provide your evaluation in two parts:
 
 PART 1 - STRUCTURED ANALYSIS:
-Provide a comprehensive evaluation as you were recomending a brand to a common gemini user. This has to be a natural and human like response covering:
+Provide a comprehensive evaluation covering:
 1. Overall sentiment (positive, neutral, negative, or mixed)
-2. Key strengths related to this topic according to articles, reviews, and other sources.
-3. Key weaknesses or areas for improvement according to articles, reviews, and other sources.
+2. Key strengths related to this topic
+3. Key weaknesses or areas for improvement
 
 CRITICAL - THEME CATEGORIZATION RULES (READ CAREFULLY):
 You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT rules:
@@ -121,26 +121,17 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
      ❌ WRONG: "Strong Brand Heritage"
      ❌ WRONG: "Regional Heritage"
    
-   - Existing theme: "Customer Support Response Time"
-     ✅ CORRECT: "Customer Support Response Time"
-     ❌ WRONG: "Customer Service Answer Time"
-     ❌ WRONG: "Client Support Response Time"
-     
-   - Existing theme: "Customer Support 24/7 availability"
-     ✅ CORRECT: "Customer Support 24/7 availability"
-     ❌ WRONG: "Customer Service 24/7 availability"
-     ❌ WRONG: "Client Support 24/7 availability"
-
-   - Existing theme: "Speed of the application"
-     ✅ CORRECT: "Speed of the application"
-     ❌ WRONG: "Application Response Time"
-     ❌ WRONG: "Application Speed"
+   - Existing theme: "Customer Support"
+     ✅ CORRECT: "Customer Support"
+     ❌ WRONG: "Customer Service"
+     ❌ WRONG: "Client Support"
+     ❌ WRONG: "Customer Support (24/7 availability)"
 
 3. CREATING NEW THEMES (ONLY IF TRULY NO MATCH EXISTS):
    - Only create a new theme if the concept is COMPLETELY DIFFERENT from all existing themes
    - New theme names must be:
-     * Maximum 4 words (e.g., "Brand Heritage", "Customer Support Response Time", "Speed of the application", "Largest Vendor Directory", "Free Samples Available", "vast vendor network" )
-     * Not too Broad as sounds like a generic theme and not too specific.
+     * Maximum 4 words (e.g., "Brand Heritage", "Customer Support", "Product Quality")
+     * Broad and categorical (not specific)
      * Use standard business/marketing terminology
      * ABSOLUTELY NO parentheses, NO brackets, NO additional details
      * NO location names, NO dates, NO specific details
