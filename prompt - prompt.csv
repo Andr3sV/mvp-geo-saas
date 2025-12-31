@@ -1,0 +1,473 @@
+category,prompt
+Arroz,¿Qué marcas de Arroz me recomiendas?
+Pasta,¿Qué marcas de Pasta me recomiendas?
+Harina,¿Qué marcas de Harina me recomiendas?
+Azúcar,¿Qué marcas de Azúcar me recomiendas?
+Sal,¿Qué marcas de Sal me recomiendas?
+Aceites,¿Qué marcas de Aceites me recomiendas?
+Vinagres,¿Qué marcas de Vinagres me recomiendas?
+Conservas,¿Qué marcas de Conservas me recomiendas?
+Patés,¿Qué marcas de Patés me recomiendas?
+Salsas,¿Qué marcas de Salsas me recomiendas?
+Platos preparados,¿Qué marcas de Platos preparados me recomiendas?
+Snacks,¿Qué marcas de Snacks me recomiendas?
+Chocolates,¿Qué marcas de Chocolates me recomiendas?
+Golosinas,¿Qué marcas de Golosinas me recomiendas?
+Galletas,¿Qué marcas de Galletas me recomiendas?
+Cereales,¿Qué marcas de Cereales me recomiendas?
+Barras de cereales,¿Qué marcas de Barras de cereales me recomiendas?
+Cacao en polvo,¿Qué marcas de Cacao en polvo me recomiendas?
+Untables,¿Qué marcas de Untables me recomiendas?
+Panadería,¿Qué marcas de Panadería me recomiendas?
+Pastelería,¿Qué marcas de Pastelería me recomiendas?
+Postres,¿Qué marcas de Postres me recomiendas?
+Helados,¿Qué marcas de Helados me recomiendas?
+Café,¿Qué marcas de Café me recomiendas?
+Té,¿Qué marcas de Té me recomiendas?
+Alternativas vegetales,¿Qué marcas de Alternativas vegetales me recomiendas?
+Alimentación infantil,¿Qué marcas de Alimentación infantil me recomiendas?
+Quesos,¿Qué marcas de Quesos me recomiendas?
+Mantequilla,¿Qué marcas de Mantequilla me recomiendas?
+Margarinas,¿Qué marcas de Margarinas me recomiendas?
+Embutidos,¿Qué marcas de Embutidos me recomiendas?
+Vinos,¿Qué marcas de Vinos me recomiendas?
+Cervezas,¿Qué marcas de Cervezas me recomiendas?
+Ginebra,¿Qué marcas de Ginebra me recomiendas?
+Whisky,¿Qué marcas de Whisky me recomiendas?
+Ron,¿Qué marcas de Ron me recomiendas?
+Vodka,¿Qué marcas de Vodka me recomiendas?
+Tequila,¿Qué marcas de Tequila me recomiendas?
+Licores,¿Qué marcas de Licores me recomiendas?
+Aguas,¿Qué marcas de Aguas me recomiendas?
+Refrescos,¿Qué marcas de Refrescos me recomiendas?
+Bebidas isotónicas,¿Qué marcas de Bebidas isotónicas me recomiendas?
+Bebidas energéticas,¿Qué marcas de Bebidas energéticas me recomiendas?
+Bebidas sin alcohol,¿Qué marcas de Bebidas sin alcohol me recomiendas?
+Cuidado capilar,¿Qué marcas de Cuidado capilar me recomiendas?
+Higiene bucal,¿Qué marcas de Higiene bucal me recomiendas?
+Enjuague bucal,¿Qué marcas de Enjuague bucal me recomiendas?
+Afeitado,¿Qué marcas de Afeitado me recomiendas?
+Higiene femenina,¿Qué marcas de Higiene femenina me recomiendas?
+Higiene infantil,¿Qué marcas de Higiene infantil me recomiendas?
+Preservativos,¿Qué marcas de Preservativos me recomiendas?
+Pañales,¿Qué marcas de Pañales me recomiendas?
+Detergentes,¿Qué marcas de Detergentes me recomiendas?
+Suavizantes,¿Qué marcas de Suavizantes me recomiendas?
+Lavavajillas,¿Qué marcas de Lavavajillas me recomiendas?
+Limpiadores,¿Qué marcas de Limpiadores me recomiendas?
+Papel higiénico,¿Qué marcas de Papel higiénico me recomiendas?
+Papel y desechables,¿Qué marcas de Papel y desechables me recomiendas?
+Alimentación para mascotas,¿Qué marcas de Alimentación para mascotas me recomiendas?
+Arroz,¿Cuáles son las mejores marcas de Arroz?
+Pasta,¿Cuáles son las mejores marcas de Pasta?
+Harina,¿Cuáles son las mejores marcas de Harina?
+Azúcar,¿Cuáles son las mejores marcas de Azúcar?
+Sal,¿Cuáles son las mejores marcas de Sal?
+Aceites,¿Cuáles son las mejores marcas de Aceites?
+Vinagres,¿Cuáles son las mejores marcas de Vinagres?
+Conservas,¿Cuáles son las mejores marcas de Conservas?
+Patés,¿Cuáles son las mejores marcas de Patés?
+Salsas,¿Cuáles son las mejores marcas de Salsas?
+Platos preparados,¿Cuáles son las mejores marcas de Platos preparados?
+Snacks,¿Cuáles son las mejores marcas de Snacks?
+Chocolates,¿Cuáles son las mejores marcas de Chocolates?
+Golosinas,¿Cuáles son las mejores marcas de Golosinas?
+Galletas,¿Cuáles son las mejores marcas de Galletas?
+Cereales,¿Cuáles son las mejores marcas de Cereales?
+Barras de cereales,¿Cuáles son las mejores marcas de Barras de cereales?
+Cacao en polvo,¿Cuáles son las mejores marcas de Cacao en polvo?
+Untables,¿Cuáles son las mejores marcas de Untables?
+Panadería,¿Cuáles son las mejores marcas de Panadería?
+Pastelería,¿Cuáles son las mejores marcas de Pastelería?
+Postres,¿Cuáles son las mejores marcas de Postres?
+Helados,¿Cuáles son las mejores marcas de Helados?
+Café,¿Cuáles son las mejores marcas de Café?
+Té,¿Cuáles son las mejores marcas de Té?
+Alternativas vegetales,¿Cuáles son las mejores marcas de Alternativas vegetales?
+Alimentación infantil,¿Cuáles son las mejores marcas de Alimentación infantil?
+Quesos,¿Cuáles son las mejores marcas de Quesos?
+Mantequilla,¿Cuáles son las mejores marcas de Mantequilla?
+Margarinas,¿Cuáles son las mejores marcas de Margarinas?
+Embutidos,¿Cuáles son las mejores marcas de Embutidos?
+Vinos,¿Cuáles son las mejores marcas de Vinos?
+Cervezas,¿Cuáles son las mejores marcas de Cervezas?
+Ginebra,¿Cuáles son las mejores marcas de Ginebra?
+Whisky,¿Cuáles son las mejores marcas de Whisky?
+Ron,¿Cuáles son las mejores marcas de Ron?
+Vodka,¿Cuáles son las mejores marcas de Vodka?
+Tequila,¿Cuáles son las mejores marcas de Tequila?
+Licores,¿Cuáles son las mejores marcas de Licores?
+Aguas,¿Cuáles son las mejores marcas de Aguas?
+Refrescos,¿Cuáles son las mejores marcas de Refrescos?
+Bebidas isotónicas,¿Cuáles son las mejores marcas de Bebidas isotónicas?
+Bebidas energéticas,¿Cuáles son las mejores marcas de Bebidas energéticas?
+Bebidas sin alcohol,¿Cuáles son las mejores marcas de Bebidas sin alcohol?
+Cuidado capilar,¿Cuáles son las mejores marcas de Cuidado capilar?
+Higiene bucal,¿Cuáles son las mejores marcas de Higiene bucal?
+Enjuague bucal,¿Cuáles son las mejores marcas de Enjuague bucal?
+Afeitado,¿Cuáles son las mejores marcas de Afeitado?
+Higiene femenina,¿Cuáles son las mejores marcas de Higiene femenina?
+Higiene infantil,¿Cuáles son las mejores marcas de Higiene infantil?
+Preservativos,¿Cuáles son las mejores marcas de Preservativos?
+Pañales,¿Cuáles son las mejores marcas de Pañales?
+Detergentes,¿Cuáles son las mejores marcas de Detergentes?
+Suavizantes,¿Cuáles son las mejores marcas de Suavizantes?
+Lavavajillas,¿Cuáles son las mejores marcas de Lavavajillas?
+Limpiadores,¿Cuáles son las mejores marcas de Limpiadores?
+Papel higiénico,¿Cuáles son las mejores marcas de Papel higiénico?
+Papel y desechables,¿Cuáles son las mejores marcas de Papel y desechables?
+Alimentación para mascotas,¿Cuáles son las mejores marcas de Alimentación para mascotas?
+Arroz,¿Qué marcas de Arroz son las más populares?
+Pasta,¿Qué marcas de Pasta son las más populares?
+Harina,¿Qué marcas de Harina son las más populares?
+Azúcar,¿Qué marcas de Azúcar son las más populares?
+Sal,¿Qué marcas de Sal son las más populares?
+Aceites,¿Qué marcas de Aceites son las más populares?
+Vinagres,¿Qué marcas de Vinagres son las más populares?
+Conservas,¿Qué marcas de Conservas son las más populares?
+Patés,¿Qué marcas de Patés son las más populares?
+Salsas,¿Qué marcas de Salsas son las más populares?
+Platos preparados,¿Qué marcas de Platos preparados son las más populares?
+Snacks,¿Qué marcas de Snacks son las más populares?
+Chocolates,¿Qué marcas de Chocolates son las más populares?
+Golosinas,¿Qué marcas de Golosinas son las más populares?
+Galletas,¿Qué marcas de Galletas son las más populares?
+Cereales,¿Qué marcas de Cereales son las más populares?
+Barras de cereales,¿Qué marcas de Barras de cereales son las más populares?
+Cacao en polvo,¿Qué marcas de Cacao en polvo son las más populares?
+Untables,¿Qué marcas de Untables son las más populares?
+Panadería,¿Qué marcas de Panadería son las más populares?
+Pastelería,¿Qué marcas de Pastelería son las más populares?
+Postres,¿Qué marcas de Postres son las más populares?
+Helados,¿Qué marcas de Helados son las más populares?
+Café,¿Qué marcas de Café son las más populares?
+Té,¿Qué marcas de Té son las más populares?
+Alternativas vegetales,¿Qué marcas de Alternativas vegetales son las más populares?
+Alimentación infantil,¿Qué marcas de Alimentación infantil son las más populares?
+Quesos,¿Qué marcas de Quesos son las más populares?
+Mantequilla,¿Qué marcas de Mantequilla son las más populares?
+Margarinas,¿Qué marcas de Margarinas son las más populares?
+Embutidos,¿Qué marcas de Embutidos son las más populares?
+Vinos,¿Qué marcas de Vinos son las más populares?
+Cervezas,¿Qué marcas de Cervezas son las más populares?
+Ginebra,¿Qué marcas de Ginebra son las más populares?
+Whisky,¿Qué marcas de Whisky son las más populares?
+Ron,¿Qué marcas de Ron son las más populares?
+Vodka,¿Qué marcas de Vodka son las más populares?
+Tequila,¿Qué marcas de Tequila son las más populares?
+Licores,¿Qué marcas de Licores son las más populares?
+Aguas,¿Qué marcas de Aguas son las más populares?
+Refrescos,¿Qué marcas de Refrescos son las más populares?
+Bebidas isotónicas,¿Qué marcas de Bebidas isotónicas son las más populares?
+Bebidas energéticas,¿Qué marcas de Bebidas energéticas son las más populares?
+Bebidas sin alcohol,¿Qué marcas de Bebidas sin alcohol son las más populares?
+Cuidado capilar,¿Qué marcas de Cuidado capilar son las más populares?
+Higiene bucal,¿Qué marcas de Higiene bucal son las más populares?
+Enjuague bucal,¿Qué marcas de Enjuague bucal son las más populares?
+Afeitado,¿Qué marcas de Afeitado son las más populares?
+Higiene femenina,¿Qué marcas de Higiene femenina son las más populares?
+Higiene infantil,¿Qué marcas de Higiene infantil son las más populares?
+Preservativos,¿Qué marcas de Preservativos son las más populares?
+Pañales,¿Qué marcas de Pañales son las más populares?
+Detergentes,¿Qué marcas de Detergentes son las más populares?
+Suavizantes,¿Qué marcas de Suavizantes son las más populares?
+Lavavajillas,¿Qué marcas de Lavavajillas son las más populares?
+Limpiadores,¿Qué marcas de Limpiadores son las más populares?
+Papel higiénico,¿Qué marcas de Papel higiénico son las más populares?
+Papel y desechables,¿Qué marcas de Papel y desechables son las más populares?
+Alimentación para mascotas,¿Qué marcas de Alimentación para mascotas son las más populares?
+Arroz,¿Qué diferencia a las principales marcas de Arroz?
+Pasta,¿Qué diferencia a las principales marcas de Pasta?
+Harina,¿Qué diferencia a las principales marcas de Harina?
+Azúcar,¿Qué diferencia a las principales marcas de Azúcar?
+Sal,¿Qué diferencia a las principales marcas de Sal?
+Aceites,¿Qué diferencia a las principales marcas de Aceites?
+Vinagres,¿Qué diferencia a las principales marcas de Vinagres?
+Conservas,¿Qué diferencia a las principales marcas de Conservas?
+Patés,¿Qué diferencia a las principales marcas de Patés?
+Salsas,¿Qué diferencia a las principales marcas de Salsas?
+Platos preparados,¿Qué diferencia a las principales marcas de Platos preparados?
+Snacks,¿Qué diferencia a las principales marcas de Snacks?
+Chocolates,¿Qué diferencia a las principales marcas de Chocolates?
+Golosinas,¿Qué diferencia a las principales marcas de Golosinas?
+Galletas,¿Qué diferencia a las principales marcas de Galletas?
+Cereales,¿Qué diferencia a las principales marcas de Cereales?
+Barras de cereales,¿Qué diferencia a las principales marcas de Barras de cereales?
+Cacao en polvo,¿Qué diferencia a las principales marcas de Cacao en polvo?
+Untables,¿Qué diferencia a las principales marcas de Untables?
+Panadería,¿Qué diferencia a las principales marcas de Panadería?
+Pastelería,¿Qué diferencia a las principales marcas de Pastelería?
+Postres,¿Qué diferencia a las principales marcas de Postres?
+Helados,¿Qué diferencia a las principales marcas de Helados?
+Café,¿Qué diferencia a las principales marcas de Café?
+Té,¿Qué diferencia a las principales marcas de Té?
+Alternativas vegetales,¿Qué diferencia a las principales marcas de Alternativas vegetales?
+Alimentación infantil,¿Qué diferencia a las principales marcas de Alimentación infantil?
+Quesos,¿Qué diferencia a las principales marcas de Quesos?
+Mantequilla,¿Qué diferencia a las principales marcas de Mantequilla?
+Margarinas,¿Qué diferencia a las principales marcas de Margarinas?
+Embutidos,¿Qué diferencia a las principales marcas de Embutidos?
+Vinos,¿Qué diferencia a las principales marcas de Vinos?
+Cervezas,¿Qué diferencia a las principales marcas de Cervezas?
+Ginebra,¿Qué diferencia a las principales marcas de Ginebra?
+Whisky,¿Qué diferencia a las principales marcas de Whisky?
+Ron,¿Qué diferencia a las principales marcas de Ron?
+Vodka,¿Qué diferencia a las principales marcas de Vodka?
+Tequila,¿Qué diferencia a las principales marcas de Tequila?
+Licores,¿Qué diferencia a las principales marcas de Licores?
+Aguas,¿Qué diferencia a las principales marcas de Aguas?
+Refrescos,¿Qué diferencia a las principales marcas de Refrescos?
+Bebidas isotónicas,¿Qué diferencia a las principales marcas de Bebidas isotónicas?
+Bebidas energéticas,¿Qué diferencia a las principales marcas de Bebidas energéticas?
+Bebidas sin alcohol,¿Qué diferencia a las principales marcas de Bebidas sin alcohol?
+Cuidado capilar,¿Qué diferencia a las principales marcas de Cuidado capilar?
+Higiene bucal,¿Qué diferencia a las principales marcas de Higiene bucal?
+Enjuague bucal,¿Qué diferencia a las principales marcas de Enjuague bucal?
+Afeitado,¿Qué diferencia a las principales marcas de Afeitado?
+Higiene femenina,¿Qué diferencia a las principales marcas de Higiene femenina?
+Higiene infantil,¿Qué diferencia a las principales marcas de Higiene infantil?
+Preservativos,¿Qué diferencia a las principales marcas de Preservativos?
+Pañales,¿Qué diferencia a las principales marcas de Pañales?
+Detergentes,¿Qué diferencia a las principales marcas de Detergentes?
+Suavizantes,¿Qué diferencia a las principales marcas de Suavizantes?
+Lavavajillas,¿Qué diferencia a las principales marcas de Lavavajillas?
+Limpiadores,¿Qué diferencia a las principales marcas de Limpiadores?
+Papel higiénico,¿Qué diferencia a las principales marcas de Papel higiénico?
+Papel y desechables,¿Qué diferencia a las principales marcas de Papel y desechables?
+Alimentación para mascotas,¿Qué diferencia a las principales marcas de Alimentación para mascotas?
+Arroz,¿Qué marcas de Arroz ofrecen mejor relación calidad-precio?
+Pasta,¿Qué marcas de Pasta ofrecen mejor relación calidad-precio?
+Harina,¿Qué marcas de Harina ofrecen mejor relación calidad-precio?
+Azúcar,¿Qué marcas de Azúcar ofrecen mejor relación calidad-precio?
+Sal,¿Qué marcas de Sal ofrecen mejor relación calidad-precio?
+Aceites,¿Qué marcas de Aceites ofrecen mejor relación calidad-precio?
+Vinagres,¿Qué marcas de Vinagres ofrecen mejor relación calidad-precio?
+Conservas,¿Qué marcas de Conservas ofrecen mejor relación calidad-precio?
+Patés,¿Qué marcas de Patés ofrecen mejor relación calidad-precio?
+Salsas,¿Qué marcas de Salsas ofrecen mejor relación calidad-precio?
+Platos preparados,¿Qué marcas de Platos preparados ofrecen mejor relación calidad-precio?
+Snacks,¿Qué marcas de Snacks ofrecen mejor relación calidad-precio?
+Chocolates,¿Qué marcas de Chocolates ofrecen mejor relación calidad-precio?
+Golosinas,¿Qué marcas de Golosinas ofrecen mejor relación calidad-precio?
+Galletas,¿Qué marcas de Galletas ofrecen mejor relación calidad-precio?
+Cereales,¿Qué marcas de Cereales ofrecen mejor relación calidad-precio?
+Barras de cereales,¿Qué marcas de Barras de cereales ofrecen mejor relación calidad-precio?
+Cacao en polvo,¿Qué marcas de Cacao en polvo ofrecen mejor relación calidad-precio?
+Untables,¿Qué marcas de Untables ofrecen mejor relación calidad-precio?
+Panadería,¿Qué marcas de Panadería ofrecen mejor relación calidad-precio?
+Pastelería,¿Qué marcas de Pastelería ofrecen mejor relación calidad-precio?
+Postres,¿Qué marcas de Postres ofrecen mejor relación calidad-precio?
+Helados,¿Qué marcas de Helados ofrecen mejor relación calidad-precio?
+Café,¿Qué marcas de Café ofrecen mejor relación calidad-precio?
+Té,¿Qué marcas de Té ofrecen mejor relación calidad-precio?
+Alternativas vegetales,¿Qué marcas de Alternativas vegetales ofrecen mejor relación calidad-precio?
+Alimentación infantil,¿Qué marcas de Alimentación infantil ofrecen mejor relación calidad-precio?
+Quesos,¿Qué marcas de Quesos ofrecen mejor relación calidad-precio?
+Mantequilla,¿Qué marcas de Mantequilla ofrecen mejor relación calidad-precio?
+Margarinas,¿Qué marcas de Margarinas ofrecen mejor relación calidad-precio?
+Embutidos,¿Qué marcas de Embutidos ofrecen mejor relación calidad-precio?
+Vinos,¿Qué marcas de Vinos ofrecen mejor relación calidad-precio?
+Cervezas,¿Qué marcas de Cervezas ofrecen mejor relación calidad-precio?
+Ginebra,¿Qué marcas de Ginebra ofrecen mejor relación calidad-precio?
+Whisky,¿Qué marcas de Whisky ofrecen mejor relación calidad-precio?
+Ron,¿Qué marcas de Ron ofrecen mejor relación calidad-precio?
+Vodka,¿Qué marcas de Vodka ofrecen mejor relación calidad-precio?
+Tequila,¿Qué marcas de Tequila ofrecen mejor relación calidad-precio?
+Licores,¿Qué marcas de Licores ofrecen mejor relación calidad-precio?
+Aguas,¿Qué marcas de Aguas ofrecen mejor relación calidad-precio?
+Refrescos,¿Qué marcas de Refrescos ofrecen mejor relación calidad-precio?
+Bebidas isotónicas,¿Qué marcas de Bebidas isotónicas ofrecen mejor relación calidad-precio?
+Bebidas energéticas,¿Qué marcas de Bebidas energéticas ofrecen mejor relación calidad-precio?
+Bebidas sin alcohol,¿Qué marcas de Bebidas sin alcohol ofrecen mejor relación calidad-precio?
+Cuidado capilar,¿Qué marcas de Cuidado capilar ofrecen mejor relación calidad-precio?
+Higiene bucal,¿Qué marcas de Higiene bucal ofrecen mejor relación calidad-precio?
+Enjuague bucal,¿Qué marcas de Enjuague bucal ofrecen mejor relación calidad-precio?
+Afeitado,¿Qué marcas de Afeitado ofrecen mejor relación calidad-precio?
+Higiene femenina,¿Qué marcas de Higiene femenina ofrecen mejor relación calidad-precio?
+Higiene infantil,¿Qué marcas de Higiene infantil ofrecen mejor relación calidad-precio?
+Preservativos,¿Qué marcas de Preservativos ofrecen mejor relación calidad-precio?
+Pañales,¿Qué marcas de Pañales ofrecen mejor relación calidad-precio?
+Detergentes,¿Qué marcas de Detergentes ofrecen mejor relación calidad-precio?
+Suavizantes,¿Qué marcas de Suavizantes ofrecen mejor relación calidad-precio?
+Lavavajillas,¿Qué marcas de Lavavajillas ofrecen mejor relación calidad-precio?
+Limpiadores,¿Qué marcas de Limpiadores ofrecen mejor relación calidad-precio?
+Papel higiénico,¿Qué marcas de Papel higiénico ofrecen mejor relación calidad-precio?
+Papel y desechables,¿Qué marcas de Papel y desechables ofrecen mejor relación calidad-precio?
+Alimentación para mascotas,¿Qué marcas de Alimentación para mascotas ofrecen mejor relación calidad-precio?
+Arroz,¿Cuáles son las marcas líderes en Arroz?
+Pasta,¿Cuáles son las marcas líderes en Pasta?
+Harina,¿Cuáles son las marcas líderes en Harina?
+Azúcar,¿Cuáles son las marcas líderes en Azúcar?
+Sal,¿Cuáles son las marcas líderes en Sal?
+Aceites,¿Cuáles son las marcas líderes en Aceites?
+Vinagres,¿Cuáles son las marcas líderes en Vinagres?
+Conservas,¿Cuáles son las marcas líderes en Conservas?
+Patés,¿Cuáles son las marcas líderes en Patés?
+Salsas,¿Cuáles son las marcas líderes en Salsas?
+Platos preparados,¿Cuáles son las marcas líderes en Platos preparados?
+Snacks,¿Cuáles son las marcas líderes en Snacks?
+Chocolates,¿Cuáles son las marcas líderes en Chocolates?
+Golosinas,¿Cuáles son las marcas líderes en Golosinas?
+Galletas,¿Cuáles son las marcas líderes en Galletas?
+Cereales,¿Cuáles son las marcas líderes en Cereales?
+Barras de cereales,¿Cuáles son las marcas líderes en Barras de cereales?
+Cacao en polvo,¿Cuáles son las marcas líderes en Cacao en polvo?
+Untables,¿Cuáles son las marcas líderes en Untables?
+Panadería,¿Cuáles son las marcas líderes en Panadería?
+Pastelería,¿Cuáles son las marcas líderes en Pastelería?
+Postres,¿Cuáles son las marcas líderes en Postres?
+Helados,¿Cuáles son las marcas líderes en Helados?
+Café,¿Cuáles son las marcas líderes en Café?
+Té,¿Cuáles son las marcas líderes en Té?
+Alternativas vegetales,¿Cuáles son las marcas líderes en Alternativas vegetales?
+Alimentación infantil,¿Cuáles son las marcas líderes en Alimentación infantil?
+Quesos,¿Cuáles son las marcas líderes en Quesos?
+Mantequilla,¿Cuáles son las marcas líderes en Mantequilla?
+Margarinas,¿Cuáles son las marcas líderes en Margarinas?
+Embutidos,¿Cuáles son las marcas líderes en Embutidos?
+Vinos,¿Cuáles son las marcas líderes en Vinos?
+Cervezas,¿Cuáles son las marcas líderes en Cervezas?
+Ginebra,¿Cuáles son las marcas líderes en Ginebra?
+Whisky,¿Cuáles son las marcas líderes en Whisky?
+Ron,¿Cuáles son las marcas líderes en Ron?
+Vodka,¿Cuáles son las marcas líderes en Vodka?
+Tequila,¿Cuáles son las marcas líderes en Tequila?
+Licores,¿Cuáles son las marcas líderes en Licores?
+Aguas,¿Cuáles son las marcas líderes en Aguas?
+Refrescos,¿Cuáles son las marcas líderes en Refrescos?
+Bebidas isotónicas,¿Cuáles son las marcas líderes en Bebidas isotónicas?
+Bebidas energéticas,¿Cuáles son las marcas líderes en Bebidas energéticas?
+Bebidas sin alcohol,¿Cuáles son las marcas líderes en Bebidas sin alcohol?
+Cuidado capilar,¿Cuáles son las marcas líderes en Cuidado capilar?
+Higiene bucal,¿Cuáles son las marcas líderes en Higiene bucal?
+Enjuague bucal,¿Cuáles son las marcas líderes en Enjuague bucal?
+Afeitado,¿Cuáles son las marcas líderes en Afeitado?
+Higiene femenina,¿Cuáles son las marcas líderes en Higiene femenina?
+Higiene infantil,¿Cuáles son las marcas líderes en Higiene infantil?
+Preservativos,¿Cuáles son las marcas líderes en Preservativos?
+Pañales,¿Cuáles son las marcas líderes en Pañales?
+Detergentes,¿Cuáles son las marcas líderes en Detergentes?
+Suavizantes,¿Cuáles son las marcas líderes en Suavizantes?
+Lavavajillas,¿Cuáles son las marcas líderes en Lavavajillas?
+Limpiadores,¿Cuáles son las marcas líderes en Limpiadores?
+Papel higiénico,¿Cuáles son las marcas líderes en Papel higiénico?
+Papel y desechables,¿Cuáles son las marcas líderes en Papel y desechables?
+Alimentación para mascotas,¿Cuáles son las marcas líderes en Alimentación para mascotas?
+Arroz,¿Qué marcas de Arroz tienen mejor reputación?
+Pasta,¿Qué marcas de Pasta tienen mejor reputación?
+Harina,¿Qué marcas de Harina tienen mejor reputación?
+Azúcar,¿Qué marcas de Azúcar tienen mejor reputación?
+Sal,¿Qué marcas de Sal tienen mejor reputación?
+Aceites,¿Qué marcas de Aceites tienen mejor reputación?
+Vinagres,¿Qué marcas de Vinagres tienen mejor reputación?
+Conservas,¿Qué marcas de Conservas tienen mejor reputación?
+Patés,¿Qué marcas de Patés tienen mejor reputación?
+Salsas,¿Qué marcas de Salsas tienen mejor reputación?
+Platos preparados,¿Qué marcas de Platos preparados tienen mejor reputación?
+Snacks,¿Qué marcas de Snacks tienen mejor reputación?
+Chocolates,¿Qué marcas de Chocolates tienen mejor reputación?
+Golosinas,¿Qué marcas de Golosinas tienen mejor reputación?
+Galletas,¿Qué marcas de Galletas tienen mejor reputación?
+Cereales,¿Qué marcas de Cereales tienen mejor reputación?
+Barras de cereales,¿Qué marcas de Barras de cereales tienen mejor reputación?
+Cacao en polvo,¿Qué marcas de Cacao en polvo tienen mejor reputación?
+Untables,¿Qué marcas de Untables tienen mejor reputación?
+Panadería,¿Qué marcas de Panadería tienen mejor reputación?
+Pastelería,¿Qué marcas de Pastelería tienen mejor reputación?
+Postres,¿Qué marcas de Postres tienen mejor reputación?
+Helados,¿Qué marcas de Helados tienen mejor reputación?
+Café,¿Qué marcas de Café tienen mejor reputación?
+Té,¿Qué marcas de Té tienen mejor reputación?
+Alternativas vegetales,¿Qué marcas de Alternativas vegetales tienen mejor reputación?
+Alimentación infantil,¿Qué marcas de Alimentación infantil tienen mejor reputación?
+Quesos,¿Qué marcas de Quesos tienen mejor reputación?
+Mantequilla,¿Qué marcas de Mantequilla tienen mejor reputación?
+Margarinas,¿Qué marcas de Margarinas tienen mejor reputación?
+Embutidos,¿Qué marcas de Embutidos tienen mejor reputación?
+Vinos,¿Qué marcas de Vinos tienen mejor reputación?
+Cervezas,¿Qué marcas de Cervezas tienen mejor reputación?
+Ginebra,¿Qué marcas de Ginebra tienen mejor reputación?
+Whisky,¿Qué marcas de Whisky tienen mejor reputación?
+Ron,¿Qué marcas de Ron tienen mejor reputación?
+Vodka,¿Qué marcas de Vodka tienen mejor reputación?
+Tequila,¿Qué marcas de Tequila tienen mejor reputación?
+Licores,¿Qué marcas de Licores tienen mejor reputación?
+Aguas,¿Qué marcas de Aguas tienen mejor reputación?
+Refrescos,¿Qué marcas de Refrescos tienen mejor reputación?
+Bebidas isotónicas,¿Qué marcas de Bebidas isotónicas tienen mejor reputación?
+Bebidas energéticas,¿Qué marcas de Bebidas energéticas tienen mejor reputación?
+Bebidas sin alcohol,¿Qué marcas de Bebidas sin alcohol tienen mejor reputación?
+Cuidado capilar,¿Qué marcas de Cuidado capilar tienen mejor reputación?
+Higiene bucal,¿Qué marcas de Higiene bucal tienen mejor reputación?
+Enjuague bucal,¿Qué marcas de Enjuague bucal tienen mejor reputación?
+Afeitado,¿Qué marcas de Afeitado tienen mejor reputación?
+Higiene femenina,¿Qué marcas de Higiene femenina tienen mejor reputación?
+Higiene infantil,¿Qué marcas de Higiene infantil tienen mejor reputación?
+Preservativos,¿Qué marcas de Preservativos tienen mejor reputación?
+Pañales,¿Qué marcas de Pañales tienen mejor reputación?
+Detergentes,¿Qué marcas de Detergentes tienen mejor reputación?
+Suavizantes,¿Qué marcas de Suavizantes tienen mejor reputación?
+Lavavajillas,¿Qué marcas de Lavavajillas tienen mejor reputación?
+Limpiadores,¿Qué marcas de Limpiadores tienen mejor reputación?
+Papel higiénico,¿Qué marcas de Papel higiénico tienen mejor reputación?
+Papel y desechables,¿Qué marcas de Papel y desechables tienen mejor reputación?
+Alimentación para mascotas,¿Qué marcas de Alimentación para mascotas tienen mejor reputación?
+Arroz,¿Qué marcas de Arroz recomiendan los expertos?
+Pasta,¿Qué marcas de Pasta recomiendan los expertos?
+Harina,¿Qué marcas de Harina recomiendan los expertos?
+Azúcar,¿Qué marcas de Azúcar recomiendan los expertos?
+Sal,¿Qué marcas de Sal recomiendan los expertos?
+Aceites,¿Qué marcas de Aceites recomiendan los expertos?
+Vinagres,¿Qué marcas de Vinagres recomiendan los expertos?
+Conservas,¿Qué marcas de Conservas recomiendan los expertos?
+Patés,¿Qué marcas de Patés recomiendan los expertos?
+Salsas,¿Qué marcas de Salsas recomiendan los expertos?
+Platos preparados,¿Qué marcas de Platos preparados recomiendan los expertos?
+Snacks,¿Qué marcas de Snacks recomiendan los expertos?
+Chocolates,¿Qué marcas de Chocolates recomiendan los expertos?
+Golosinas,¿Qué marcas de Golosinas recomiendan los expertos?
+Galletas,¿Qué marcas de Galletas recomiendan los expertos?
+Cereales,¿Qué marcas de Cereales recomiendan los expertos?
+Barras de cereales,¿Qué marcas de Barras de cereales recomiendan los expertos?
+Cacao en polvo,¿Qué marcas de Cacao en polvo recomiendan los expertos?
+Untables,¿Qué marcas de Untables recomiendan los expertos?
+Panadería,¿Qué marcas de Panadería recomiendan los expertos?
+Pastelería,¿Qué marcas de Pastelería recomiendan los expertos?
+Postres,¿Qué marcas de Postres recomiendan los expertos?
+Helados,¿Qué marcas de Helados recomiendan los expertos?
+Café,¿Qué marcas de Café recomiendan los expertos?
+Té,¿Qué marcas de Té recomiendan los expertos?
+Alternativas vegetales,¿Qué marcas de Alternativas vegetales recomiendan los expertos?
+Alimentación infantil,¿Qué marcas de Alimentación infantil recomiendan los expertos?
+Quesos,¿Qué marcas de Quesos recomiendan los expertos?
+Mantequilla,¿Qué marcas de Mantequilla recomiendan los expertos?
+Margarinas,¿Qué marcas de Margarinas recomiendan los expertos?
+Embutidos,¿Qué marcas de Embutidos recomiendan los expertos?
+Vinos,¿Qué marcas de Vinos recomiendan los expertos?
+Cervezas,¿Qué marcas de Cervezas recomiendan los expertos?
+Ginebra,¿Qué marcas de Ginebra recomiendan los expertos?
+Whisky,¿Qué marcas de Whisky recomiendan los expertos?
+Ron,¿Qué marcas de Ron recomiendan los expertos?
+Vodka,¿Qué marcas de Vodka recomiendan los expertos?
+Tequila,¿Qué marcas de Tequila recomiendan los expertos?
+Licores,¿Qué marcas de Licores recomiendan los expertos?
+Aguas,¿Qué marcas de Aguas recomiendan los expertos?
+Refrescos,¿Qué marcas de Refrescos recomiendan los expertos?
+Bebidas isotónicas,¿Qué marcas de Bebidas isotónicas recomiendan los expertos?
+Bebidas energéticas,¿Qué marcas de Bebidas energéticas recomiendan los expertos?
+Bebidas sin alcohol,¿Qué marcas de Bebidas sin alcohol recomiendan los expertos?
+Cuidado capilar,¿Qué marcas de Cuidado capilar recomiendan los expertos?
+Higiene bucal,¿Qué marcas de Higiene bucal recomiendan los expertos?
+Enjuague bucal,¿Qué marcas de Enjuague bucal recomiendan los expertos?
+Afeitado,¿Qué marcas de Afeitado recomiendan los expertos?
+Higiene femenina,¿Qué marcas de Higiene femenina recomiendan los expertos?
+Higiene infantil,¿Qué marcas de Higiene infantil recomiendan los expertos?
+Preservativos,¿Qué marcas de Preservativos recomiendan los expertos?
+Pañales,¿Qué marcas de Pañales recomiendan los expertos?
+Detergentes,¿Qué marcas de Detergentes recomiendan los expertos?
+Suavizantes,¿Qué marcas de Suavizantes recomiendan los expertos?
+Lavavajillas,¿Qué marcas de Lavavajillas recomiendan los expertos?
+Limpiadores,¿Qué marcas de Limpiadores recomiendan los expertos?
+Papel higiénico,¿Qué marcas de Papel higiénico recomiendan los expertos?
+Papel y desechables,¿Qué marcas de Papel y desechables recomiendan los expertos?
+Alimentación para mascotas,¿Qué marcas de Alimentación para mascotas recomiendan los expertos?
