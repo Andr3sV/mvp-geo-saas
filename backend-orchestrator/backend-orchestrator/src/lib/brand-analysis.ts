@@ -290,7 +290,7 @@ export async function analyzeBrandMentions(
       apiKey,
       model: config?.model || 'openai/gpt-oss-20b',
       temperature: config?.temperature ?? 0.2, // Very low temperature for consistent JSON
-      maxTokens: config?.maxTokens ?? 2500, // More tokens for complex responses
+      maxTokens: config?.maxTokens ?? 8000, // More tokens for complex responses
     };
 
     logInfo('brand-analysis', 'Calling Groq API', {
