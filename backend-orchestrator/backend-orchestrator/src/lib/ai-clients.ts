@@ -18,6 +18,9 @@ export async function callOpenAI(
   // Use Responses API with web_search tool (structured citations, deterministic tool use)
   // Non-reasoning, más barato/rápido: gpt-4.1-mini (si soporta web_search en Responses)
   const model = config.model || 'gpt-4.1-mini';
+  
+  // Determine if web_search should be used (default: true for backward compatibility)
+  const useWebSearch = config.useWebSearch !== false;
 
   try {
     // Cap defensivo del prompt para evitar uso excesivo de tokens
@@ -27,14 +30,18 @@ export async function callOpenAI(
         ? prompt.slice(0, MAX_PROMPT_CHARS)
         : prompt;
 
-    // Responses API body con web_search tool; no incluir max_tokens/temperature para evitar errores
-    // tool_choice: "required" fuerza uso de la herramienta de búsqueda
+    // Responses API body - include web_search tool only if enabled
+    // When useWebSearch is false (sector rankings), we don't include tools
     const responseBody: Record<string, any> = {
       model,
-      tools: [{ type: 'web_search' }],
-      tool_choice: 'required',
       input: cappedPrompt,
     };
+    
+    // Only add web_search tool if enabled
+    if (useWebSearch) {
+      responseBody.tools = [{ type: 'web_search' }];
+      responseBody.tool_choice = 'required';
+    }
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -91,10 +98,11 @@ export async function callOpenAI(
       citationsData = undefined;
     }
 
-    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Structured Citations: ${citationsData?.length || 0}, Time: ${executionTime}ms`, {
+    logInfo('OpenAI', `Completion successful. Tokens: ${tokensUsed}, Structured Citations: ${citationsData?.length || 0}, WebSearch: ${useWebSearch}, Time: ${executionTime}ms`, {
       model,
       promptChars: cappedPrompt?.length || 0,
       usage: data.usage || data.usage_info || null,
+      useWebSearch,
     });
 
     return {
@@ -104,7 +112,7 @@ export async function callOpenAI(
       cost: calculateCost('openai', tokensUsed || Math.ceil(responseText.length / 4)),
       execution_time_ms: executionTime,
       citationsData: citationsData && citationsData.length > 0 ? citationsData : undefined,
-      has_web_search: citationsData && citationsData.length > 0,
+      has_web_search: useWebSearch && citationsData && citationsData.length > 0,
     };
   } catch (error) {
     logError('OpenAI', 'API call failed', error);

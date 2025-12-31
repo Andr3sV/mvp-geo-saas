@@ -72,9 +72,10 @@ export const processPrompt = inngest.createFunction(
 
     logInfo("process-prompt", `Processing prompt ${prompt_tracking_id} for project ${project_id}`);
 
-    // 1. Fetch Prompt Data
-    const promptData = await step.run("fetch-prompt", async () => {
-      const { data, error } = await supabase
+    // 1. Fetch Prompt Data and Project Config
+    const { promptData, projectConfig } = await step.run("fetch-prompt-and-config", async () => {
+      // Fetch prompt data
+      const { data: promptResult, error: promptError } = await supabase
         .from("prompt_tracking")
         .select(`
           prompt,
@@ -87,8 +88,25 @@ export const processPrompt = inngest.createFunction(
         .eq("id", prompt_tracking_id)
         .single();
 
-      if (error) throw new Error(`Prompt not found: ${error.message}`);
-      return data;
+      if (promptError) throw new Error(`Prompt not found: ${promptError.message}`);
+      
+      // Fetch project config (use_web_search flag)
+      const { data: projectResult, error: projectError } = await supabase
+        .from("projects")
+        .select("use_web_search")
+        .eq("id", project_id)
+        .single();
+
+      if (projectError) {
+        logInfo("process-prompt", `Could not fetch project config, using defaults: ${projectError.message}`);
+      }
+
+      return {
+        promptData: promptResult,
+        projectConfig: {
+          useWebSearch: projectResult?.use_web_search ?? true, // Default to true for backward compatibility
+        }
+      };
     });
 
     const promptText = promptData.prompt;
@@ -98,6 +116,12 @@ export const processPrompt = inngest.createFunction(
     const promptRegion = Array.isArray(regionsData) 
       ? (regionsData[0]?.code || 'GLOBAL')
       : (regionsData?.code || 'GLOBAL');
+    
+    // Log project config for debugging
+    logInfo("process-prompt", `Project config: useWebSearch=${projectConfig.useWebSearch}`, {
+      project_id,
+      useWebSearch: projectConfig.useWebSearch
+    });
 
     // 2. Determine Platforms
     // Use platforms_to_process from event if provided, otherwise use all available platforms
@@ -201,14 +225,17 @@ export const processPrompt = inngest.createFunction(
           if (!apiKey) throw new Error(`Missing API key for ${platform}`);
 
           // Call AI with automatic retry for rate limits
+          // Pass useWebSearch flag only for OpenAI (Gemini always uses search)
           const result = await callAIWithRetry(
             platform,
             enrichedPrompt,
             {
-            apiKey,
-            temperature: 0.7,
-            maxTokens: 2000,
-            region: promptRegion,
+              apiKey,
+              temperature: 0.7,
+              maxTokens: 2000,
+              region: promptRegion,
+              // Only pass useWebSearch for OpenAI - if project has use_web_search=false, OpenAI won't use web_search tool
+              useWebSearch: platform === 'openai' ? projectConfig.useWebSearch : undefined,
             },
             3 // maxRetries
           );

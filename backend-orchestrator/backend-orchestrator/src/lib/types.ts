@@ -100,6 +100,7 @@ export interface AIClientConfig {
   temperature?: number;
   maxTokens?: number;
   region?: string; // Optional region for regional context
+  useWebSearch?: boolean; // If false, OpenAI will not use web_search tool (for sector rankings)
 }
 
 export interface AICompletionResult {
