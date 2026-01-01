@@ -67,27 +67,36 @@ export const aggregateDailyStats = inngest.createFunction(
       return { message: 'No projects with data today', projectsDispatched: 0 };
     }
 
-    // Step 2: Dispatch event for each project (fan-out)
-    await step.sendEvent('dispatch-project-aggregations',
-      projects.map(([projectId, project]) => ({
-        name: 'stats/aggregate-project',
-        data: {
-          project_id: projectId,
-          project_name: project.name,
-          stat_date: statDate,
-        },
-      }))
-    );
+    // Step 2: Dispatch event for each project (fan-out) - IN BATCHES
+    const BATCH_SIZE = 1000;
+    let eventsSent = 0;
 
-    logInfo('aggregate-daily-stats', `Dispatched aggregation events for ${projects.length} projects`, {
+    for (let i = 0; i < projects.length; i += BATCH_SIZE) {
+      const chunk = projects.slice(i, i + BATCH_SIZE);
+      await step.sendEvent(`dispatch-project-aggregations-${i}`, 
+        chunk.map(([projectId, project]) => ({
+          name: 'stats/aggregate-project',
+          data: {
+            project_id: projectId,
+            project_name: project.name,
+            stat_date: statDate,
+          },
+        }))
+      );
+      eventsSent += chunk.length;
+    }
+
+    logInfo('aggregate-daily-stats', `Dispatched ${eventsSent} aggregation events in batches`, {
       statDate,
-      projectsDispatched: projects.length,
+      projectsDispatched: eventsSent,
+      batches: Math.ceil(projects.length / BATCH_SIZE),
     });
 
     return {
-      message: `Dispatched aggregation for ${projects.length} projects`,
-      projectsDispatched: projects.length,
+      message: `Dispatched aggregation for ${eventsSent} projects`,
+      projectsDispatched: eventsSent,
       statDate,
+      batches: Math.ceil(projects.length / BATCH_SIZE),
     };
   }
 );
