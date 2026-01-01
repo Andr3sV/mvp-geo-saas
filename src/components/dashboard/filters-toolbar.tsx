@@ -161,7 +161,7 @@ export function FiltersToolbar({
 
 	// Helper to compare dates (same day, ignoring time)
 	const isSameDay = (date1: Date | undefined, date2: Date | undefined) => {
-		if (!date1 || !date2) return false;
+		if (!date1 || !date2) return true; // If either is undefined, consider them equal (no change)
 		return (
 			date1.getFullYear() === date2.getFullYear() &&
 			date1.getMonth() === date2.getMonth() &&
@@ -180,12 +180,10 @@ export function FiltersToolbar({
 	const appliedSentimentTheme = controlledSentimentTheme ?? sentimentTheme;
 	const appliedDateRange = controlledDateRange ?? dateRange;
 	
-	// Check if date range is different from default (last 30 days)
-	const isDefaultDateRange = 
-		appliedDateRange?.from && 
-		appliedDateRange?.to &&
-		isSameDay(appliedDateRange.from, defaultDateRange.from) &&
-		isSameDay(appliedDateRange.to, defaultDateRange.to);
+	// Check if date range is different from default (current week)
+	const isDateRangeChanged = 
+		!isSameDay(appliedDateRange?.from, defaultDateRange.from) ||
+		!isSameDay(appliedDateRange?.to, defaultDateRange.to);
 	
 	const appliedSelectedEntities = controlledSelectedEntities ?? selectedEntities;
 	const isDefaultEntityFilter = 
@@ -197,10 +195,10 @@ export function FiltersToolbar({
 
 	const hasActiveFilters = 
 		appliedRegion !== "GLOBAL" ||
-		appliedPlatform !== "all" ||
+		(!hidePlatformFilter && appliedPlatform !== "all") ||
 		(!hideTopicFilter && appliedTopicId !== "all") ||
 		(showSentimentThemeFilter && appliedSentimentTheme !== "all") ||
-		!isDefaultDateRange ||
+		isDateRangeChanged ||
 		!isDefaultEntityFilter;
 
 	return (

@@ -111,7 +111,7 @@ function LoginForm() {
 
       <div className="flex min-h-screen">
         {/* Left Side - Login Form */}
-        <div className="flex w-full flex-col lg:w-1/2">
+        <div className="flex w-full flex-col">
           {/* Form Container */}
           <div className="flex flex-1 items-center justify-center p-6 lg:p-12 pt-24">
             <div className="w-full max-w-md space-y-8">
@@ -219,7 +219,7 @@ function LoginForm() {
         </div>
 
         {/* Right Side - Marketing Section */}
-        <div className="hidden lg:flex lg:w-1/2 lg:flex-col relative overflow-hidden bg-gradient-to-br from-[#C2C2E1]/20 via-[#C2C2E1]/10 to-background">
+        <div className="hidden">
           {/* Background gradients */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(194,194,225,0.3),transparent_50%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_70%,rgba(194,194,225,0.2),transparent_50%)]" />

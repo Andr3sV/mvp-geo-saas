@@ -237,13 +237,6 @@ export default function DemoRequestPage() {
                   {loading ? "Submitting..." : "Request Demo"}
                 </Button>
               </form>
-
-              <div className="text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link href="/login" className="font-medium text-foreground hover:underline">
-                  Sign in
-                </Link>
-              </div>
             </div>
           </div>
         </div>
@@ -273,18 +266,6 @@ export default function DemoRequestPage() {
                 </div>
               </div>
 
-              {/* Simple CTA */}
-              <div className="pt-6 border-t">
-                <Link href="/register">
-                  <Button size="lg" variant="outline" className="group w-full">
-                    Start Free Trial
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </Link>
-                <p className="mt-3 text-xs text-center text-muted-foreground">
-                  7-day free trial · No credit card required
-                </p>
-              </div>
             </div>
           </div>
         </div>

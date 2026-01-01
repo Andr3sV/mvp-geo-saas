@@ -9,24 +9,12 @@ import {
   Layers,
   Heart,
   Search,
-  Activity,
   Settings,
-  MessageSquare,
-  ChevronLeft,
-  FileText,
-  Users2,
-  Tag,
   Target,
   Presentation,
   BookOpen,
   Sparkles,
   HelpCircle,
-  ListChecks,
-  LayoutDashboard,
-  Eye,
-  Database,
-  Bot,
-  Globe,
   User,
 } from "lucide-react";
 import {
@@ -40,23 +28,27 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { ChevronRight, ChevronsUpDown } from "lucide-react";
 import Image from "next/image";
 import { useProject } from "@/contexts/project-context";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
+// Dashboard items
+const dashboardItems = [
+  {
+    title: "Executive Overview",
+    href: "/dashboard/reports/executive",
+    icon: Presentation,
+  },
+  {
+    title: "Reports & Insights",
+    href: "/dashboard/reports/detailed",
+    icon: BookOpen,
+  },
+];
+
+// Visibility items
 const visibilityItems = [
   {
     title: "Share of mentions",
@@ -78,56 +70,21 @@ const visibilityItems = [
     href: "/dashboard/queries",
     icon: Search,
   },
-  // Temporarily hidden
-  // {
-  //   title: "Trending Queries",
-  //   href: "/dashboard/trending",
-  //   icon: Activity,
-  // },
-];
-
-const brandPerceptionItems = [
   {
     title: "Sentiment Pulse",
     href: "/dashboard/sentiment",
     icon: Heart,
   },
-  // Temporarily hidden
-  // {
-  //   title: "Sentiment Scoring",
-  //   href: "/dashboard/attributes",
-  //   icon: ListChecks,
-  // },
 ];
 
-const dataManagementItems = [
-  {
-    title: "AI Responses",
-    href: "/dashboard/responses",
-    icon: Bot,
-  },
-  {
-    title: "Competitors",
-    href: "/dashboard/competitors",
-    icon: Users2,
-  },
-  {
-    title: "Prompts",
-    href: "/dashboard/prompts",
-    icon: MessageSquare,
-  },
-  {
-    title: "Topics",
-    href: "/dashboard/topics",
-    icon: Tag,
-  },
-  {
-    title: "Regions",
-    href: "/dashboard/regions",
-    icon: Globe,
-  },
-];
+// Configuration item
+const configurationItem = {
+  title: "Data Management",
+  href: "/dashboard/configuration",
+  icon: Settings,
+};
 
+// Opportunities items
 const opportunitiesItems = [
   {
     title: "High value sources",
@@ -160,351 +117,210 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ user, workspaces }: AppSidebarProps) {
-  // Get user display name
   const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Profile';
   const pathname = usePathname();
   const { selectedProjectId, setSelectedProjectId } = useProject();
 
-  // Get current project name
   const currentProject = workspaces
     .flatMap((w) => w.projects)
     .find((p) => p.id === selectedProjectId);
-  const isOverviewOpen = pathname.startsWith("/dashboard/reports");
-  const isVisibilityOpen = pathname.startsWith("/dashboard/share-of-voice") ||
-    pathname.startsWith("/dashboard/citations") ||
-    pathname.startsWith("/dashboard/platforms") ||
-    pathname.startsWith("/dashboard/queries");
-    // Temporarily hidden: pathname.startsWith("/dashboard/trending");
-  const isBrandPerceptionOpen = pathname.startsWith("/dashboard/sentiment");
-    // Temporarily hidden: || pathname.startsWith("/dashboard/attributes");
-  const isDataManagementOpen = pathname.startsWith("/dashboard/responses") ||
-    pathname.startsWith("/dashboard/competitors") ||
-    pathname.startsWith("/dashboard/prompts") ||
-    pathname.startsWith("/dashboard/topics") ||
-    pathname.startsWith("/dashboard/regions");
-  const isOpportunitiesOpen = pathname.startsWith("/dashboard/opportunities");
-  const [isOverviewExpanded, setIsOverviewExpanded] = useState(true);
-  const [isVisibilityExpanded, setIsVisibilityExpanded] = useState(true);
-  const [isBrandPerceptionExpanded, setIsBrandPerceptionExpanded] = useState(true);
-  const [isDataManagementExpanded, setIsDataManagementExpanded] = useState(isDataManagementOpen);
-  const [isOpportunitiesExpanded, setIsOpportunitiesExpanded] = useState(isOpportunitiesOpen);
-
-  // Update expanded state when pathname changes (only for Data Management and Opportunities)
-  useEffect(() => {
-    // Overview, Visibility & Presence, and Brand Perception stay always expanded
-    // Only auto-expand Data Management and Opportunities when navigating to them
-    if (pathname.startsWith("/dashboard/responses") ||
-        pathname.startsWith("/dashboard/competitors") ||
-        pathname.startsWith("/dashboard/prompts") ||
-        pathname.startsWith("/dashboard/topics") ||
-        pathname.startsWith("/dashboard/regions")) {
-      setIsDataManagementExpanded(true);
-    }
-    if (pathname.startsWith("/dashboard/opportunities")) {
-      setIsOpportunitiesExpanded(true);
-    }
-  }, [pathname]);
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
-        [data-sidebar="sidebar"] button:hover:not(:disabled),
-        [data-sidebar="sidebar"] a:hover {
-          background-color: rgba(194, 194, 225, 0.2) !important;
-        }
-        [data-sidebar="sidebar"] button[data-active="true"],
-        [data-sidebar="sidebar"] a[data-active="true"] {
-          background-color: rgba(194, 194, 225, 0.3) !important;
-          font-weight: 500 !important;
-        }
-        [data-sidebar="sidebar"] .peer\\/menu-button:hover,
-        [data-sidebar="sidebar"] [class*="hover:bg-sidebar-accent"]:hover {
-          background-color: rgba(194, 194, 225, 0.2) !important;
-        }
-        [data-sidebar="sidebar"] [class*="bg-sidebar-accent"][data-active="true"],
-        [data-sidebar="sidebar"] [data-active="true"][class*="bg-sidebar-accent"] {
-          background-color: rgba(194, 194, 225, 0.3) !important;
-        }
-      `}} />
-      <Sidebar 
-        collapsible="icon" 
-        className="top-14 [&_[data-sidebar=sidebar]]:bg-gradient-to-b [&_[data-sidebar=sidebar]]:from-[#C2C2E1]/10 [&_[data-sidebar=sidebar]]:via-background [&_[data-sidebar=sidebar]]:to-background [&_[data-sidebar=sidebar]]:relative [&_[data-sidebar=sidebar]]:overflow-hidden"
-      >
-        {/* Toggle button on the edge - Hidden for now
-        <SidebarTrigger className="absolute -right-5 top-4 z-20" />
-        */}
-        
-        {/* Background gradients similar to hero */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(194,194,225,0.15),transparent_50%)] pointer-events-none z-0" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_80%,rgba(194,194,225,0.1),transparent_50%)] pointer-events-none z-0" />
-        
-        {/* Logo and Brand - Hidden for now
-        <SidebarHeader className="relative z-10 p-4 pb-4">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <Image 
-              src="/ateneai-logo-circle.svg" 
-              alt="AteneAI" 
-              width={32} 
-              height={32}
-              className="flex-shrink-0 rounded-full"
-            />
-            <span className="font-bold text-lg group-data-[collapsible=icon]:hidden">AteneAI</span>
-          </div>
-        </SidebarHeader>
-        */}
-
-        {/* Project Selector - Hidden for now
-        <div className="relative z-10 px-3 pb-2 group-data-[collapsible=icon]:px-2">
-          <span className="text-xs text-muted-foreground mb-1 block group-data-[collapsible=icon]:hidden">Marca</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="w-full flex items-center justify-between px-3 py-2 text-xs border rounded-md hover:bg-accent/50 transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
-              <span className="truncate group-data-[collapsible=icon]:hidden">
-                {currentProject?.name || "Select project"}
-              </span>
-              <ChevronsUpDown className="h-4 w-4 opacity-50 flex-shrink-0 group-data-[collapsible=icon]:ml-0" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[200px] text-xs">
-              {workspaces.flatMap((workspace) =>
-                workspace.projects.map((project) => (
-                  <DropdownMenuItem
-                    key={project.id}
-                    onClick={() => setSelectedProjectId(project.id)}
-                    className={cn(
-                      selectedProjectId === project.id && "bg-accent"
-                    )}
-                  >
-                    <span className="truncate">{project.name}</span>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        */}
-
-        <SidebarContent className="relative z-10">
-        <SidebarGroup className="mt-4">
+    <Sidebar 
+      collapsible="icon" 
+      className="top-14 border-r border-gray-100"
+    >
+      <SidebarContent className="bg-white px-2 py-3">
+        {/* Dashboard Section */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel className="text-[10px] font-medium text-[#9CA3AF] uppercase tracking-widest mb-1 px-2">
+            Dashboard
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              <Collapsible asChild open={isOverviewExpanded} onOpenChange={setIsOverviewExpanded}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Overview">
-                      <LayoutDashboard className="h-4 w-4" />
-                      <span>Overview</span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 ml-auto transition-transform duration-200",
-                        isOverviewExpanded && "rotate-90"
-                      )} />
+            <SidebarMenu className="space-y-0.5">
+              {dashboardItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      className={cn(
+                        "rounded-md px-2 py-1.5 transition-all duration-150 text-sm",
+                        isActive 
+                          ? "bg-gray-100 text-gray-900 font-medium border-l-2 border-[#6366F1]" 
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <Link href={item.href} className="flex items-center gap-2.5">
+                        <Icon className={cn(
+                          "h-4 w-4",
+                          isActive ? "text-[#6366F1]" : "text-gray-400"
+                        )} />
+                        <span>{item.title}</span>
+                      </Link>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/reports/executive"}>
-                          <Link href="/dashboard/reports/executive">
-                            <Presentation className="h-4 w-4" />
-                            <span>Executive Overview</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/reports/detailed"}>
-                          <Link href="/dashboard/reports/detailed">
-                            <BookOpen className="h-4 w-4" />
-                            <span>Reports & Insights</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-              <Collapsible asChild open={isVisibilityExpanded} onOpenChange={setIsVisibilityExpanded}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Visibility & Presence">
-                      <Eye className="h-4 w-4" />
-                      <span>Visibility & Presence</span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 ml-auto transition-transform duration-200",
-                        isVisibilityExpanded && "rotate-90"
-                      )} />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {visibilityItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-                        return (
-                          <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={isActive}>
-                              <Link href={item.href}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        );
-                      })}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-              <Collapsible asChild open={isBrandPerceptionExpanded} onOpenChange={setIsBrandPerceptionExpanded}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Brand Perception">
-                      <Heart className="h-4 w-4" />
-                      <span>Brand Perception</span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 ml-auto transition-transform duration-200",
-                        isBrandPerceptionExpanded && "rotate-90"
-                      )} />
+        {/* Visibility Section */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel className="text-[10px] font-medium text-[#9CA3AF] uppercase tracking-widest mb-1 px-2">
+            Visibility
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              {visibilityItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      className={cn(
+                        "rounded-md px-2 py-1.5 transition-all duration-150 text-sm",
+                        isActive 
+                          ? "bg-gray-100 text-gray-900 font-medium border-l-2 border-[#6366F1]" 
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <Link href={item.href} className="flex items-center gap-2.5">
+                        <Icon className={cn(
+                          "h-4 w-4",
+                          isActive ? "text-[#6366F1]" : "text-gray-400"
+                        )} />
+                        <span>{item.title}</span>
+                      </Link>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {brandPerceptionItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-                        return (
-                          <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={isActive}>
-                              <Link href={item.href}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        );
-                      })}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-              <Collapsible asChild open={isDataManagementExpanded} onOpenChange={setIsDataManagementExpanded}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Data Management">
-                      <Database className="h-4 w-4" />
-                      <span>Data Management</span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 ml-auto transition-transform duration-200",
-                        isDataManagementExpanded && "rotate-90"
-                      )} />
+        {/* Configuration Section */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel className="text-[10px] font-medium text-[#9CA3AF] uppercase tracking-widest mb-1 px-2">
+            Configuration
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname.startsWith("/dashboard/configuration")}
+                  className={cn(
+                    "rounded-md px-2 py-1.5 transition-all duration-150 text-sm",
+                    pathname.startsWith("/dashboard/configuration")
+                      ? "bg-gray-100 text-gray-900 font-medium border-l-2 border-[#6366F1]" 
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  )}
+                >
+                  <Link href={configurationItem.href} className="flex items-center gap-2.5">
+                    <configurationItem.icon className={cn(
+                      "h-4 w-4",
+                      pathname.startsWith("/dashboard/configuration") ? "text-[#6366F1]" : "text-gray-400"
+                    )} />
+                    <span>{configurationItem.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Opportunities Section */}
+        <SidebarGroup className="py-1">
+          <SidebarGroupLabel className="text-[10px] font-medium text-[#9CA3AF] uppercase tracking-widest mb-1 px-2">
+            Opportunities
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              {opportunitiesItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      className={cn(
+                        "rounded-md px-2 py-1.5 transition-all duration-150 text-sm",
+                        isActive 
+                          ? "bg-gray-100 text-gray-900 font-medium border-l-2 border-[#6366F1]" 
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      )}
+                    >
+                      <Link href={item.href} className="flex items-center gap-2.5">
+                        <Icon className={cn(
+                          "h-4 w-4",
+                          isActive ? "text-[#6366F1]" : "text-gray-400"
+                        )} />
+                        <span>{item.title}</span>
+                      </Link>
                     </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {dataManagementItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
-
-                        return (
-                          <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={isActive}>
-                              <Link href={item.href}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        );
-                      })}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
-              <Collapsible asChild open={isOpportunitiesExpanded} onOpenChange={setIsOpportunitiesExpanded}>
-                <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton tooltip="Opportunities & Actions">
-                      <Target className="h-4 w-4" />
-                      <span>Opportunities & Actions</span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 ml-auto transition-transform duration-200",
-                        isOpportunitiesExpanded && "rotate-90"
-                      )} />
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      {opportunitiesItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
-
-                        return (
-                          <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={isActive}>
-                              <Link href={item.href}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        );
-                      })}
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </SidebarMenuItem>
-              </Collapsible>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarGroup className="mb-6">
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings" && pathname.includes("profile")}>
-                <Link href="/dashboard/settings?tab=profile">
-                  <User className="h-4 w-4" />
-                  <span>{userName}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
-                <Link href="/dashboard/settings">
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            {/* Hidden for now
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === "/dashboard/whats-new"}>
-                <Link href="/dashboard/whats-new">
-                  <Sparkles className="h-4 w-4" />
-                  <span>What's new</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            */}
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild>
-                <a href="mailto:help@ateneai.com">
-                  <HelpCircle className="h-4 w-4" />
-                  <span>Support</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      <SidebarFooter className="border-t p-4">
-        <div className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Ateneai MVP v0.1
-        </div>
+      {/* Footer Section */}
+      <SidebarFooter className="bg-white border-t border-gray-100 px-2 py-3">
+        <SidebarMenu className="space-y-0.5">
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild 
+              isActive={pathname === "/dashboard/settings"}
+              className={cn(
+                "rounded-md px-2 py-1.5 transition-all duration-150 text-sm",
+                pathname === "/dashboard/settings"
+                  ? "bg-gray-100 text-gray-900 font-medium border-l-2 border-[#6366F1]" 
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              )}
+            >
+              <Link href="/dashboard/settings?tab=profile" className="flex items-center gap-2.5">
+                <User className={cn(
+                  "h-4 w-4",
+                  pathname === "/dashboard/settings" ? "text-[#6366F1]" : "text-gray-400"
+                )} />
+                <span>{userName}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild
+              className="rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all duration-150"
+            >
+              <Link href="/dashboard/settings" className="flex items-center gap-2.5">
+                <Settings className="h-4 w-4 text-gray-400" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              asChild
+              className="rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all duration-150"
+            >
+              <a href="mailto:help@ateneai.com" className="flex items-center gap-2.5">
+                <HelpCircle className="h-4 w-4 text-gray-400" />
+                <span>Support</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-    </>
   );
 }
-
