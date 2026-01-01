@@ -346,6 +346,14 @@ export const analyzeSingleResponse = inngest.createFunction(
         
         const todayStr = now.toISOString().split('T')[0];
         
+        // Log diagnostic information
+        logInfo('analyze-single-response', 'Checking incremental aggregation conditions', {
+          aiResponseId: ai_response_id,
+          mentionsSaved: saveResult.mentionsSaved,
+          clientBrandMentioned: analysis.client_brand_mentioned,
+          conditionMet: saveResult.mentionsSaved > 0 && analysis.client_brand_mentioned,
+        });
+        
         // Aggregate brand stats incrementally if brand was mentioned
         // Use incremental function that only counts mentions for this specific ai_response_id
         if (saveResult.mentionsSaved > 0 && analysis.client_brand_mentioned) {
@@ -369,6 +377,13 @@ export const analyzeSingleResponse = inngest.createFunction(
               topicId,
             });
           }
+        } else {
+          logInfo('analyze-single-response', 'Skipping incremental brand stats aggregation', {
+            aiResponseId: ai_response_id,
+            reason: !(saveResult.mentionsSaved > 0) ? 'no_mentions_saved' : 'brand_not_mentioned',
+            mentionsSaved: saveResult.mentionsSaved,
+            clientBrandMentioned: analysis.client_brand_mentioned,
+          });
         }
         
         // Aggregate competitor stats incrementally for each mentioned competitor
