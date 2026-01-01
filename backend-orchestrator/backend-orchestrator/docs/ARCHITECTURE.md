@@ -43,6 +43,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  │  (Cron: 3:30 AM daily)          │  │  │
 │  │  │  aggregate-daily-stats          │  │  │
 │  │  │  (Cron: 4:30 AM daily)           │  │  │
+│  │  │  aggregate-project-stats        │  │  │
+│  │  │  (Event: stats/aggregate-project)│  │  │
 │  │  │  process-single-sentiment-      │  │  │
 │  │  │  evaluation                      │  │  │
 │  │  │  (Event-driven: sentiment/      │  │  │
@@ -78,7 +80,6 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 │  │  - Gemini Client                      │   │
 │  │  - Claude Client                      │   │
 │  │  - Perplexity Client                  │   │
-│  │  - Groq Client (Brand Analysis)       │   │
 │  └─────────────┬─────────────────────────┘   │
 └────────────────┼───────────────────────────────┘
                  │
@@ -86,10 +87,10 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
                  │
       ┌──────────┼──────────┐
       │          │          │
-┌─────▼─────┐ ┌─▼──────┐ ┌─▼──────────┐ ┌─▼──────┐
-│  OpenAI   │ │ Gemini │ │  Claude    │ │  Groq  │
-│  API      │ │  API   │ │  API       │ │  API   │
-└───────────┘ └────────┘ └────────────┘ └────────┘
+┌─────▼─────┐ ┌─▼──────┐ ┌─▼──────────┐
+│  OpenAI   │ │ Gemini │ │  Claude    │
+│  API      │ │  API   │ │  API       │
+└───────────┘ └────────┘ └────────────┘
 ```
 
 ## Component Details
@@ -202,7 +203,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Concurrency**: **5** (standard for efficient parallel processing)
 - **Processing Mode**: **PARALLEL** (all platforms processed simultaneously)
 - **Steps**:
-  1. Fetch prompt data
+  1. Fetch prompt data and project config (including `use_web_search` flag)
   2. Determine platforms to process (from event `platforms_to_process` or all available)
   3. Create analysis job record
   4. **Process platforms in PARALLEL** using `Promise.all()` and `callAIWithRetry`:
@@ -211,6 +212,8 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
        - Create ai_responses record (status: "processing")
        - Apply rate limiting via `waitForRateLimit()`
        - Call AI API with automatic retry (up to 3 times on rate limit)
+         - For OpenAI: Conditionally includes `web_search` tool based on `projects.use_web_search` flag
+         - For Gemini: Conditionally includes Google Search based on `useWebSearch` config
        - Update ai_responses (status: "success"/"error")
        - Save citations
        - Trigger citation processing
@@ -257,7 +260,7 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Steps**:
   1. Fetch response and project data
   2. Check if already analyzed (idempotent)
-  3. Analyze brands via Groq API
+  3. Analyze brands via Gemini API (gemini-2.5-flash-lite)
   4. Save results to brand analysis tables
 
 #### aggregate-daily-stats
@@ -265,17 +268,31 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
 - **Type**: Scheduled (Cron)
 - **Schedule**: `30 4 * * *` (4:30 AM daily)
 - **Concurrency**: 1 (only one aggregation workflow at a time)
-- **Purpose**: Pre-aggregate daily statistics for brands and competitors into `daily_brand_stats` table
+- **Purpose**: Identify projects with data and dispatch events for worker functions (fan-out pattern)
 - **Steps**:
-  1. Get all projects that have data for today
-  2. For each project, get client brand and all active competitors
-  3. Process each entity (brand + each competitor) individually using specialized SQL functions:
+  1. Get all unique projects that have AI responses for today
+  2. Dispatch `stats/aggregate-project` events in batches (1000 per batch) for each project
+  3. Returns immediately after dispatching events (does not wait for processing)
+- **Optimization**: Uses fan-out pattern to avoid timeout issues with large projects. Each project is processed independently by `aggregate-project-stats` worker function.
+- **Note**: Sentiment metrics are no longer included in `daily_brand_stats`. Sentiment data is now sourced from `brand_evaluations` table (see Topic-Based Sentiment Evaluation section below)
+
+#### aggregate-project-stats
+
+- **Type**: Event-Driven (Worker)
+- **Trigger**: `stats/aggregate-project` event
+- **Concurrency**: 5 (processes up to 5 projects in parallel)
+- **Purpose**: Process aggregation for a single project (brand + competitors)
+- **Steps**:
+  1. Get dimension combinations and competitors for the project (limits to 50 competitors to avoid combinatorial explosion)
+  2. Process brand stats for all dimension combinations
+  3. Process competitor stats in batches (10 competitors per batch) for all dimension combinations
+  4. Results are upserted into `daily_brand_stats` table using specialized SQL functions:
      - `aggregate_brand_stats_only` for client brand
      - `aggregate_competitor_stats_only` for each competitor
-  4. Each entity is processed in a separate, small SQL transaction (prevents timeouts)
-  5. Results are upserted into `daily_brand_stats` table
-- **Optimization**: Uses timestamp ranges (`created_at >= start AND created_at < end`) instead of `DATE(created_at)` to enable index usage, preventing timeouts on large datasets
-- **Note**: Sentiment metrics are no longer included in `daily_brand_stats`. Sentiment data is now sourced from `brand_evaluations` table (see Topic-Based Sentiment Evaluation section below)
+- **Optimization**: 
+  - Each entity is processed in separate steps (prevents timeouts)
+  - Competitor limit prevents processing too many combinations
+  - Parallel processing of up to 5 projects simultaneously
 
 #### schedule-sentiment-evaluation
 
@@ -357,18 +374,17 @@ The Prompt Analysis Orchestrator is a microservice designed to process large vol
   - **Gemini: 3,800 RPM** (Tier 1: 4,000 limit)
   - Claude: 50 RPM
   - Perplexity: 50 RPM
-  - **Groq: 950 RPM** (Paid tier: 1K limit, using 950 for safety)
-    - TPM: 240,000 (Paid tier: 250K limit)
-    - RPD: 500,000 (Paid tier limit)
 - **Note**: Rate limiter is per-instance. For distributed systems with multiple instances, consider Redis-based rate limiting in the future.
+- **Note**: Groq is no longer used. Brand analysis has been migrated to Gemini (gemini-2.5-flash-lite).
 
 #### AI Clients
 
-- **OpenAI**: GPT-4.1 Mini (Responses API with web_search tool)
-- **Gemini**: Gemini 2.5 Flash Lite (with Google Search)
+- **OpenAI**: GPT-4.1 Mini (Responses API with optional web_search tool, controlled by `projects.use_web_search` flag)
+- **Gemini**: Gemini 2.5 Flash Lite (with optional Google Search, controlled by `useWebSearch` config)
+  - Used for brand analysis (gemini-2.5-flash-lite)
+  - Used for sentiment evaluations
 - **Claude**: Claude Haiku 4.5
 - **Perplexity**: Sonar Pro (with web search)
-- **Groq**: GPT-OSS-20B (for brand analysis)
 
 ### 4. Data Flow
 
@@ -1384,20 +1400,26 @@ Incremental aggregation function for a single `ai_response_id` and competitor:
 ```
 1. Daily Cron (4:30 AM)
    ↓
-2. aggregate-daily-stats function
+2. aggregate-daily-stats function (Orchestrator)
+   - Gets all projects with data for today
+   - Dispatches stats/aggregate-project events in batches (1000 per batch)
+   - Returns immediately (fan-out pattern)
    ↓
-3. Get all projects with data for today
+3. aggregate-project-stats function (Worker, concurrency: 5)
+   - Triggered by stats/aggregate-project event
+   - For each project:
+     - Get unique dimension combinations (platform, region code, topic_id) via get_dimension_combinations
+     - Get client brand
+     - Get all active competitors (limit: 50 to prevent combinatorial explosion)
+     ↓
+4. Process brand stats for all dimension combinations
    ↓
-4. For each project:
-   - Get unique dimension combinations (platform, region code, topic_id) via get_dimension_combinations
-   - Get client brand
-   - Get all active competitors
-   ↓
-5. For each entity (brand + competitors) × each dimension combination:
-   - Call aggregate_brand_stats_only(project, date, platform, region code, topic_id)
-     OR aggregate_competitor_stats_only(project, competitor, date, platform, region code, topic_id)
-   - Functions convert region code to region_id and upsert into daily_brand_stats
-   - Uses SUM in ON CONFLICT to safely consolidate with any incremental aggregations
+5. Process competitor stats in batches (10 per batch) for all dimension combinations
+   - For each competitor × dimension combination:
+     - Call aggregate_brand_stats_only(project, date, platform, region code, topic_id)
+       OR aggregate_competitor_stats_only(project, competitor, date, platform, region code, topic_id)
+     - Functions convert region code to region_id and upsert into daily_brand_stats
+     - Uses SUM in ON CONFLICT to safely consolidate with any incremental aggregations
    ↓
 6. Frontend queries daily_brand_stats with optional dimension filters (fast!)
 ```
@@ -1458,7 +1480,7 @@ This replaces direct queries to `citations_detail` and `competitor_citations` (l
 
 ### Overview
 
-The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses and extract structured data about brand mentions, competitor mentions, sentiment, attributes, and potential competitors. This replaces the previous simple text-based search approach with a more sophisticated semantic analysis.
+The Brand Analysis system uses AI (via Gemini) to analyze AI-generated responses and extract structured data about brand mentions, competitor mentions, sentiment, attributes, and potential competitors. This replaces the previous simple text-based search approach with a more sophisticated semantic analysis.
 
 ### High-Level Architecture
 
@@ -1488,12 +1510,13 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
                         │
                         │
             ┌───────────▼───────────┐
-            │   Groq API Client     │
-            │   (gpt-oss-20b)       │
+            │   Gemini API Client   │
+            │   (gemini-2.5-flash-lite)│
             │                       │
             │ - Brand detection     │
             │ - Sentiment analysis  │
             │ - Attribute extraction│
+            │ - No web search       │
             └───────────┬───────────┘
                         │
                         │ JSON Response
@@ -1595,10 +1618,10 @@ The Brand Analysis system uses AI (via Groq) to analyze AI-generated responses a
    - Query `brand_mentions` to see if analysis already exists
    - Skip if already analyzed (idempotent)
 
-3. **Analyze Brands** (via Groq)
+3. **Analyze Brands** (via Gemini)
 
    - Build prompt with brand name, competitor list, and response text
-   - Call Groq API with `gpt-oss-20b` model
+   - Call Gemini API with `gemini-2.5-flash-lite` model (useWebSearch: false)
    - Parse JSON response with validation
 
 4. **Save Analysis Results**
@@ -1793,7 +1816,7 @@ Stores brands detected in responses that are not the client brand or known compe
 
 ### Error Handling
 
-**Groq API Failures**:
+**Gemini API Failures**:
 
 - Returns empty/default result structure
 - Logs detailed error information
@@ -2392,13 +2415,20 @@ CREATE TABLE sentiment_themes (
 
 #### projects (Extended)
 
-The `projects` table now includes fields for industry and topics:
+The `projects` table now includes fields for industry, topics, and web search control:
 
 ```sql
 ALTER TABLE projects ADD COLUMN industry TEXT;
 ALTER TABLE projects ADD COLUMN extracted_topics JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE projects ADD COLUMN topics_extracted_at TIMESTAMPTZ;
+ALTER TABLE projects ADD COLUMN use_web_search BOOLEAN DEFAULT true;
 ```
+
+**`use_web_search` Column**:
+- Controls whether OpenAI uses the `web_search` tool for prompts in this project
+- Default: `true` (web search enabled)
+- When `false`: OpenAI responses are faster and cheaper (useful for sector rankings where web search is not needed)
+- Used in `process-prompt` function to conditionally include tools in OpenAI API calls
 
 ### Workflow
 
