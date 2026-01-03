@@ -107,7 +107,6 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
      * "Brand Heritage (associated with Zaragoza)" → Use "Brand Heritage"
      * "Brand Heritage (Distribution Territories (available worldwide))" → Use "Brand Heritage"
      * "Brand Heritage (associated with Europe)" → Use "Brand Heritage"
-     * "Brand Heritage (Original Recipe)" → Use "Brand Heritage"
      * "Strong Brand Heritage" → Use "Brand Heritage"
      * "Regional Heritage" → Use "Brand Heritage"
    - The theme name must be EXACTLY as listed - no modifications, no additions, no variations
