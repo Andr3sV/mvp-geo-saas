@@ -158,7 +158,7 @@ export default function Home() {
             <span className="text-xl font-semibold">Ateneai</span>
           </Link>
           <nav className="hidden items-center gap-6 md:flex">
-            <Link href="#features" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+            <Link href="#optimize-your-brand" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               Features
             </Link>
             <Link href="#pricing" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
@@ -227,7 +227,7 @@ export default function Home() {
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link href="/register">
                 <Button size="lg" className="group w-full sm:w-auto">
-                  Start Free Trial
+                  Start
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
@@ -270,7 +270,7 @@ export default function Home() {
       </section>
 
       {/* Magic Bento Section */}
-      <section className="py-12 md:py-16 relative">
+      <section id="optimize-your-brand" className="py-12 md:py-16 relative">
         <div className="container mx-auto px-4 max-w-[70rem]">
           <div className="mx-auto max-w-2xl text-center mb-16">
             <Badge variant="outline" className="mb-4">
@@ -340,7 +340,7 @@ export default function Home() {
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
                 <Link href="/register">
                   <Button size="lg" className="group w-full sm:w-auto">
-                    Start Free Trial
+                    Start
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </Link>
