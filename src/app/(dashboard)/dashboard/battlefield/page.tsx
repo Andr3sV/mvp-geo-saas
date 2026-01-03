@@ -8,8 +8,10 @@ import { FiltersToolbar } from "@/components/dashboard/filters-toolbar";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
 import { BattlefieldMatrix } from "@/components/citations/battlefield-matrix";
 import { MarketPositioningMatrix } from "@/components/citations/market-positioning-matrix";
+import { CompetitiveBattlefield } from "@/components/executive/competitive-battlefield";
 import { getBattlefieldMatrixData } from "@/lib/queries/battlefield-matrix";
 import { getMarketPositioningData } from "@/lib/queries/market-positioning";
+import { type CompetitiveBattlefieldData, getCompetitiveBattlefield, getExecutiveBaseData } from "@/lib/queries/executive-overview";
 import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 import { type SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
 
@@ -29,6 +31,10 @@ export default function BattlefieldPage() {
   // Market positioning matrix data
   const [marketPositioningData, setMarketPositioningData] = useState<any[]>([]);
   const [isLoadingMarketPositioning, setIsLoadingMarketPositioning] = useState(false);
+
+  // Competitive Battlefield data
+  const [competitiveBattlefieldData, setCompetitiveBattlefieldData] = useState<CompetitiveBattlefieldData | null>(null);
+  const [isLoadingCompetitiveBattlefield, setIsLoadingCompetitiveBattlefield] = useState(false);
 
   const loadBattlefieldMatrix = useCallback(async () => {
     if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
@@ -84,12 +90,33 @@ export default function BattlefieldPage() {
     }
   }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
 
+  const loadCompetitiveBattlefield = useCallback(async () => {
+    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
+
+    setIsLoadingCompetitiveBattlefield(true);
+    try {
+      const filtersPayload: SentimentFilterOptions = {
+        dateRange: { from: dateRange.from, to: dateRange.to },
+        platform: platform !== "all" ? platform : undefined,
+        region: region !== "GLOBAL" ? region : undefined,
+      };
+      const baseData = await getExecutiveBaseData(selectedProjectId, filtersPayload);
+      const battlefield = await getCompetitiveBattlefield(selectedProjectId, filtersPayload, baseData);
+      setCompetitiveBattlefieldData(battlefield);
+    } catch (error) {
+      console.error("Error loading competitive battlefield:", error);
+    } finally {
+      setIsLoadingCompetitiveBattlefield(false);
+    }
+  }, [selectedProjectId, dateRange.from, dateRange.to, platform, region]);
+
   useEffect(() => {
     if (selectedProjectId && dateRange.from && dateRange.to) {
       loadBattlefieldMatrix();
       loadMarketPositioning();
+      loadCompetitiveBattlefield();
     }
-  }, [loadBattlefieldMatrix, loadMarketPositioning]);
+  }, [loadBattlefieldMatrix, loadMarketPositioning, loadCompetitiveBattlefield]);
 
   const handleFiltersChange = (filters: {
     region: string;
@@ -136,6 +163,12 @@ export default function BattlefieldPage() {
         topics={battlefieldTopics}
         brandData={battlefieldMatrixData}
         isLoading={isLoadingBattlefield}
+      />
+
+      {/* Competitive Battlefield */}
+      <CompetitiveBattlefield 
+        data={competitiveBattlefieldData} 
+        isLoading={isLoadingCompetitiveBattlefield} 
       />
     </div>
   );

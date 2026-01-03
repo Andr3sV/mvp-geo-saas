@@ -258,69 +258,6 @@ export function CompetitiveHero({ data, isLoading, sentimentData, competitorSent
         </div>
       </div>
 
-      {/* Next Competitors - Separate boxes */}
-      {nextCompetitors.length > 0 && (
-        <div className="mt-4 space-y-3 mb-8">
-          {nextCompetitors.map((competitor) => {
-            // Use real sentiment data from competitorSentiments, fallback to neutral
-            const compSentiment = competitorSentiments[competitor.id] || 'neutral';
-            const compSentimentColor = compSentiment === "positive" ? "text-emerald-600" : compSentiment === "negative" ? "text-rose-600" : "text-slate-400";
-            
-            return (
-              <div key={competitor.id} className="bg-muted/30 rounded-lg p-4 border border-border shadow-sm">
-                <div className="flex items-center gap-4 flex-1">
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center border border-border overflow-hidden p-1"
-                    style={{ backgroundColor: `${competitor.color || "#94a3b8"}20` }}
-                  >
-                    {competitor.domain ? (
-                      <BrandLogo domain={competitor.domain} name={competitor.name} size={40} />
-                    ) : (
-                      <span className="text-lg font-semibold text-foreground">
-                        {competitor.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="font-semibold text-foreground">{competitor.name}</h3>
-                      <span className="text-xs text-muted-foreground">#{competitor.rank}</span>
-                      {competitor.trend !== 0 && (
-                        <div className={cn(
-                          "flex items-center gap-1 text-xs font-medium",
-                          competitor.trend > 0 && "text-emerald-600",
-                          competitor.trend < 0 && "text-rose-600"
-                        )}>
-                          {competitor.trend > 0 ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          <span>{competitor.trend > 0 ? "+" : ""}{competitor.trend.toFixed(1)}%</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">SHARE </span>
-                        <span className="font-semibold text-foreground">{competitor.mentionsShare.toFixed(1)}%</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">MENTIONS </span>
-                        <span className="font-semibold text-foreground">{formatMentions(competitor.mentions)}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">SENTIMENT </span>
-                        <span className={cn("font-semibold capitalize", compSentimentColor)}>{compSentiment}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </>
   );
 }

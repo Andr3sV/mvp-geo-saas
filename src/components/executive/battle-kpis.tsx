@@ -89,7 +89,7 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
             className="absolute top-0 left-0 w-1 h-full"
             style={{ backgroundColor: kpi.color }}
           />
-          <CardContent className="pt-6 pb-6 pr-6 pl-5 relative">
+          <CardContent className="pr-6 pl-5 relative">
 
             {/* Header */}
             <div className="flex items-center justify-between">

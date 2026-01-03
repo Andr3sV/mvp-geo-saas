@@ -11,7 +11,7 @@ import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { CompetitiveHero } from "@/components/executive/competitive-hero";
 import { BattleKPIs } from "@/components/executive/battle-kpis";
 import { WeeklyBattleReport } from "@/components/executive/weekly-battle-report";
-import { CompetitiveBattlefield } from "@/components/executive/competitive-battlefield";
+import { DetailedMetrics } from "@/components/executive/detailed-metrics";
 import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 // Types and queries
@@ -52,6 +52,7 @@ export default function ExecutiveOverviewPage() {
   } | null>(null);
   const [competitorSentiments, setCompetitorSentiments] = useState<Record<string, 'positive' | 'neutral' | 'negative'>>({});
   const [category, setCategory] = useState<string | undefined>(undefined);
+  const [entitySentiments, setEntitySentiments] = useState<Awaited<ReturnType<typeof getEntitySentimentsFromEvaluations>>>([]);
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -89,6 +90,7 @@ export default function ExecutiveOverviewPage() {
       setBattlefieldData(battlefield);
       setMomentumData(momentum);
       setVisibilityScore(visibility);
+      setEntitySentiments(entitySentiments);
       setIsLoading(false); // Hero and KPIs are ready
 
       // Set brand name from battlefield data
@@ -219,14 +221,6 @@ export default function ExecutiveOverviewPage() {
         />
       </div>
 
-      {/* Market Leaders Section */}
-      <div className="space-y-2 pt-6 pb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Market Leaders</h2>
-        <p className="text-muted-foreground">
-          Performance metrics against category benchmarks.
-        </p>
-      </div>
-
       {/* Welcome Tip */}
       <WelcomeTip id="executive-overview">
         <span className="block mb-2">
@@ -241,23 +235,33 @@ export default function ExecutiveOverviewPage() {
       </WelcomeTip>
 
       {/* Hero Section - Main Competitive Position */}
-      <CompetitiveHero 
-        data={battlefieldData} 
-        isLoading={!battlefieldData}
-        sentimentData={sentimentData || undefined}
-        competitorSentiments={competitorSentiments}
-        category={category}
-      />
+      <div className="mt-6">
+        <CompetitiveHero 
+          data={battlefieldData} 
+          isLoading={!battlefieldData}
+          sentimentData={sentimentData || undefined}
+          competitorSentiments={competitorSentiments}
+          category={category}
+        />
+      </div>
 
-      {/* Competitive Battlefield */}
-      <CompetitiveBattlefield data={battlefieldData} isLoading={!battlefieldData || isLoadingReport} />
+      {/* Detailed Metrics */}
+      <div className="mt-6">
+        <DetailedMetrics 
+          battlefieldData={battlefieldData} 
+          entitySentiments={entitySentiments}
+          isLoading={!battlefieldData || isLoadingReport} 
+        />
+      </div>
 
       {/* Battle Report */}
+      <div className="mt-6">
         <WeeklyBattleReport
           data={weeklyReportData}
           brandName={brandName}
-        isLoading={!weeklyReportData || isLoadingReport}
+          isLoading={!weeklyReportData || isLoadingReport}
         />
+      </div>
     </div>
   );
 }
