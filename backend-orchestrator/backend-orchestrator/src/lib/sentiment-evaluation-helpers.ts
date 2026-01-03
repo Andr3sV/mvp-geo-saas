@@ -99,7 +99,7 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
 
 1. MATCHING EXISTING THEMES (HIGHEST PRIORITY):
    - If a strength/weakness relates to ANY existing theme (even if worded differently), you MUST use that theme's EXACT name from the list above
-   - Be EXTREMELY AGGRESSIVE in matching: ANY concept related to an existing theme MUST use that theme's exact name
+   - Be EXTREMELY AGGRESSIVE in matching: ANY concept related to an existing theme MUST use that theme's exact name. If there are two or more themes that are related to the same concept, you MUST use the most specific theme name.
    - Examples of what should ALL match "Brand Heritage" if it exists:
      * "Brand Heritage (associated with Germany)" → Use "Brand Heritage"
      * "Brand Heritage (associated with Valencia)" → Use "Brand Heritage"
@@ -121,17 +121,34 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
      ❌ WRONG: "Strong Brand Heritage"
      ❌ WRONG: "Regional Heritage"
    
-   - Existing theme: "Customer Support"
-     ✅ CORRECT: "Customer Support"
-     ❌ WRONG: "Customer Service"
-     ❌ WRONG: "Client Support"
-     ❌ WRONG: "Customer Support (24/7 availability)"
+   - Existing theme: "Customer Support Response Time"
+     ✅ CORRECT: "Customer Support Response Time"
+     ❌ WRONG: "Customer Service Speed"
+     ❌ WRONG: "Client Support Response Time"
+     ❌ WRONG: "Customer Support Response Time (24/7 availability)"
+
+  - Existing theme: "Customer Support 24/7 availability"
+     ✅ CORRECT: "Customer Support 24/7 availability"
+     ❌ WRONG: "Customer Service 24/7"
+     ❌ WRONG: "Client Support 24/7 availability"
+     ❌ WRONG: "Customer Support 24/7 service"
+
+  - Existing theme: "Planning tool usability"
+     ✅ CORRECT: "Planning tool usability"
+     ❌ WRONG: "Usability of Planning tool"
+     ❌ WRONG: "Planning tools"
+     ❌ WRONG: "Planning tools easy to use"
+
+  - Existing theme: "Scheduling tool interface"
+     ✅ CORRECT: "Scheduling tool interface"
+     ❌ WRONG: "Interface of Scheduling tool"
+     ❌ WRONG: "Interface"
+     ❌ WRONG: "Scheduling tool UI"
 
 3. CREATING NEW THEMES (ONLY IF TRULY NO MATCH EXISTS):
-   - Only create a new theme if the concept is COMPLETELY DIFFERENT from all existing themes
    - New theme names must be:
-     * Maximum 4 words (e.g., "Brand Heritage", "Customer Support", "Product Quality")
-     * Broad and categorical (not specific)
+     * Maximum 4 words (e.g., "Brand Heritage", "Customer Support Response Time", "Product Quality", "Customer Support 24/7 availability", "Vast Vendor Network", "Free Samples Available", "Speed of the application", "Planning tool usability", "Scheduling tool interface")
+     * Not too Broad as sounds like a generic theme and not too specific.
      * Use standard business/marketing terminology
      * ABSOLUTELY NO parentheses, NO brackets, NO additional details
      * NO location names, NO dates, NO specific details
@@ -140,7 +157,6 @@ You MUST categorize each strength/weakness using the following ABSOLUTELY STRICT
 
 4. THEME NAMING STANDARDS:
    - Group ALL similar concepts under the SAME theme name
-   - Use broad, categorical names that cover all variations
    - If "Brand Heritage" exists, ALL heritage-related concepts must use "Brand Heritage"
    - Ignore location, origin, distribution, recipe details - these are all part of the same theme
    - List each theme only once in strengths section and once in weaknesses section (no duplicates)

@@ -20,7 +20,7 @@ export interface SentimentTheme {
 export function validateThemeName(
   themeName: string,
   entityName?: string,
-  maxWords: number = 2
+  maxWords: number = 4
 ): { valid: boolean; cleaned?: string; error?: string } {
   // Trim and normalize whitespace
   let cleaned = themeName.trim().replace(/\s+/g, ' ');
@@ -57,7 +57,7 @@ export function validateThemeName(
 
     // Check if any significant word from entity name appears in theme
     for (const entityWord of entityWords) {
-      if (entityWord.length > 2 && themeLower.includes(entityWord)) {
+      if (entityWord.length > 4 && themeLower.includes(entityWord)) {
         return { valid: false, error: 'Theme name contains brand name' };
       }
     }
