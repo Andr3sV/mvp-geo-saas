@@ -52,8 +52,9 @@ export function BrandLogo({ domain, name, size = 20, className = "" }: BrandLogo
     return <FallbackIcon size={size} className={className} />;
   }
 
-  // Google Favicon API
-  const faviconUrl = `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=${size}`;
+  // Google Favicon API - Always use max size (128) for better quality, then scale down
+  const faviconSize = 128;
+  const faviconUrl = `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=${faviconSize}`;
 
   const handleError = () => {
     failedFavicons.add(cleanDomain);
@@ -70,21 +71,26 @@ export function BrandLogo({ domain, name, size = 20, className = "" }: BrandLogo
   }
 
   return (
-    <div className="relative" style={{ width: size, height: size }}>
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       {isLoading && (
         <div className="absolute inset-0 bg-muted rounded animate-pulse" />
       )}
-    <Image
-      src={faviconUrl}
-      alt={`${name} logo`}
-      width={size}
-      height={size}
-      className={`rounded ${className}`}
+      <Image
+        src={faviconUrl}
+        alt={`${name} logo`}
+        width={128}
+        height={128}
+        className={`rounded ${className}`}
+        style={{ 
+          objectFit: 'contain',
+          width: size,
+          height: size,
+        }}
         loading="lazy" // Lazy load favicons to avoid blocking render
         onError={handleError}
         onLoad={handleLoad}
-      unoptimized // Necessary for external images
-    />
+        unoptimized // Necessary for external images
+      />
     </div>
   );
 }

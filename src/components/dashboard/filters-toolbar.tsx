@@ -19,6 +19,7 @@ import { useProject } from "@/contexts/project-context";
 import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 import { getProjectTopics } from "@/lib/actions/topics";
 import { getProjectTopics as getBrandEvaluationTopics } from "@/lib/queries/brand-evaluations";
+import { Calendar, MapPin, Layers, Tag, FilterX } from "lucide-react";
 
 interface FiltersToolbarProps {
 	className?: string;
@@ -69,6 +70,7 @@ export function FiltersToolbar({
 	);
 	const [topics, setTopics] = useState<any[]>([]);
 	const [sentimentTopics, setSentimentTopics] = useState<string[]>([]);
+	const [availableRegionsCount, setAvailableRegionsCount] = useState<number>(0);
 
 	// Load topics for the project
 	useEffect(() => {
@@ -77,8 +79,21 @@ export function FiltersToolbar({
 			if (showSentimentThemeFilter) {
 				loadSentimentTopics();
 			}
+			loadRegionsCount();
 		}
 	}, [selectedProjectId, showSentimentThemeFilter]);
+
+	const loadRegionsCount = async () => {
+		if (!selectedProjectId) return;
+		try {
+			const { getProjectRegionsForSelect } = await import("@/lib/queries/regions");
+			const regions = await getProjectRegionsForSelect(selectedProjectId);
+			setAvailableRegionsCount(regions?.length || 0);
+		} catch (error) {
+			// If error, assume multiple regions available (use full countries list)
+			setAvailableRegionsCount(100); // Large number to indicate multiple options
+		}
+	};
 
 	const loadTopics = async () => {
 		if (!selectedProjectId) return;
@@ -193,8 +208,14 @@ export function FiltersToolbar({
 		 appliedSelectedEntities[0].type === "brand" && 
 		 appliedSelectedEntities[0].id === null);
 
+	// Region filter is only considered active if:
+	// 1. It's not GLOBAL AND
+	// 2. There are multiple regions available (more than 1)
+	const isRegionFilterActive = 
+		appliedRegion !== "GLOBAL" && availableRegionsCount > 1;
+
 	const hasActiveFilters = 
-		appliedRegion !== "GLOBAL" ||
+		isRegionFilterActive ||
 		(!hidePlatformFilter && appliedPlatform !== "all") ||
 		(!hideTopicFilter && appliedTopicId !== "all") ||
 		(showSentimentThemeFilter && appliedSentimentTheme !== "all") ||
@@ -202,23 +223,11 @@ export function FiltersToolbar({
 		!isDefaultEntityFilter;
 
 	return (
-		<div className={`rounded-lg bg-card py-3 ${className ?? ""}`}>
-			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-				<div className="flex flex-1 flex-col gap-3 md:flex-row md:items-center">
-					<div className="w-full md:w-52">
-						<CountrySelect
-							value={region}
-							onValueChange={(newRegion) => {
-								setRegion(newRegion);
-								// Auto-apply when region changes
-								onApply?.({ region: newRegion, dateRange, platform, topicId, sentimentTheme, selectedEntities });
-							}}
-							placeholder="Select country..."
-							projectId={selectedProjectId || undefined}
-						/>
-					</div>
-
-					<div className="w-full md:w-64">
+		<div className={`border-t border-b bg-muted/30 -mx-6 ${className ?? ""}`}>
+			<div className="flex flex-col gap-3 px-6 py-3 md:flex-row md:items-center md:justify-between">
+				<div className="flex flex-1 flex-wrap gap-3 md:flex-row md:items-center">
+					{/* Date Filter */}
+					<div className="w-full md:w-auto">
 						<DateRangePicker
 							value={dateRange}
 							onChange={(newRange) => {
@@ -232,8 +241,22 @@ export function FiltersToolbar({
 						/>
 					</div>
 
+					{/* Region Filter */}
+					<div className="w-full md:w-auto">
+						<CountrySelect
+							value={region}
+							onValueChange={(newRegion) => {
+								setRegion(newRegion);
+								// Auto-apply when region changes
+								onApply?.({ region: newRegion, dateRange, platform, topicId, sentimentTheme, selectedEntities });
+							}}
+							placeholder="Select country..."
+							projectId={selectedProjectId || undefined}
+						/>
+					</div>
+
 					{showEntityFilter && selectedProjectId && (
-					<div className="w-full md:w-52">
+					<div className="w-full md:w-auto">
 						<EntityFilterSelect
 							projectId={selectedProjectId}
 							value={selectedEntities}
@@ -248,7 +271,7 @@ export function FiltersToolbar({
 					)}
 
 					{!hidePlatformFilter && (
-					<div className="w-full md:w-52">
+					<div className="w-full md:w-auto">
 						<Select 
 							value={platform} 
 							onValueChange={(newPlatform) => {
@@ -257,13 +280,16 @@ export function FiltersToolbar({
 								onApply?.({ region, dateRange, platform: newPlatform, topicId, sentimentTheme, selectedEntities });
 							}}
 						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Platform" />
+							<SelectTrigger className="w-full md:w-auto md:min-w-[140px]">
+								<div className="flex items-center gap-2 flex-1 min-w-0">
+									<Layers className="h-4 w-4 text-muted-foreground shrink-0" />
+									<SelectValue placeholder="All Channels" className="flex-1" />
+								</div>
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
 									<SelectLabel>Platform</SelectLabel>
-									<SelectItem value="all">All Platforms</SelectItem>
+									<SelectItem value="all">All Channels</SelectItem>
 									<SelectItem value="openai">OpenAI</SelectItem>
 									<SelectItem value="gemini">Gemini</SelectItem>
 								</SelectGroup>
@@ -273,7 +299,7 @@ export function FiltersToolbar({
 					)}
 
 					{showSentimentThemeFilter && sentimentTopics.length > 0 && (
-					<div className="w-full md:w-52">
+					<div className="w-full md:w-auto">
 						<Select 
 							value={sentimentTheme} 
 							onValueChange={(newTheme) => {
@@ -282,8 +308,11 @@ export function FiltersToolbar({
 								onApply?.({ region, dateRange, platform, topicId, sentimentTheme: newTheme, selectedEntities });
 							}}
 						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Category" />
+							<SelectTrigger className="w-full md:w-[160px]">
+								<div className="flex items-center gap-2">
+									<Tag className="h-4 w-4 text-muted-foreground" />
+									<SelectValue placeholder="Category" />
+								</div>
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
@@ -301,7 +330,7 @@ export function FiltersToolbar({
 					)}
 
 					{!hideTopicFilter && (
-					<div className="w-full md:w-52">
+					<div className="w-full md:w-auto">
 						<Select 
 							value={topicId} 
 							onValueChange={(newTopicId) => {
@@ -310,8 +339,11 @@ export function FiltersToolbar({
 								onApply?.({ region, dateRange, platform, topicId: newTopicId, sentimentTheme, selectedEntities });
 							}}
 						>
-							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Topic" />
+							<SelectTrigger className="w-full md:w-auto md:min-w-[140px]">
+								<div className="flex items-center gap-2 flex-1 min-w-0">
+									<Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+									<SelectValue placeholder="Topic" className="flex-1" />
+								</div>
 							</SelectTrigger>
 							<SelectContent>
 								<SelectGroup>
@@ -340,7 +372,10 @@ export function FiltersToolbar({
 				{hasActiveFilters && (
 					<div className="flex items-center gap-2">
 						<Separator className="hidden h-6 md:block" orientation="vertical" />
-						<Button variant="secondary" onClick={resetFilters}>Reset</Button>
+						<Button variant="ghost" size="sm" onClick={resetFilters} className="gap-2">
+							<FilterX className="h-4 w-4" />
+							Reset
+						</Button>
 					</div>
 				)}
 			</div>

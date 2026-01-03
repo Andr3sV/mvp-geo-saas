@@ -9,7 +9,7 @@ import { Bot, Users2, MessageSquare, Tag, Globe } from "lucide-react";
 
 // Import existing components
 import { ResponsesTable } from "@/components/responses/responses-table";
-import { CompetitorsList } from "@/components/competitors/competitors-list";
+import { CompetitorsManager } from "@/components/competitors/competitors-manager";
 import { PromptsManager } from "@/components/prompts/prompts-manager";
 import { TopicsManager } from "@/components/topics/topics-manager";
 import { RegionsManager } from "@/components/regions/regions-manager";
@@ -65,7 +65,7 @@ function ConfigurationContent() {
         </TabsContent>
 
         <TabsContent value="competitors" className="space-y-4">
-          <CompetitorsList projectId={selectedProjectId} />
+          <CompetitorsManager />
         </TabsContent>
 
         <TabsContent value="prompts" className="space-y-4">

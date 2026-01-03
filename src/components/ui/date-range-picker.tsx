@@ -155,6 +155,33 @@ export function DateRangePicker({
   const displayRange = value;
   const activeQuickFilter = getActiveQuickFilter();
 
+  // Get display text for the button
+  const getDisplayText = () => {
+    if (activeQuickFilter === "currentWeek") return "Current Week";
+    if (activeQuickFilter === "pastWeek") return "Past Week";
+    if (activeQuickFilter === "currentMonth") return "Current Month";
+    if (activeQuickFilter === "pastMonth") return "Past Month";
+    
+    if (displayRange?.from && displayRange?.to) {
+      // Calculate days difference
+      const daysDiff = Math.ceil((displayRange.to.getTime() - displayRange.from.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Show "Last X Days" format for common ranges
+      if (daysDiff === 7) return "Last 7 Days";
+      if (daysDiff === 30) return "Last 30 Days";
+      if (daysDiff === 90) return "Last 90 Days";
+      
+      // Otherwise show compact date range
+      return `${format(displayRange.from, "MMM dd")} - ${format(displayRange.to, "MMM dd")}`;
+    }
+    
+    if (displayRange?.from) {
+      return format(displayRange.from, "MMM dd, y");
+    }
+    
+    return "Pick a date range";
+  };
+
   return (
     <div className={cn("grid gap-2", className)}>
       <Popover open={open} onOpenChange={handleOpenChange}>
@@ -163,23 +190,12 @@ export function DateRangePicker({
             id="date"
             variant="outline"
             className={cn(
-              "w-full justify-start text-left font-normal",
+              "w-full justify-start text-left font-normal gap-2",
               !displayRange && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {displayRange?.from ? (
-              displayRange.to ? (
-                <>
-                  {format(displayRange.from, "LLL dd, y")} -{" "}
-                  {format(displayRange.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(displayRange.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date range</span>
-            )}
+            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+            <span>{getDisplayText()}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

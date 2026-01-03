@@ -23,6 +23,7 @@ import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 // import { MomentumMatrix } from "@/components/share-of-voice/momentum-matrix";
 // import { CompetitiveGapTracker } from "@/components/share-of-voice/competitive-gap-tracker";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { type SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
 
 
 export default function ShareOfVoicePage() {
@@ -129,13 +130,21 @@ export default function ShareOfVoicePage() {
       // PHASE 2: Load Important Data (Charts)
       // =============================================
       // Load after critical data is ready, but don't block UI
+      const filtersPayload: SentimentFilterOptions = {
+        dateRange: { from: dateRange.from!, to: dateRange.to! },
+        platform: platform !== "all" ? platform : undefined,
+        region: region !== "GLOBAL" ? region : undefined,
+        topicId: topicId !== "all" ? topicId : undefined,
+      };
+      
+      // Load charts data
       getShareEvolution(selectedProjectId, dateRange.from, dateRange.to, platform, region, topicId)
         .then((shareEvo) => {
           setShareEvolutionData(shareEvo);
-          setIsLoadingCharts(false); // Charts are ready
+          setIsLoadingCharts(false);
         })
         .catch((error) => {
-          console.error("Error loading chart data:", error);
+          console.error("Error loading charts:", error);
           setIsLoadingCharts(false);
         });
 
@@ -192,54 +201,78 @@ export default function ShareOfVoicePage() {
   }, [selectedProjectId, selectedCompetitorId, dateRange.from, dateRange.to, platform, region, topicId]);
 
   // Memoize competitors array to prevent unnecessary re-renders
-  const memoizedCompetitors = useMemo(() => regionFilteredCompetitors, [regionFilteredCompetitors]);
+  const memoizedCompetitors = useMemo(() => {
+    if (!sovData || regionFilteredCompetitors.length === 0) {
+      return regionFilteredCompetitors;
+    }
+    
+    // Crear un mapa de mentions por competitor ID
+    const mentionsMap = new Map(
+      sovData.competitors.map((comp: any) => [comp.id, comp.mentions || 0])
+    );
+    
+    // Combinar regionFilteredCompetitors con mentions y ordenar
+    const competitorsWithMentions = regionFilteredCompetitors
+      .map(competitor => ({
+        ...competitor,
+        mentions: mentionsMap.get(competitor.id) || 0,
+      }))
+      .sort((a, b) => b.mentions - a.mentions); // Ordenar de mayor a menor
+    
+    return competitorsWithMentions;
+  }, [regionFilteredCompetitors, sovData]);
 
   // Memoize filtered entities calculation to avoid recalculating on every render
   const filteredEntities = useMemo(() => {
     if (!sovData) return { allEntities: [], filteredCompetitors: [] };
     
-    const regionCompetitorIds = new Set(regionFilteredCompetitors.map(c => c.id));
-    const filteredCompetitors = sovData.competitors.filter((comp: any) =>
-      regionCompetitorIds.has(comp.id)
-    );
+    // Use ALL competitors from sovData.competitors (backend already includes all active competitors, even with 0 mentions)
+    // The region filter is already applied to the mentions in the backend, so we don't need to filter competitors here
+    const allCompetitors = (sovData.competitors && Array.isArray(sovData.competitors)) 
+      ? sovData.competitors 
+      : [];
 
-    const filteredCompetitorMentions = filteredCompetitors.reduce(
-      (sum: number, comp: any) => sum + comp.mentions,
+    // Calculate total mentions (already filtered by region in backend)
+    const competitorMentionsTotal = allCompetitors.reduce(
+      (sum: number, comp: any) => sum + (comp.mentions || 0),
       0
     );
-    const filteredTotalMentions = sovData.brand.mentions + filteredCompetitorMentions;
+    const brandMentions = sovData.brand?.mentions || 0;
+    const totalMentions = brandMentions + competitorMentionsTotal;
 
+    // Build all entities array - always include brand first, then all competitors
     const allEntities = [
       {
         id: "brand",
-        name: sovData.brand.name,
-        domain: sovData.brand.domain,
-        color: sovData.brand.color,
-        mentions: sovData.brand.mentions,
-        percentage: filteredTotalMentions > 0
-          ? Number(((sovData.brand.mentions / filteredTotalMentions) * 100).toFixed(1))
+        name: sovData.brand?.name || "Your Brand",
+        domain: sovData.brand?.domain || "",
+        color: sovData.brand?.color,
+        mentions: brandMentions,
+        percentage: totalMentions > 0
+          ? Number(((brandMentions / totalMentions) * 100))
           : 0,
         isBrand: true,
         trend: trendsData?.brandTrend || 0,
       },
-      ...filteredCompetitors.map((comp: any) => ({
+      ...allCompetitors.map((comp: any) => ({
         id: comp.id,
         name: comp.name,
-        domain: comp.domain,
+        domain: comp.domain || comp.name,
         color: comp.color,
-        mentions: comp.mentions,
-        percentage: filteredTotalMentions > 0
-          ? Number(((comp.mentions / filteredTotalMentions) * 100).toFixed(1))
+        mentions: comp.mentions || 0,
+        percentage: totalMentions > 0
+          ? Number(((comp.mentions || 0) / totalMentions) * 100)
           : 0,
         isBrand: false,
         trend: trendsData?.competitorTrends?.find((t: any) => t.name === comp.name)?.trend || 0,
       })),
     ];
 
+    // Sort by percentage descending
     allEntities.sort((a, b) => b.percentage - a.percentage);
     
-    return { allEntities, filteredCompetitors };
-  }, [sovData, regionFilteredCompetitors, trendsData]);
+    return { allEntities, filteredCompetitors: allCompetitors };
+  }, [sovData, trendsData]);
 
   // useEffect hooks that use the functions defined above
   useEffect(() => {
@@ -304,11 +337,6 @@ export default function ShareOfVoicePage() {
         onApply={handleFiltersChange} 
       />
 
-      {/* Definition Tip */}
-      <WelcomeTip id="what-are-mentions">
-        <strong>💬 What is a Mention?</strong> — When an AI model names your brand, person, or concept in its response, but doesn&apos;t specify where that information comes from.
-      </WelcomeTip>
-
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         {isLoading || !sovData ? (
@@ -363,6 +391,11 @@ export default function ShareOfVoicePage() {
           </>
         )}
       </div>
+
+      {/* Definition Tip */}
+      <WelcomeTip id="what-are-mentions">
+        <strong>💬 What is a Mention?</strong> — When an AI model names your brand, person, or concept in its response, but doesn&apos;t specify where that information comes from.
+      </WelcomeTip>
 
       {/* Mentions Evolution Chart */}
       <MentionsEvolutionChart

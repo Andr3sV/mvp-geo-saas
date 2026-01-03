@@ -86,11 +86,59 @@ export async function getSentimentMetrics(
   const supabase = createClient();
 
   try {
-    // Query brand_sentiment_attributes instead of sentiment_analysis
-    const { data: sentimentData, error } = await supabase
-      .from('brand_sentiment_attributes')
-      .select('brand_type, sentiment, sentiment_rating, sentiment_ratio')
-      .eq('project_id', projectId);
+    // Determine if we need joins for date/platform/region filters
+    const needsJoins = (filters.dateRange?.from || filters.dateRange?.to) || 
+                       (filters.platform && filters.platform !== 'all') || 
+                       (filters.region && filters.region !== 'all');
+
+    // Build query - use joins only if needed
+    let query;
+    if (needsJoins) {
+      query = supabase
+        .from('brand_sentiment_attributes')
+        .select('brand_type, sentiment, sentiment_rating, sentiment_ratio, competitor_id, ai_response_id, ai_responses!inner(created_at, platform, prompt_tracking!inner(region))')
+        .eq('project_id', projectId);
+    } else {
+      query = supabase
+        .from('brand_sentiment_attributes')
+        .select('brand_type, sentiment, sentiment_rating, sentiment_ratio, competitor_id, ai_response_id')
+        .eq('project_id', projectId);
+    }
+
+    // Apply analysis type filter
+    if (filters.analysisType && filters.analysisType !== 'all') {
+      const brandType = filters.analysisType === 'brand' ? 'client' : 'competitor';
+      query = query.eq('brand_type', brandType);
+    }
+
+    // Apply competitor filter (critical for getting individual competitor sentiment)
+    if (filters.competitorId) {
+      query = query.eq('competitor_id', filters.competitorId);
+    }
+
+    // Apply topic filter (if exists in table)
+    if (filters.topicId) {
+      query = query.eq('topic_id', filters.topicId);
+    }
+
+    // Apply date range filter (only if using joins)
+    if (needsJoins && filters.dateRange?.from && filters.dateRange?.to) {
+      query = query
+        .gte('ai_responses.created_at', filters.dateRange.from.toISOString())
+        .lte('ai_responses.created_at', filters.dateRange.to.toISOString());
+    }
+
+    // Apply platform filter (only if using joins)
+    if (needsJoins && filters.platform && filters.platform !== 'all') {
+      query = query.eq('ai_responses.platform', filters.platform);
+    }
+
+    // Apply region filter (only if using joins)
+    if (needsJoins && filters.region && filters.region !== 'all') {
+      query = query.eq('ai_responses.prompt_tracking.region', filters.region);
+    }
+
+    const { data: sentimentData, error } = await query;
 
     if (error) {
       console.log('Brand sentiment attributes table error:', error.message);

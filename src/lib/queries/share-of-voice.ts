@@ -263,7 +263,6 @@ export async function getShareOfVoice(
   const brandPercentage = totalMentions > 0 ? (brandMentions / totalMentions) * 100 : 0;
 
   const competitors = Array.from(competitorMentionsMap.values())
-    .filter((comp) => comp.mentions > 0) // Only show competitors with mentions
     .map((comp) => ({
     id: comp.id,
     name: comp.name,

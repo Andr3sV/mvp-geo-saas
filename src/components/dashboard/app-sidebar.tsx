@@ -61,6 +61,11 @@ const visibilityItems = [
     icon: BarChart3,
   },
   {
+    title: "Battlefield",
+    href: "/dashboard/battlefield",
+    icon: Target,
+  },
+  {
     title: "Platform Breakdown",
     href: "/dashboard/platforms",
     icon: Layers,
@@ -130,7 +135,7 @@ export function AppSidebar({ user, workspaces }: AppSidebarProps) {
       collapsible="icon" 
       className="top-14 border-r border-gray-100"
     >
-      <SidebarContent className="bg-white px-2 py-3">
+      <SidebarContent className="bg-white px-2 py-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 3.5rem - 10rem)' }}>
         {/* Dashboard Section */}
         <SidebarGroup className="py-1">
           <SidebarGroupLabel className="text-[10px] font-medium text-[#9CA3AF] uppercase tracking-widest mb-1 px-2">
@@ -272,6 +277,9 @@ export function AppSidebar({ user, workspaces }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        
+        {/* Spacer to prevent footer from being too close */}
+        <div className="h-4" />
       </SidebarContent>
 
       {/* Footer Section */}

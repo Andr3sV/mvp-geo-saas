@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { TrendingUp, TrendingDown, Crown, BarChart3, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, Crown, BarChart3, Info, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Memoize BrandLogo to avoid unnecessary re-renders
 const MemoizedBrandLogo = React.memo(BrandLogo);
@@ -41,6 +42,23 @@ const COLORS = [
 ];
 
 export const MarketShareDistribution = React.memo(function MarketShareDistribution({ entities, isLoading, metricLabel = "mentions", infoTooltip }: MarketShareDistributionProps) {
+  const [visibleCount, setVisibleCount] = useState(10);
+  const INITIAL_COUNT = 10;
+  const INCREMENT_COUNT = 10;
+
+  // Reset visible count when entities change
+  useEffect(() => {
+    setVisibleCount(INITIAL_COUNT);
+  }, [entities.length]);
+
+  const visibleEntities = entities.slice(0, visibleCount);
+  const hasMore = entities.length > visibleCount;
+  const remainingCount = entities.length - visibleCount;
+
+  const handleViewMore = () => {
+    setVisibleCount(prev => Math.min(prev + INCREMENT_COUNT, entities.length));
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -127,7 +145,7 @@ export const MarketShareDistribution = React.memo(function MarketShareDistributi
       </CardHeader>
 
       <CardContent className="space-y-1">
-        {entities.map((entity, index) => {
+        {visibleEntities.map((entity, index) => {
           const barWidth = maxPercentage > 0 ? (entity.percentage / maxPercentage) * 100 : 0;
           const isLeader = index === 0;
           // Use entity color if available, otherwise fallback to default colors
@@ -232,6 +250,19 @@ export const MarketShareDistribution = React.memo(function MarketShareDistributi
             </div>
           );
         })}
+
+        {hasMore && (
+          <div className="pt-4 pb-2">
+            <Button
+              variant="ghost"
+              onClick={handleViewMore}
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+            >
+              View More ({Math.min(remainingCount, INCREMENT_COUNT)} more)
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

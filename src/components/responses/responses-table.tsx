@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { MessageSquare, Sparkles, Bot, Loader2, ChevronLeft, ChevronRight, Search } from "lucide-react";
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useProject } from "@/contexts/project-context";
 import { getAIResponses, type AIResponseListItem, type GetAIResponsesFilters } from "@/lib/queries/ai-responses";
 import { DateRangeValue } from "@/components/ui/date-range-picker";
+import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 
 // Platform configuration
 const PLATFORM_CONFIG: Record<string, { name: string; color: string; bgColor: string; icon: typeof MessageSquare }> = {
@@ -56,20 +57,25 @@ const REGION_FLAGS: Record<string, string> = {
 };
 
 interface ResponsesTableProps {
-  dateRange: DateRangeValue;
-  platform: string;
-  region: string;
-  topicId: string;
+  dateRange?: DateRangeValue;
+  platform?: string;
+  region?: string;
+  topicId?: string;
 }
 
 export function ResponsesTable({
-  dateRange,
-  platform,
-  region,
-  topicId,
+  dateRange: dateRangeProp,
+  platform = "all",
+  region = "GLOBAL",
+  topicId = "all",
 }: ResponsesTableProps) {
   const router = useRouter();
   const { selectedProjectId } = useProject();
+
+  // Use provided dateRange or default to current week (memoized to prevent infinite loops)
+  const dateRange = useMemo(() => {
+    return dateRangeProp || getCurrentWeekDateRange();
+  }, [dateRangeProp]);
 
   // State
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +87,7 @@ export function ResponsesTable({
 
   // Load data
   const loadData = useCallback(async () => {
-    if (!selectedProjectId || !dateRange.from || !dateRange.to) return;
+    if (!selectedProjectId || !dateRange || !dateRange.from || !dateRange.to) return;
 
     setIsLoading(true);
     try {
@@ -101,16 +107,31 @@ export function ResponsesTable({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedProjectId, dateRange, platform, region, topicId, page, pageSize]);
+  }, [
+    selectedProjectId, 
+    dateRange?.from?.getTime(), 
+    dateRange?.to?.getTime(), 
+    platform, 
+    region, 
+    topicId, 
+    page, 
+    pageSize
+  ]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Reset page when filters change
+  // Reset page when filters change (but not when page changes)
   useEffect(() => {
     setPage(1);
-  }, [dateRange, platform, region, topicId]);
+  }, [
+    dateRange?.from?.getTime(), 
+    dateRange?.to?.getTime(), 
+    platform, 
+    region, 
+    topicId
+  ]);
 
   // Handle row click
   const handleRowClick = (responseId: string) => {

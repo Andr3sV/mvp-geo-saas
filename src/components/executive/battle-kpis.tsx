@@ -82,19 +82,19 @@ export function BattleKPIs({ battlefieldData, momentumData, visibilityScore, isL
       {kpis.map((kpi, index) => (
         <Card 
           key={index} 
-          className="border bg-card transition-all duration-300 group overflow-hidden"
+          className="border bg-card transition-all duration-300 group overflow-hidden relative"
         >
-          <CardContent className="p-6 relative">
-            {/* Decorative accent */}
-            <div 
-              className="absolute top-0 left-0 w-1 h-full"
-              style={{ backgroundColor: kpi.color }}
-            />
+          {/* Decorative accent - full height */}
+          <div 
+            className="absolute top-0 left-0 w-1 h-full"
+            style={{ backgroundColor: kpi.color }}
+          />
+          <CardContent className="pt-6 pb-6 pr-6 pl-5 relative">
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="text-base font-medium text-muted-foreground">
                   {kpi.title}
                 </span>
                 <Tooltip>

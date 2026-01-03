@@ -10,8 +10,8 @@ import { getCurrentWeekDateRange } from "@/lib/utils/date-helpers";
 // Executive Dashboard Components
 import { CompetitiveHero } from "@/components/executive/competitive-hero";
 import { BattleKPIs } from "@/components/executive/battle-kpis";
-import { CompetitiveBattlefield } from "@/components/executive/competitive-battlefield";
 import { WeeklyBattleReport } from "@/components/executive/weekly-battle-report";
+import { CompetitiveBattlefield } from "@/components/executive/competitive-battlefield";
 import { WelcomeTip } from "@/components/dashboard/welcome-tip";
 
 // Types and queries
@@ -25,7 +25,9 @@ import {
   getVisibilityScore,
   getExecutiveBaseData,
 } from "@/lib/queries/executive-overview";
-import { type SentimentFilterOptions } from "@/lib/queries/sentiment-analysis";
+import { type SentimentFilterOptions, getSentimentMetrics } from "@/lib/queries/sentiment-analysis";
+import { getEntitySentimentsFromEvaluations } from "@/lib/queries/brand-evaluations";
+import { getProjectDetails } from "@/lib/actions/project";
 
 export default function ExecutiveOverviewPage() {
   const { selectedProjectId } = useProject();
@@ -44,6 +46,12 @@ export default function ExecutiveOverviewPage() {
   const [momentumData, setMomentumData] = useState<MomentumScoreData | null>(null);
   const [visibilityScore, setVisibilityScore] = useState<number>(0);
   const [brandName, setBrandName] = useState<string>("Your Brand");
+  const [sentimentData, setSentimentData] = useState<{
+    sentimentLabel: 'positive' | 'neutral' | 'negative';
+    totalMentions: number;
+  } | null>(null);
+  const [competitorSentiments, setCompetitorSentiments] = useState<Record<string, 'positive' | 'neutral' | 'negative'>>({});
+  const [category, setCategory] = useState<string | undefined>(undefined);
 
   // Create filters object
   const filtersPayload: SentimentFilterOptions = {
@@ -66,10 +74,16 @@ export default function ExecutiveOverviewPage() {
       const baseData = await getExecutiveBaseData(selectedProjectId, filtersPayload);
 
       // Load critical data in parallel using base data
-      const [battlefield, momentum, visibility] = await Promise.all([
+      const [battlefield, momentum, visibility, entitySentiments, projectDetails] = await Promise.all([
         getCompetitiveBattlefield(selectedProjectId, filtersPayload, baseData),
         getMomentumScore(selectedProjectId, filtersPayload, baseData),
         getVisibilityScore(selectedProjectId, filtersPayload, baseData),
+        getEntitySentimentsFromEvaluations(
+          selectedProjectId,
+          filtersPayload.dateRange?.from,
+          filtersPayload.dateRange?.to
+        ),
+        getProjectDetails(selectedProjectId),
       ]);
 
       setBattlefieldData(battlefield);
@@ -81,6 +95,46 @@ export default function ExecutiveOverviewPage() {
       if (battlefield?.brand) {
         setBrandName(battlefield.brand.name);
       }
+
+      // Process sentiment data for brand (using same source and calculation as Sentiment Pulse)
+      const brandEntity = entitySentiments.find(e => e.analysisType === 'brand');
+      if (brandEntity) {
+        // Use the sentimentLabel that comes directly from getEntitySentimentsFromEvaluations
+        // This uses the same calculation as Sentiment Pulse (based on averageSentiment)
+        setSentimentData({
+          sentimentLabel: brandEntity.sentimentLabel,
+          totalMentions: brandEntity.totalMentions || battlefield?.brand.mentions || 0,
+        });
+      }
+
+      // Process sentiment data for competitors (using same source and calculation as Sentiment Pulse)
+      if (battlefield?.competitors && battlefield.competitors.length > 0) {
+        const sentimentMap: Record<string, 'positive' | 'neutral' | 'negative'> = {};
+        
+        battlefield.competitors.forEach((competitor) => {
+          // Find competitor in entitySentiments by matching competitor ID or name
+          const competitorEntity = entitySentiments.find(e => 
+            e.analysisType === 'competitor' && 
+            (e.entityName.toLowerCase() === competitor.name.toLowerCase() || 
+             e.entityDomain === competitor.domain)
+          );
+
+          if (competitorEntity) {
+            // Use the sentimentLabel that comes directly from getEntitySentimentsFromEvaluations
+            // This uses the same calculation as Sentiment Pulse (based on averageSentiment)
+            sentimentMap[competitor.id] = competitorEntity.sentimentLabel;
+          } else {
+            sentimentMap[competitor.id] = 'neutral';
+          }
+        });
+        
+        setCompetitorSentiments(sentimentMap);
+      }
+
+      // Set category from project details (if available)
+      // Note: Category might not be in projects table, so we'll leave it undefined for now
+      // This can be extended if a category field is added to projects
+      setCategory(undefined);
 
       // PHASE 2: Charts are already ready (they use battlefieldData)
       // No additional loading needed
@@ -132,21 +186,46 @@ export default function ExecutiveOverviewPage() {
   // No early return - use skeleton loaders instead
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <PageHeader
-        title="Executive Overview"
-        description="Strategic competitive intelligence for leadership decision-making"
-      />
+    <div className="space-y-0">
+      {/* Page Header with Breadcrumbs */}
+      <div className="mb-0">
+        <PageHeader
+          title="Executive Overview"
+          showBreadcrumbs={true}
+          breadcrumbPath={[
+            { label: "Dashboard", href: "/dashboard" },
+            { label: "Executive Overview" }
+          ]}
+        />
+      </div>
 
-      {/* Filters Toolbar */}
+      {/* Filters Toolbar - Aligned with Dashboard */}
       <FiltersToolbar
         dateRange={dateRange}
         platform={platform}
         region={region}
         topicId={topicId}
         onApply={handleFiltersChange}
+        className="mt-0"
       />
+
+      {/* Battle KPIs - 4 Key Metrics */}
+      <div className="mt-6">
+        <BattleKPIs
+          battlefieldData={battlefieldData}
+          momentumData={momentumData}
+          visibilityScore={visibilityScore}
+          isLoading={!battlefieldData || !momentumData}
+        />
+      </div>
+
+      {/* Market Leaders Section */}
+      <div className="space-y-2 pt-6 pb-6">
+        <h2 className="text-2xl font-bold tracking-tight">Market Leaders</h2>
+        <p className="text-muted-foreground">
+          Performance metrics against category benchmarks.
+        </p>
+      </div>
 
       {/* Welcome Tip */}
       <WelcomeTip id="executive-overview">
@@ -162,18 +241,16 @@ export default function ExecutiveOverviewPage() {
       </WelcomeTip>
 
       {/* Hero Section - Main Competitive Position */}
-      <CompetitiveHero data={battlefieldData} isLoading={!battlefieldData} />
+      <CompetitiveHero 
+        data={battlefieldData} 
+        isLoading={!battlefieldData}
+        sentimentData={sentimentData || undefined}
+        competitorSentiments={competitorSentiments}
+        category={category}
+      />
 
-      {/* Battle KPIs - 4 Key Metrics */}
-        <BattleKPIs
-          battlefieldData={battlefieldData}
-          momentumData={momentumData}
-          visibilityScore={visibilityScore}
-        isLoading={!battlefieldData || !momentumData}
-        />
-
-      {/* Competitive Battlefield - Race Chart */}
-      <CompetitiveBattlefield data={battlefieldData} isLoading={!battlefieldData} />
+      {/* Competitive Battlefield */}
+      <CompetitiveBattlefield data={battlefieldData} isLoading={!battlefieldData || isLoadingReport} />
 
       {/* Battle Report */}
         <WeeklyBattleReport
